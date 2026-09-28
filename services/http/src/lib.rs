@@ -16,9 +16,11 @@ pub use picoserve::{io, request, response, routing, ResponseSent};
 pub use picoserve::Router as HttpRouter;
 
 pub mod auth;
+pub mod client;
 pub mod json;
 pub mod range;
 pub mod stream;
+pub mod websocket;
 
 /// Platform capability: accept a connection over the caller-selected transport.
 /// TLS enforcement belongs to `iobewi-https`.
