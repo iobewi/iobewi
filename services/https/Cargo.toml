@@ -12,7 +12,7 @@ default = []
 esp32s3 = ["esp-hal/esp32s3", "iobewi-esp-tls/esp32s3", "iobewi-esp-http/esp32s3"]
 
 [dependencies]
-iobewi-https = { git = "https://github.com/iobewi/iobewi", rev = "14fd0ac0f89e38f45ea700e10e7b0d0f518cc5f0" }
+iobewi-https = { git = "https://github.com/iobewi/iobewi", rev = "4e56b51db3f9afca1c54e476b94048435e2f2d91" }
 iobewi-esp-http = { path = "../http", default-features = false }
 iobewi-esp-tls = { path = "../tls", default-features = false, features = ["picoserve"] }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
