@@ -7,6 +7,12 @@ use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{Config, EmbassyRuntime, Router};
 
+/// Shared HTTP routing and response types for framework services. A service
+/// contributes handlers to the caller's router; the application selects the
+/// complete route set and the transport listener.
+pub use picoserve::{io, request, response, routing, ResponseSent};
+pub use picoserve::Router as HttpRouter;
+
 /// Platform capability: accept a connection over the caller-selected transport.
 /// TLS enforcement belongs to `iobewi-https`.
 #[allow(async_fn_in_trait)]

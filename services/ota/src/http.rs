@@ -1,18 +1,17 @@
 //! Streaming `PUT /v1alpha1/ota/write`: a route that can't use
 //! picoserve's usual `String`/`Form` body extractors -- those buffer the
 //! *entire* body before a handler ever runs, and an OTA image (hundreds of
-//! KB) doesn't fit this device's heap. Implements `RequestHandlerService`
-//! directly instead, streaming the body straight into flash one `read()`
-//! at a time.
+//! KB) doesn't fit this device's heap. Exposes a streaming handler for the
+//! shared `iobewi-http` router, writing one `read()` at a time.
 
 use alloc::format;
 use alloc::string::String;
 
-use picoserve::io::Read;
-use picoserve::request::Request;
-use picoserve::response::{ContentBody, ContentHeaders, IntoResponse, Response, ResponseWriter, StatusCode};
-use picoserve::routing::RequestHandlerService;
-use picoserve::ResponseSent;
+use iobewi_http::io::Read;
+use iobewi_http::request::Request;
+use iobewi_http::response::{ContentBody, ContentHeaders, IntoResponse, Response, ResponseWriter, StatusCode};
+use iobewi_http::routing::RequestHandlerService;
+use iobewi_http::ResponseSent;
 use serde::{Deserialize, Serialize};
 
 use crate::metadata::{PrepareRefusal, SessionParams};
