@@ -1,6 +1,5 @@
 //! ESP crypto and Embassy socket adapter for the portable IOBEWI TLS service.
 
-use alloc::string::String;
 use embassy_net::{Stack, tcp::TcpSocket};
 use iobewi_config_space::ConfigSpace;
 use iobewi_esp_config_space::NvsConfigBackend;

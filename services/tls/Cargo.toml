@@ -31,6 +31,7 @@ picoserve = ["embassy-net", "dep:embassy-sync", "dep:picoserve"]
 service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-esp-config-space", "embassy-net"]
 
 [dependencies]
+log = "0.4"
 iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "0d0ab474a60d98276b6b1be6097c81b31e533923", optional = true }
 iobewi-tls = { git = "https://github.com/iobewi/iobewi", rev = "0d0ab474a60d98276b6b1be6097c81b31e533923", optional = true }
 iobewi-esp-config-space = { path = "../../adapters/config-space", optional = true }
