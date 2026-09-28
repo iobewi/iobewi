@@ -34,7 +34,8 @@ struct Logger {
 
 impl log::Log for Logger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        if metadata.target().starts_with(self.application_target) {
+        if metadata.target().starts_with(self.application_target)
+            || metadata.target().starts_with("iobewi_log_stream") {
             metadata.level() <= Level::Info
         } else {
             metadata.level() <= Level::Warn
@@ -84,7 +85,7 @@ pub trait LogConfig {
     async fn node_id(&self) -> String;
     fn timestamp(&self) -> u64;
     fn workload(&self) -> &'static str;
-    fn path(&self) -> &'static str;
+    fn path(&self) -> String;
 }
 
 /// Platform-owned network, trusted TLS session and cryptographic randomness.
@@ -209,7 +210,8 @@ pub async fn run<C: LogConfig, T: Transport>(config: &C, transport: &T) -> ! {
             Timer::after(BASE_BACKOFF).await;
             continue;
         };
-        let stable = match connect_and_upgrade(transport, &mut rx, &mut tx, &host_c, port, config.path(), &token).await {
+        let path = config.path();
+        let stable = match connect_and_upgrade(transport, &mut rx, &mut tx, &host_c, port, &path, &token).await {
             Ok(mut session) => {
                 let connected_at = Instant::now();
                 let error = pump_session(&mut session, config, transport, &token).await;
