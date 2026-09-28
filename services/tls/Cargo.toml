@@ -7,6 +7,13 @@ license.workspace = true
 repository.workspace = true
 description = "Portable TLS identity and trust configuration service"
 
+[features]
+default = []
+http = ["dep:iobewi-http", "dep:serde", "dep:serde_json"]
+
 [dependencies]
 iobewi-config-space = { path = "../config-space" }
 log = { version = "0.4", default-features = false }
+iobewi-http = { path = "../http", optional = true }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
+serde_json = { version = "1", default-features = false, features = ["alloc"], optional = true }

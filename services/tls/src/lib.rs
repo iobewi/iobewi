@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "http")]
+pub mod http;
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
