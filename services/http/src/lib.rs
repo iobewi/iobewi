@@ -18,6 +18,7 @@ pub use picoserve::Router as HttpRouter;
 pub mod auth;
 pub mod json;
 pub mod range;
+pub mod stream;
 
 /// Platform capability: accept a connection over the caller-selected transport.
 /// TLS enforcement belongs to `iobewi-https`.

@@ -14,6 +14,7 @@ use iobewi_http::json::{json_error, json_ok, JsonResponse};
 use iobewi_http::range::parse_content_range;
 use iobewi_http::response::{IntoResponse, ResponseWriter, StatusCode};
 use iobewi_http::routing::RequestHandlerService;
+use iobewi_http::stream::{ChunkSink, StreamError, stream_exact};
 use iobewi_http::ResponseSent;
 use serde::{Deserialize, Serialize};
 
@@ -126,6 +127,14 @@ fn ota_range(value: &str) -> Option<(u32, u32, u32, u64)> {
 
 pub struct OtaWrite<B> {
     pub backend: B,
+}
+
+impl<B: WriteBackend> ChunkSink for OtaWrite<B> {
+    type Error = ();
+
+    async fn write_chunk(&self, chunk: &[u8]) -> Result<(), Self::Error> {
+        self.backend.chunk(chunk).await.then_some(()).ok_or(())
+    }
 }
 
 impl<B: WriteBackend> RequestHandlerService for OtaWrite<B> {
@@ -251,29 +260,19 @@ impl<B: WriteBackend> RequestHandlerService for OtaWrite<B> {
         }
 
         let mut buf = [0u8; 1024];
-        let mut remaining = content_length;
-        let mut chunk_error = false;
-        {
+        let outcome = {
             let mut reader = request.body_connection.body().reader();
-            while remaining > 0 {
-                let to_read = remaining.min(buf.len());
-                let n = reader.read(&mut buf[..to_read]).await?;
-                if n == 0 {
-                    chunk_error = true;
-                    break;
-                }
-                if !self.backend.chunk(&buf[..n]).await {
-                    chunk_error = true;
-                    break;
-                }
-                remaining -= n;
-            }
-        }
+            stream_exact(&mut reader, content_length, &mut buf, self).await
+        };
 
-        if chunk_error {
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "{\"status\":\"write_failed\"}")
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
+        match outcome {
+            Ok(()) => {}
+            Err(StreamError::Read(error)) => return Err(error),
+            Err(StreamError::UnexpectedEof | StreamError::Write(()) | StreamError::EmptyBuffer) => {
+                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "{\"status\":\"write_failed\"}")
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
         }
 
         if !is_complete(has_range, u64::from(end), u64::from(total)) {
