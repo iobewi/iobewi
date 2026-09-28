@@ -1,4 +1,4 @@
-//! Streaming `PUT /v1alpha1/ota/write`: a route that can't use
+//! Streaming `PUT /ota/write`: a route that can't use
 //! picoserve's usual `String`/`Form` body extractors -- those buffer the
 //! *entire* body before a handler ever runs, and an OTA image (hundreds of
 //! KB) doesn't fit this device's heap. Exposes a streaming handler for the
@@ -9,13 +9,13 @@ use alloc::string::String;
 
 use iobewi_http::io::Read;
 use iobewi_http::request::Request;
-use iobewi_http::auth::bearer_token;
+use iobewi_http::auth::{bearer_token, Bearer};
 use iobewi_http::json::{json_error, json_ok, JsonResponse};
 use iobewi_http::range::parse_content_range;
 use iobewi_http::response::{IntoResponse, ResponseWriter, StatusCode};
-use iobewi_http::routing::RequestHandlerService;
+use iobewi_http::routing::{post, put_service, PathRouter, RequestHandlerService};
 use iobewi_http::stream::{ChunkSink, StreamError, stream_exact};
-use iobewi_http::ResponseSent;
+use iobewi_http::{HttpRouter, ResponseSent};
 use serde::{Deserialize, Serialize};
 
 use crate::metadata::{PrepareRefusal, SessionParams};
@@ -107,6 +107,49 @@ pub async fn activate_response<B: ControlBackend>(backend: &B, body: &str) -> (J
         Err(ActivateFailure::Storage) =>
             (json_error(StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"nvs_write_failed\"}"), false),
     }
+}
+
+/// Platform action requested only after an OTA activation succeeded. The
+/// implementation must defer reset until the HTTP response can be sent.
+#[allow(async_fn_in_trait)]
+pub trait RebootPort {
+    async fn schedule_reboot(&self);
+}
+
+/// The complete OTA router, relative to the caller's API namespace.
+/// Authorization, flash/NVS access and reboot remain injectable capabilities.
+pub fn routes<B, R>(backend: B, reboot: R) -> HttpRouter<impl PathRouter>
+where
+    B: ControlBackend + WriteBackend + Clone,
+    R: RebootPort + Clone,
+{
+    let prepare_backend = backend.clone();
+    let write_backend = backend.clone();
+    HttpRouter::new()
+        .route("/prepare", post(move |Bearer(token): Bearer, body: String| {
+            let backend = prepare_backend.clone();
+            async move {
+                if !backend.authorize(token.as_deref().unwrap_or("")).await {
+                    return unauthorized();
+                }
+                prepare_response(&backend, &body).await
+            }
+        }))
+        .route("/write", put_service(OtaWrite { backend: write_backend }))
+        .route("/activate", post(move |Bearer(token): Bearer, body: String| {
+            let backend = backend.clone();
+            let reboot = reboot.clone();
+            async move {
+                if !backend.authorize(token.as_deref().unwrap_or("")).await {
+                    return unauthorized();
+                }
+                let (response, should_reboot) = activate_response(&backend, &body).await;
+                if should_reboot {
+                    reboot.schedule_reboot().await;
+                }
+                response
+            }
+        }))
 }
 
 /// Wire-format validation for X-Embewi-Digest.
