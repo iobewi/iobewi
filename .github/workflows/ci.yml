@@ -1,0 +1,15 @@
+name: Rust ESP32-S3
+on:
+  push:
+jobs:
+  check-esp32s3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          buildtargets: esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf --features esp32s3
