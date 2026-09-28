@@ -3,7 +3,7 @@ resolver = "2"
 members = [
   "hardware/flash", "hardware/nvs", "hardware/partitions",
   "hardware/platform", "hardware/boot", "hardware/ota-boot", "hardware/watchdog",
-  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https",
+  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https", "services/log-stream",
 ]
 default-members = ["services/http", "services/https"]
 
