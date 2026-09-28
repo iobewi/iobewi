@@ -577,8 +577,8 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "iobewi-esp-boot",
+ "iobewi-esp-ota-boot",
  "iobewi-esp-platform",
- "fibewi",
 ]
 
 [[package]]
@@ -586,9 +586,8 @@ name = "iobewi-esp-platform"
 version = "0.1.0"
 
 [[package]]
-name = "fibewi"
+name = "iobewi-esp-ota-boot"
 version = "0.1.0"
-source = "git+https://github.com/iobewi/fibewi?rev=5d086645fc612d3da49ae5d779b57ffbf295b775#5d086645fc612d3da49ae5d779b57ffbf295b775"
 dependencies = [
  "sha2",
 ]

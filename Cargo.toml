@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
   "hardware/flash", "hardware/nvs", "hardware/partitions",
-  "hardware/platform", "hardware/boot", "hardware/watchdog",
+  "hardware/platform", "hardware/boot", "hardware/ota-boot", "hardware/watchdog",
   "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https",
 ]
 default-members = ["services/http", "services/https"]
@@ -13,4 +13,3 @@ edition = "2024"
 rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/iobewi/iobewi-esp"
-
