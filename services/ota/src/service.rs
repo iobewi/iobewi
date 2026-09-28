@@ -117,3 +117,57 @@ pub async fn activate_staged<S: MetadataStore, B: BootActivation>(
     }
     Ok(target)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metadata::load_metadata;
+    use alloc::vec::Vec;
+    use core::cell::{Cell, RefCell};
+    use core::future::Future;
+    use core::task::{Context, Poll, Waker};
+
+    fn ready<F: Future>(future: F) -> F::Output {
+        let waker = Waker::noop();
+        let mut future = core::pin::pin!(future);
+        match future.as_mut().poll(&mut Context::from_waker(waker)) {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("synchronous test backend must not suspend"),
+        }
+    }
+
+    struct MemoryStore(RefCell<Option<Vec<u8>>>);
+
+    impl MetadataStore for MemoryStore {
+        type Error = ();
+        async fn load_raw(&self) -> Result<Option<Vec<u8>>, ()> { Ok(self.0.borrow().clone()) }
+        async fn commit_raw(&self, bytes: &[u8]) -> Result<(), ()> {
+            *self.0.borrow_mut() = Some(bytes.to_vec());
+            Ok(())
+        }
+    }
+
+    struct FailingBoot<'a> { store: &'a MemoryStore, observed_activating: Cell<bool> }
+
+    impl BootActivation for FailingBoot<'_> {
+        fn valid_target(&self, target: &str) -> bool { target == "ota_1" }
+        async fn activate(&self, _target: &str) -> Result<(), ()> {
+            let raw = self.store.0.borrow();
+            let metadata = crate::metadata::Metadata::decode(raw.as_ref().unwrap()).unwrap();
+            self.observed_activating.set(metadata.staged.stage == crate::metadata::Stage::Activating);
+            Err(())
+        }
+    }
+
+    #[test]
+    fn activation_publishes_intent_before_boot_and_restores_staged_on_failure() {
+        let store = MemoryStore(RefCell::new(None));
+        ready(publish(&store, String::from("deploy"), Committed {
+            size: 1024, digest: crate::Digest([0x42; 32]),
+        }, String::from("ota_1"))).unwrap();
+        let boot = FailingBoot { store: &store, observed_activating: Cell::new(false) };
+        assert_eq!(ready(activate_staged(&store, &boot, "deploy")), Err(ActivateError::NotStaged));
+        assert!(boot.observed_activating.get());
+        assert!(ready(load_metadata(&store)).unwrap().staged.stage == crate::metadata::Stage::Written);
+    }
+}
