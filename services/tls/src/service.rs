@@ -11,6 +11,9 @@ pub use iobewi_tls::{CONFIG_BUDGET, IdentityBootstrapError, SaveCertError};
 pub use crate::TlsReferenceStatic;
 
 pub type TlsConfigSpace = ConfigSpace<NvsConfigBackend>;
+/// Connected client transport. Protocol callers depend on the async I/O
+/// traits; the concrete MbedTLS session stays in the ESP adapter.
+pub type ClientStream<'host, 'buffers> = Session<'host, TcpSocket<'buffers>>;
 
 struct EspCrypto;
 
@@ -97,7 +100,7 @@ pub async fn connect_client<'h, 'buf>(
     tx_buffer: &'buf mut [u8],
     host: &'h core::ffi::CStr,
     port: u16,
-) -> Result<Session<'h, TcpSocket<'buf>>, ClientTlsError> {
+) -> Result<ClientStream<'h, 'buf>, ClientTlsError> {
     if !clock_is_set { return Err(ClientTlsError::ClockUnsynced); }
     let ca = TlsService::new(EspCrypto).trusted_ca(space).await.ok_or(ClientTlsError::NoCa)?;
     crate::embassy::connect_client(tls, stack, rx_buffer, tx_buffer, host, port, &ca)
