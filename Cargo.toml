@@ -1,3 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+  ".",
+  "hardware/flash", "hardware/nvs", "hardware/partitions",
+  "hardware/platform", "hardware/boot", "hardware/watchdog",
+  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls",
+]
+default-members = ["."]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/iobewi/iobewi-esp"
+
 [package]
 name = "iobewi-esp"
 version = "0.1.0"
@@ -9,11 +26,11 @@ description = "ESP platform adapter for the IOBEWI embedded service framework"
 
 [features]
 default = []
-esp32s3 = ["esp-hal/esp32s3", "espbewi-tls/esp32s3"]
+esp32s3 = ["esp-hal/esp32s3", "iobewi-esp-tls/esp32s3"]
 
 [dependencies]
-iobewi = { git = "https://github.com/iobewi/iobewi", rev = "aa43b72c395d82c56ea64cf19bc12ab8973b198f" }
-espbewi-tls = { git = "https://github.com/iobewi/espbewi", rev = "64b0e897c9ac653b5a6aa0e863088075ed6d6153", default-features = false, features = ["picoserve"] }
+iobewi-http = { git = "https://github.com/iobewi/iobewi", rev = "c1181c86a13821ef3cd19d656b84c23baaa1191d" }
+iobewi-esp-tls = { path = "services/tls", default-features = false, features = ["picoserve"] }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-net = { version = "0.9.1", default-features = false, features = ["tcp", "medium-ethernet"] }
 embassy-time = { version = "0.5.0", default-features = false }

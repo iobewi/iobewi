@@ -1,0 +1,32 @@
+[package]
+name = "iobewi-esp-ota"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP partition and NOR-flash adapter for FiBeWI ArtifactStorage"
+keywords = ["esp32", "ota", "flash", "embedded", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[features]
+default = []
+esp32c3 = [
+  "esp-bootloader-esp-idf/esp32c3",
+  "iobewi-esp-partitions/esp32c3",
+  "iobewi-esp-flash?/esp32c3",
+]
+esp32s3 = [
+  "esp-bootloader-esp-idf/esp32s3",
+  "iobewi-esp-partitions/esp32s3",
+  "iobewi-esp-flash?/esp32s3",
+]
+shared-flash = ["dep:iobewi-esp-flash", "dep:sha2"]
+
+[dependencies]
+fibewi = { git = "https://github.com/iobewi/fibewi", rev = "5d086645fc612d3da49ae5d779b57ffbf295b775", default-features = false, features = ["engine", "boot"] }
+embedded-storage = "0.3.1"
+esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
+iobewi-esp-partitions = { path = "../../hardware/partitions", default-features = false }
+iobewi-esp-flash = { path = "../../hardware/flash", default-features = false, optional = true }
+sha2 = { version = "0.10", default-features = false, optional = true }

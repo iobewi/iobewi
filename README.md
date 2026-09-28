@@ -1,13 +1,26 @@
 # iobewi-esp
 
-ESP platform capabilities for the [IOBEWI service framework](https://github.com/iobewi/iobewi).
+Implémentation ESP des contrats du framework portable [IOBEWI](https://github.com/iobewi/iobewi).
+Ce dépôt est l'unique source des composants liés au matériel ESP. L'ancien
+workspace `espbewi` a été déplacé ici ; les noms des crates sont désormais
+préfixés `iobewi-esp-`.
 
-The first adapter opens an HTTPS-only listener on ESP32-S3. It loads a server
-identity through an injected capability, accepts TCP, completes the MbedTLS
-handshake with a bounded deadline, and passes the authenticated socket to
-IOBEWI's portable HTTP dispatcher. Without a valid identity, it opens no
-plaintext listener. The existing [espbewi](https://github.com/iobewi/espbewi)
-crate continues to own the chip-specific TLS implementation.
+Chaque composant a son propre `Cargo.toml` :
 
-**Status:** initial adapter under integration; no hardware validation yet.
-Flash, NVS, watchdog, and other platform capabilities will follow.
+| Répertoire | Crate | Rôle |
+| --- | --- | --- |
+| `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,watchdog}` | Accès au matériel |
+| `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des contrats FiBeWI et CSM |
+| `services/` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
+| `.` | `iobewi-esp` | Listener HTTPS reliant TLS ESP à `iobewi-http` |
+| `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |
+
+Le listener charge l'identité serveur via une capacité injectée, accepte TCP,
+effectue le handshake MbedTLS puis transmet le socket au serveur portable
+`iobewi-http`. Sans identité valide, aucun port HTTP non chiffré n'est ouvert.
+
+Le code de l'ancien dépôt reste accessible pour l'historique. Les projets
+consommateurs doivent désormais pointer vers ce dépôt et utiliser les nouveaux
+noms de crates ; il n'existe plus de dépendance de cet adaptateur à `espbewi`.
+
+**État :** intégration et compilation CI ; validation sur carte ESP à faire.

@@ -1,0 +1,12 @@
+[package]
+name = "iobewi-esp-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure no-std ESP platform descriptors for memory and boot hardware profiles"
+keywords = ["esp32", "platform", "embedded", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[dependencies]
