@@ -15,6 +15,7 @@ use picoserve::{Config, EmbassyRuntime, Router};
 pub use picoserve::{io, request, response, routing, ResponseSent};
 pub use picoserve::Router as HttpRouter;
 
+pub mod auth;
 pub mod json;
 pub mod range;
 

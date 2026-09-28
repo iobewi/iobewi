@@ -9,7 +9,8 @@ use alloc::string::String;
 
 use iobewi_http::io::Read;
 use iobewi_http::request::Request;
-use iobewi_http::json::{bearer_token, json_error, json_ok, JsonResponse};
+use iobewi_http::auth::bearer_token;
+use iobewi_http::json::{json_error, json_ok, JsonResponse};
 use iobewi_http::range::parse_content_range;
 use iobewi_http::response::{IntoResponse, ResponseWriter, StatusCode};
 use iobewi_http::routing::RequestHandlerService;
