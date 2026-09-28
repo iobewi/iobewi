@@ -10,7 +10,7 @@ use embassy_time::Instant;
 
 use crate::{Committed, Digest, Error, WriteSession};
 use crate::metadata::{MetadataError, MetadataStore, SessionParams, format_digest};
-use super::{self, publish};
+use super::publish;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UploadStats {

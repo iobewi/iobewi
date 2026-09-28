@@ -14,6 +14,8 @@ use crate::metadata::{
 };
 
 #[cfg(feature = "runtime")]
+pub mod boot;
+#[cfg(feature = "runtime")]
 pub mod upload;
 
 #[allow(async_fn_in_trait)]
