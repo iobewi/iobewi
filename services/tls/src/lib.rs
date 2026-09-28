@@ -17,6 +17,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "service")]
+pub mod service;
+
 pub use mbedtls_rs;
 
 use alloc::ffi::CString;
