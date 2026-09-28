@@ -1,0 +1,12 @@
+[package]
+name = "iobewi-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable HTTP server and connection listener contract for IOBEWI"
+
+[dependencies]
+log = "0.4"
+picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }

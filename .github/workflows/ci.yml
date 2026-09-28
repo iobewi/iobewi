@@ -1,0 +1,12 @@
+name: Rust
+on:
+  push:
+  pull_request:
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --workspace --all-features
+      - run: cargo check --workspace --no-default-features

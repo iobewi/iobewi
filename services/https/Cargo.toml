@@ -1,0 +1,12 @@
+[package]
+name = "iobewi-https"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable HTTPS service requiring TLS before HTTP dispatch"
+
+[dependencies]
+iobewi-http = { path = "../http" }
+picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
