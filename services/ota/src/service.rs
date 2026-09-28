@@ -8,9 +8,39 @@ use alloc::string::String;
 use crate::{Committed, Error, TransactionState, activate};
 use crate::metadata::{
     MetadataError, MetadataStore, MemoryTransactionMetadata, SessionParams,
-    can_supersede, commit_transaction, firmware_record, load_transaction,
+    PrepareRefusal, can_supersede, check_compatibility, check_staged,
+    check_target, commit_transaction, firmware_record, load_transaction,
     parse_digest,
 };
+
+#[cfg(feature = "runtime")]
+pub mod upload;
+
+#[allow(async_fn_in_trait)]
+pub trait TargetSelection {
+    /// Return the inactive target name and its capacity; release all backend
+    /// locks before returning so the service may inspect ConfigSpace.
+    async fn write_target(&self) -> Result<(&'static str, u64), ()>;
+}
+
+/// Check compatibility before selecting a target, then inspect persistence
+/// only after the platform has released its flash lock.
+pub async fn prepare<S: MetadataStore, P: TargetSelection>(
+    store: &S,
+    platform: &P,
+    chip: &str,
+    layout: &str,
+    platform_chip: &str,
+    platform_layout: &str,
+    size: u64,
+) -> Result<&'static str, PrepareRefusal> {
+    check_compatibility(chip, layout, platform_chip, platform_layout)?;
+    let (target, capacity) = platform.write_target().await.map_err(|_| PrepareRefusal::Busy)?;
+    check_target(size, Some(capacity))?;
+    let staged = load_transaction(store).await.map_err(|_| PrepareRefusal::Busy)?;
+    check_staged(staged.as_ref())?;
+    Ok(target)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BeginError {
