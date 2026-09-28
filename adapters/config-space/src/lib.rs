@@ -1,6 +1,6 @@
 #![no_std]
 
-//! ESP NVS backend for config-space-manager.
+//! ESP NVS backend for IOBEWI ConfigSpace.
 //!
 //! ConfigSpace persistence semantics live here. Physical flash ownership and
 //! the ESP NVS platform bridge are supplied by iobewi-esp, allowing
@@ -11,7 +11,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use config_space_manager::{Budget, ConfigBackend, Snapshot};
+use iobewi_config_space::{Budget, ConfigBackend, Snapshot};
 use iobewi_esp_flash::SharedFlash;
 use iobewi_esp_nvs::{NvsFlash, open as open_nvs};
 use esp_nvs::error::Error as NvsError;
