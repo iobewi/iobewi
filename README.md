@@ -1,4 +1,4 @@
-# IOBEWI FW
+# IOBEWI
 
 Portable Rust framework for composing embedded services.
 
@@ -6,13 +6,13 @@ Portable Rust framework for composing embedded services.
 
 ## Goal
 
-`iobewi-fw` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
+`iobewi` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
 
 The intended dependency direction is:
 
 ```text
 embewi-agent (application)
-    -> iobewi-fw (service contracts and composition)
+    -> iobewi (service contracts and composition)
         -> services (FiBeWI, httpbewi, ConfigSpace, ...)
         -> platform adapter (espbewi, future RP2350/Teensy adapters)
             -> HAL, network and execution runtime
@@ -24,14 +24,14 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 
 | Component | Responsibility |
 | --- | --- |
-| `iobewi-fw` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
+| `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
 | [FiBeWI](https://github.com/iobewi/fibewi) | OTA lifecycle, transactions, validation policy, and the OTA HTTP service. |
 | `httpbewi` (planned) | Shared HTTP(S) server: TLS connection lifecycle, routing, and common security policy. Applications and services contribute routes. |
 | [ConfigSpace Manager](https://github.com/iobewi/config-space-manager) | Logical persistent configuration spaces independent of a particular NVS backend. |
 | [espbewi](https://github.com/iobewi/espbewi) | ESP adapter: physical flash, NVS, network, TLS integration, watchdog, boot and reboot operations. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |
 
-The first execution target uses Embassy with the existing ESP runtime. `iobewi-fw` is a service framework, not a replacement RTOS kernel. Scheduling and timing constraints remain the responsibility of the runtime and platform integration.
+The first execution target uses Embassy with the existing ESP runtime. `iobewi` is a service framework, not a replacement RTOS kernel. Scheduling and timing constraints remain the responsibility of the runtime and platform integration.
 
 ## Design constraints
 
