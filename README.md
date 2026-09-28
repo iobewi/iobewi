@@ -2,15 +2,15 @@
 
 IOBEWI is the company behind this portable Rust framework for embedded services. This repository contains the framework; the company name also covers its other projects.
 
-> **Status:** the first component provides a portable HTTP server contract and TLS-only connection dispatcher. Service composition, OTA routes, platform ports beyond ESP, and application migrations remain in progress.
+> **Status:** the first two components separate HTTP dispatch from the HTTPS entry point. Service composition, OTA routes, platform ports beyond ESP, and application migrations remain in progress.
 
 ## Goal
 
 `iobewi` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
 
 This repository is a Cargo workspace: each service lives in its own crate under
-`services/` with its own `Cargo.toml`. The first member is
-[`iobewi-http`](services/http), the portable HTTP server.
+`services/` with its own `Cargo.toml`. The first members are [`iobewi-http`](services/http), the portable
+HTTP dispatcher, and [`iobewi-https`](services/https), its TLS-only entry point.
 
 The intended dependency direction is:
 
@@ -30,9 +30,10 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
 | [FiBeWI](https://github.com/iobewi/fibewi) | OTA lifecycle, transactions, validation policy, and the OTA HTTP service. |
-| `services/http` (`iobewi-http`) | Shared HTTP dispatcher for TLS connections and application/service routes. Authentication policy and route migration are still pending. |
+| `services/http` (`iobewi-http`) | HTTP dispatcher for a connected socket and composable application/service routes. |
+| `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
 | [ConfigSpace Manager](https://github.com/iobewi/config-space-manager) | Logical persistent configuration spaces independent of a particular NVS backend. |
-| [iobewi-esp](https://github.com/iobewi/iobewi-esp) | Framework ESP adapter: TLS listener first; further hardware capabilities are planned. It uses the existing [espbewi](https://github.com/iobewi/espbewi) hardware libraries. |
+| [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |
 
 The first execution target uses Embassy with the existing ESP runtime. `iobewi` is a service framework, not a replacement RTOS kernel. Scheduling and timing constraints remain the responsibility of the runtime and platform integration.
@@ -48,7 +49,7 @@ The first execution target uses Embassy with the existing ESP runtime. `iobewi` 
 
 ## First milestones
 
-1. Define the portable TLS listener contract and shared HTTP dispatcher without ESP dependencies. Initial code is present; integration validation is in progress.
+1. Separate the portable HTTP dispatcher and HTTPS listener contract without ESP dependencies. Initial code is present; integration validation is in progress.
 2. Let FiBeWI supply its OTA routes to the shared HTTP server.
 3. Connect the existing ESP adapter and migrate `embewi-agent` to framework services.
 4. Build the same application against a second platform adapter to validate portability.
