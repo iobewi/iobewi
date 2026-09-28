@@ -34,6 +34,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
 | `services/http` (`iobewi-http`) | HTTP dispatcher, reusable outbound JSON POST/response framing and WebSocket client protocol over a connected stream. |
 | `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
+| `services/log-stream` (`iobewi-log-stream`) | Bounded log capture, WebSocket forwarding and reconnect policy over a supplied secure transport. |
 | `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
 | `services/config-space` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
