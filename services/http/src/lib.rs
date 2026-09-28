@@ -1,9 +1,9 @@
 #![no_std]
 
-extern crate alloc;
-
 //! HTTP request handling for any connected socket. The caller chooses the
 //! transport and supplies routes; this crate never opens a network port.
+
+extern crate alloc;
 
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
