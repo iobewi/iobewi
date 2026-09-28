@@ -7,6 +7,8 @@ use edge_http::ws::{is_upgrade_accepted, upgrade_request_headers, MAX_BASE64_KEY
 use edge_ws::{FrameHeader, FrameType};
 use embedded_io_async::{Read, Write};
 
+pub const NONCE_LENGTH: usize = NONCE_LEN;
+
 /// Complete an authenticated HTTP upgrade on an already connected stream.
 pub async fn upgrade<S>(
     session: &mut S,
