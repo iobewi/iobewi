@@ -14,5 +14,6 @@ jobs:
       - run: cargo test -p iobewi-http
       - run: cargo test -p iobewi-wifi
       - run: cargo test -p iobewi-tls
+      - run: cargo test -p iobewi-tls --features http
       - run: cargo test -p iobewi-ota
       - run: cargo test -p iobewi-ota --features http
