@@ -10,9 +10,10 @@ and caller-supplied authorization policy.
 
 `OTM1` keeps the on-device bytes and field limits already in use; existing
 devices must still be able to read their staged and active image metadata.
-The OTA HTTP responses and schemas belong to this service. Its optional HTTP
-handler is registered on the shared `iobewi-http` router; the application
-provides authentication, route assembly and its own readiness policy.
+The OTA HTTP responses, schemas and `/prepare`, `/write`, `/activate` routes
+belong to this service. The application mounts that router under its own
+API prefix (for example `/v1alpha1/ota`) and supplies authorization, flash,
+storage and a deferred reboot port.
 
 The ESP EWBT `otadata` codec and ESP image validator live in
 `iobewi-esp-ota-boot`, alongside the ESP adapter and bootloader in
