@@ -30,8 +30,8 @@ esp32s3 = [
 shared-flash = ["dep:iobewi-esp-flash", "dep:iobewi-esp-config-space", "dep:iobewi-esp-watchdog", "dep:iobewi-config-space", "dep:esp-hal", "dep:embassy-time", "dep:sha2", "iobewi-ota/runtime"]
 
 [dependencies]
-iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "6fa8f4b1c1e476c71be16fa88f8099eba23d6ac4" }
-iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "2b433a33527fcf388a56473445db49de26891496", optional = true }
+iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "14fd0ac0f89e38f45ea700e10e7b0d0f518cc5f0" }
+iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "14fd0ac0f89e38f45ea700e10e7b0d0f518cc5f0", optional = true }
 iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
 embedded-storage = "0.3.1"
 esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
