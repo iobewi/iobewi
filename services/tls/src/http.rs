@@ -1,6 +1,7 @@
 //! HTTPS provisioning API for the portable TLS identity and trust service.
 //!
-//! The application attaches these handlers to its shared HTTP router and
+//! The application mounts these relative paths under its own API prefix and
+//! attaches the handlers to its shared HTTP router. It
 //! supplies authorization plus the platform-backed durable TLS service.
 //! The caller must expose the routes only on an authenticated TLS listener.
 
@@ -11,8 +12,8 @@ use serde::Deserialize;
 
 use crate::SaveCertError;
 
-pub const CERT_PATH: &str = "/v1alpha1/tls/cert";
-pub const CA_PATH: &str = "/v1alpha1/tls/ca";
+pub const CERT_PATH: &str = "/tls/cert";
+pub const CA_PATH: &str = "/tls/ca";
 
 #[derive(Deserialize)]
 struct CertBody {
