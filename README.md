@@ -2,15 +2,16 @@
 
 IOBEWI is the company behind this portable Rust framework for embedded services. This repository contains the framework; the company name also covers its other projects.
 
-> **Status:** the first two components separate HTTP dispatch from the HTTPS entry point. Service composition, OTA routes, platform ports beyond ESP, and application migrations remain in progress.
+> **Status:** HTTP, HTTPS and ConfigSpace provide separate portable crates. Service composition, OTA routes, platform ports beyond ESP and further application migrations remain in progress.
 
 ## Goal
 
 `iobewi` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
 
 This repository is a Cargo workspace: each service lives in its own crate under
-`services/` with its own `Cargo.toml`. The first members are [`iobewi-http`](services/http), the portable
-HTTP dispatcher, and [`iobewi-https`](services/https), its TLS-only entry point.
+`services/` with its own `Cargo.toml`. Current members are [`iobewi-http`](services/http), the portable HTTP
+dispatcher; [`iobewi-https`](services/https), its TLS-only entry point; and
+[`iobewi-config-space`](services/config-space), configuration ownership and quotas.
 
 The intended dependency direction is:
 
@@ -32,7 +33,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | [FiBeWI](https://github.com/iobewi/fibewi) | OTA lifecycle, transactions, validation policy, and the OTA HTTP service. |
 | `services/http` (`iobewi-http`) | HTTP dispatcher for a connected socket and composable application/service routes. |
 | `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
-| [ConfigSpace Manager](https://github.com/iobewi/config-space-manager) | Logical persistent configuration spaces independent of a particular NVS backend. |
+| `services/config-space` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |
 
