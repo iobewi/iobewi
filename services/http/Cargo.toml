@@ -5,17 +5,15 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "ESP HTTPS listener implementing the portable IOBEWI HTTP contract"
+description = "ESP TCP listener for portable IOBEWI HTTP dispatch"
 
 [features]
 default = []
-esp32s3 = ["esp-hal/esp32s3", "iobewi-esp-tls/esp32s3"]
+esp32s3 = ["esp-hal/esp32s3"]
 
 [dependencies]
-iobewi-http = { git = "https://github.com/iobewi/iobewi", rev = "c1181c86a13821ef3cd19d656b84c23baaa1191d" }
-iobewi-esp-tls = { path = "../tls", default-features = false, features = ["picoserve"] }
+iobewi-http = { git = "https://github.com/iobewi/iobewi", rev = "71573d9111dc01635d838f1d41cd74811e126108" }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-net = { version = "0.9.1", default-features = false, features = ["tcp", "medium-ethernet"] }
-embassy-time = { version = "0.5.0", default-features = false }
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
 log = "0.4"

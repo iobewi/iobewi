@@ -3,9 +3,9 @@ resolver = "2"
 members = [
   "hardware/flash", "hardware/nvs", "hardware/partitions",
   "hardware/platform", "hardware/boot", "hardware/watchdog",
-  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http",
+  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https",
 ]
-default-members = ["services/http"]
+default-members = ["services/http", "services/https"]
 
 [workspace.package]
 version = "0.1.0"

@@ -12,12 +12,15 @@ Chaque composant a son propre `Cargo.toml` :
 | `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,watchdog}` | Accès au matériel |
 | `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des contrats FiBeWI et CSM |
 | `services/wifi`, `services/tls` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
-| `services/http` | `iobewi-esp-http` | Listener HTTPS reliant TLS ESP à `iobewi-http` |
+| `services/http` | `iobewi-esp-http` | Listener TCP/HTTP sans TLS ; exposition explicite par l’application |
+| `services/https` | `iobewi-esp-https` | Handshake TLS ESP et entrée HTTPS vers `iobewi-https` |
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |
 
-Le listener charge l'identité serveur via une capacité injectée, accepte TCP,
-effectue le handshake MbedTLS puis transmet le socket au serveur portable
-`iobewi-http`. Sans identité valide, aucun port HTTP non chiffré n'est ouvert.
+Le service HTTP accepte TCP et transmet la connexion au dispatcher portable
+`iobewi-http`. Le service HTTPS utilise ce même transport TCP, charge l’identité
+serveur via une capacité injectée et termine le handshake MbedTLS avant de
+transmettre le socket via `iobewi-https`. L’agent utilise uniquement HTTPS ;
+sans identité valide, il n’ouvre aucun port HTTP de repli.
 
 Le code de l'ancien dépôt reste accessible pour l'historique. Les projets
 consommateurs doivent désormais pointer vers ce dépôt et utiliser les nouveaux
