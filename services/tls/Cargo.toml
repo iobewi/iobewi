@@ -1,0 +1,12 @@
+[package]
+name = "iobewi-tls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable TLS identity and trust configuration service"
+
+[dependencies]
+iobewi-config-space = { path = "../config-space" }
+log = { version = "0.4", default-features = false }
