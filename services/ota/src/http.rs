@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::metadata::{PrepareRefusal, SessionParams};
 use crate::{ResumePlan, is_complete, resume_plan};
 
-type JsonResponse = Response<ContentHeaders, ContentBody<String>>;
+pub type JsonResponse = Response<ContentHeaders, ContentBody<String>>;
 
 fn json_ok(body: String) -> JsonResponse {
     Response::ok(body).with_content_type("application/json")
@@ -81,6 +81,39 @@ impl PrepareResponse {
 #[derive(Deserialize)]
 pub struct ActivateRequest {
     pub deployment_id: String,
+}
+
+#[allow(async_fn_in_trait)]
+pub trait ControlBackend {
+    async fn prepare(&self, request: &PrepareRequest) -> PrepareResponse;
+    async fn activate(&self, deployment_id: &str) -> Result<String, ActivateFailure>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivateFailure { NotStaged, DeploymentMismatch, Storage }
+
+pub async fn prepare_response<B: ControlBackend>(backend: &B, body: &str) -> JsonResponse {
+    let Ok(request) = serde_json::from_str::<PrepareRequest>(body) else {
+        return json_error(StatusCode::BAD_REQUEST, "{\"error\":\"bad_request\"}");
+    };
+    json_ok(serde_json::to_string(&backend.prepare(&request).await).unwrap_or_default())
+}
+
+/// The caller must schedule its platform reboot after this returns `true`.
+/// This keeps the one-shot reset peripheral out of portable route code.
+pub async fn activate_response<B: ControlBackend>(backend: &B, body: &str) -> (JsonResponse, bool) {
+    let Ok(request) = serde_json::from_str::<ActivateRequest>(body) else {
+        return (json_error(StatusCode::BAD_REQUEST, "{\"error\":\"missing_deployment_id\"}"), false);
+    };
+    match backend.activate(&request.deployment_id).await {
+        Ok(slot) => (json_ok(format!("{{\"status\":\"rebooting\",\"target_slot\":\"{slot}\"}}")), true),
+        Err(ActivateFailure::DeploymentMismatch) =>
+            (json_error(StatusCode::CONFLICT, "{\"error\":\"deployment_mismatch\"}"), false),
+        Err(ActivateFailure::NotStaged) =>
+            (json_error(StatusCode::CONFLICT, "{\"error\":\"not_staged\"}"), false),
+        Err(ActivateFailure::Storage) =>
+            (json_error(StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"nvs_write_failed\"}"), false),
+    }
 }
 
 /// Number of bytes carried by an inclusive HTTP Content-Range.
