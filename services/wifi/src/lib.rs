@@ -26,13 +26,9 @@ use esp_radio::wifi::{
     AuthenticationMethod, Config, Interface, WifiController, scan::ScanConfig, sta::StationConfig,
 };
 use log::{info, warn};
+use iobewi_wifi::WifiTransport;
 
-/// An access point found by [`WifiManager::scan`].
-pub struct Network {
-    pub ssid: String,
-    pub signal_strength: i8,
-    pub secured: bool,
-}
+pub use iobewi_wifi::Network;
 
 struct Radio {
     controller: WifiController<'static>,
@@ -216,6 +212,31 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
         radio.stack.wait_config_up().await;
         info!("Wi-Fi connected, ip = {:?}", radio.stack.config_v4());
         true
+    }
+}
+
+impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
+    type Address = embassy_net::Ipv4Address;
+    type Stack = Stack<'static>;
+
+    async fn connect(&mut self, ssid: &str, password: String) -> bool {
+        WifiManager::connect(self, ssid, password).await
+    }
+
+    async fn scan(&mut self) -> Vec<Network> {
+        WifiManager::scan(self).await
+    }
+
+    fn ip(&self) -> Option<Self::Address> {
+        WifiManager::ip(self)
+    }
+
+    fn ip_stack(&self) -> Option<Self::Stack> {
+        WifiManager::ip_stack(self)
+    }
+
+    fn is_online(&self) -> bool {
+        WifiManager::is_online(self)
     }
 }
 
