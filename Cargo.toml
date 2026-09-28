@@ -1,6 +1,6 @@
 [workspace]
-members = ["services/http", "services/https", "services/config-space"]
-default-members = ["services/http", "services/https", "services/config-space"]
+members = ["services/http", "services/https", "services/config-space", "services/ota"]
+default-members = ["services/http", "services/https", "services/config-space", "services/ota"]
 resolver = "3"
 
 [workspace.package]
