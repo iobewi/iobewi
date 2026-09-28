@@ -27,10 +27,15 @@ use iobewi_esp_partitions::{
 
 pub mod otadata;
 #[cfg(feature = "shared-flash")]
+pub mod service;
+#[cfg(feature = "shared-flash")]
 pub mod shared_flash;
 
 /// Scratch size required by the ESP-IDF partition table parser.
 pub const PARTITION_TABLE_BUFFER_SIZE: usize = PARTITION_TABLE_MAX_LEN;
+
+/// Partition layout identifier exposed to OTA clients for this ESP image.
+pub const PARTITION_LAYOUT: &str = "embewi-ab-v1";
 
 /// OTA-capable application slots this backend can locate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

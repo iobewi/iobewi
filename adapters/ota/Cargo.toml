@@ -15,19 +15,30 @@ esp32c3 = [
   "esp-bootloader-esp-idf/esp32c3",
   "iobewi-esp-partitions/esp32c3",
   "iobewi-esp-flash?/esp32c3",
+  "iobewi-esp-config-space?/esp32c3",
+  "iobewi-esp-watchdog?/esp32c3",
+  "esp-hal?/esp32c3",
 ]
 esp32s3 = [
   "esp-bootloader-esp-idf/esp32s3",
   "iobewi-esp-partitions/esp32s3",
   "iobewi-esp-flash?/esp32s3",
+  "iobewi-esp-config-space?/esp32s3",
+  "iobewi-esp-watchdog?/esp32s3",
+  "esp-hal?/esp32s3",
 ]
-shared-flash = ["dep:iobewi-esp-flash", "dep:sha2"]
+shared-flash = ["dep:iobewi-esp-flash", "dep:iobewi-esp-config-space", "dep:iobewi-esp-watchdog", "dep:iobewi-config-space", "dep:esp-hal", "dep:embassy-time", "dep:sha2", "iobewi-ota/runtime"]
 
 [dependencies]
-iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "3e0b19b095a9a8afe9cd20730e97bf59e82e1f7e" }
+iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "f4519777309281a15c9a59bb11b68a98b481f044" }
+iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "f4519777309281a15c9a59bb11b68a98b481f044", optional = true }
 iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
 embedded-storage = "0.3.1"
 esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
 iobewi-esp-partitions = { path = "../../hardware/partitions", default-features = false }
 iobewi-esp-flash = { path = "../../hardware/flash", default-features = false, optional = true }
+iobewi-esp-config-space = { path = "../config-space", default-features = false, optional = true }
+iobewi-esp-watchdog = { path = "../../hardware/watchdog", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
+esp-hal = { version = "~1.1.0", default-features = false, optional = true }
+embassy-time = { version = "0.5.0", optional = true }
