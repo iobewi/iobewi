@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 //! HTTP request handling for any connected socket. The caller chooses the
 //! transport and supplies routes; this crate never opens a network port.
 
@@ -12,6 +14,9 @@ use picoserve::{Config, EmbassyRuntime, Router};
 /// complete route set and the transport listener.
 pub use picoserve::{io, request, response, routing, ResponseSent};
 pub use picoserve::Router as HttpRouter;
+
+pub mod json;
+pub mod range;
 
 /// Platform capability: accept a connection over the caller-selected transport.
 /// TLS enforcement belongs to `iobewi-https`.

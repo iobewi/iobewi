@@ -9,23 +9,15 @@ use alloc::string::String;
 
 use iobewi_http::io::Read;
 use iobewi_http::request::Request;
-use iobewi_http::response::{ContentBody, ContentHeaders, IntoResponse, Response, ResponseWriter, StatusCode};
+use iobewi_http::json::{bearer_token, json_error, json_ok, JsonResponse};
+use iobewi_http::range::parse_content_range;
+use iobewi_http::response::{IntoResponse, ResponseWriter, StatusCode};
 use iobewi_http::routing::RequestHandlerService;
 use iobewi_http::ResponseSent;
 use serde::{Deserialize, Serialize};
 
 use crate::metadata::{PrepareRefusal, SessionParams};
 use crate::{ResumePlan, is_complete, resume_plan};
-
-pub type JsonResponse = Response<ContentHeaders, ContentBody<String>>;
-
-fn json_ok(body: String) -> JsonResponse {
-    Response::ok(body).with_content_type("application/json")
-}
-
-fn json_error(status: StatusCode, body: &str) -> JsonResponse {
-    Response::new(status, String::from(body)).with_content_type("application/json")
-}
 
 fn unauthorized() -> JsonResponse {
     json_error(StatusCode::UNAUTHORIZED, "{\"error\":\"unauthorized\"}")
@@ -115,28 +107,20 @@ pub async fn activate_response<B: ControlBackend>(backend: &B, body: &str) -> (J
     }
 }
 
-/// Number of bytes carried by an inclusive HTTP Content-Range.
-fn range_len(start: u32, end: u32) -> Option<u32> {
-    end.checked_sub(start)?.checked_add(1)
-}
-
 /// Wire-format validation for X-Embewi-Digest.
 fn is_valid_digest(value: &str) -> bool {
     crate::metadata::parse_digest(value).is_some()
 }
 
-/// Parses Content-Range: bytes <start>-<end>/<total>.
-///
-/// This is deliberately HTTP-local. Resume/session decisions themselves
-/// remain in IOBEWI OTA; only the wire syntax belongs to this route.
-fn parse_content_range(value: &str) -> Option<(u32, u32, u32)> {
-    let value = value.strip_prefix("bytes ")?;
-    let (range, total) = value.split_once('/')?;
-    let (start, end) = range.split_once('-')?;
-    let start: u32 = start.trim().parse().ok()?;
-    let end: u32 = end.trim().parse().ok()?;
-    let total: u32 = total.trim().parse().ok()?;
-    (start <= end && end < total).then_some((start, end, total))
+/// The OTA metadata format limits offsets and firmware size to `u32`.
+fn ota_range(value: &str) -> Option<(u32, u32, u32, u64)> {
+    let range = parse_content_range(value)?;
+    Some((
+        u32::try_from(range.start).ok()?,
+        u32::try_from(range.end).ok()?,
+        u32::try_from(range.total).ok()?,
+        range.len()?,
+    ))
 }
 
 pub struct OtaWrite<B> {
@@ -152,11 +136,9 @@ impl<B: WriteBackend> RequestHandlerService for OtaWrite<B> {
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
         let headers = request.parts.headers();
-        let token = headers
+        let token = bearer_token(headers
             .get("authorization")
-            .and_then(|v| v.as_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .unwrap_or("");
+            .and_then(|v| v.as_str().ok()));
         if !self.backend.authorize(token).await {
             return unauthorized()
                 .write_to(request.body_connection.finalize().await?, response_writer)
@@ -195,8 +177,8 @@ impl<B: WriteBackend> RequestHandlerService for OtaWrite<B> {
                         .await;
                 }
             },
-            Some(value) => match parse_content_range(value) {
-                Some((s, e, t)) if range_len(s, e).is_some_and(|len| len as usize == content_length) => {
+            Some(value) => match ota_range(value) {
+                Some((s, e, t, len)) if len == content_length as u64 => {
                     (true, s, e, t)
                 }
                 Some(_) => {
@@ -324,11 +306,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn range_header_rejects_overflow_and_bad_bounds() {
-        assert_eq!(parse_content_range("bytes 1024-2047/4096"), Some((1024, 2047, 4096)));
-        assert_eq!(parse_content_range("bytes 2048-1024/4096"), None);
-        assert_eq!(parse_content_range("bytes 0-4096/4096"), None);
-        assert_eq!(parse_content_range("bytes 0-4294967296/4294967297"), None);
-        assert_eq!(range_len(0, u32::MAX), None);
+    fn ota_range_rejects_images_exceeding_metadata_limits() {
+        assert_eq!(ota_range("bytes 1024-2047/4096"), Some((1024, 2047, 4096, 1024)));
+        assert_eq!(ota_range("bytes 0-4294967295/4294967296"), None);
     }
 }
