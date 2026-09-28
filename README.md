@@ -2,7 +2,7 @@
 
 IOBEWI is the company behind this portable Rust framework for embedded services. This repository contains the framework; the company name also covers its other projects.
 
-> **Status:** HTTP, HTTPS and ConfigSpace provide separate portable crates. Service composition, OTA routes, platform ports beyond ESP and further application migrations remain in progress.
+> **Status:** HTTP, HTTPS, ConfigSpace and OTA provide separate portable crates. Service composition, OTA routes, platform ports beyond ESP and further application migrations remain in progress.
 
 ## Goal
 
@@ -11,14 +11,15 @@ IOBEWI is the company behind this portable Rust framework for embedded services.
 This repository is a Cargo workspace: each service lives in its own crate under
 `services/` with its own `Cargo.toml`. Current members are [`iobewi-http`](services/http), the portable HTTP
 dispatcher; [`iobewi-https`](services/https), its TLS-only entry point; and
-[`iobewi-config-space`](services/config-space), configuration ownership and quotas.
+[`iobewi-config-space`](services/config-space), configuration ownership and quotas; and
+[`iobewi-ota`](services/ota), transactional firmware updates.
 
 The intended dependency direction is:
 
 ```text
 embewi-agent (application)
     -> iobewi (service contracts and composition)
-        -> services (FiBeWI, httpbewi, ConfigSpace, ...)
+        -> services (OTA, HTTP, HTTPS, ConfigSpace, ...)
         -> platform adapter (iobewi-esp, future RP2350/Teensy adapters)
             -> HAL, network and execution runtime
 ```
@@ -30,7 +31,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | Component | Responsibility |
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
-| [FiBeWI](https://github.com/iobewi/fibewi) | OTA lifecycle, transactions, validation policy, and the OTA HTTP service. |
+| `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
 | `services/http` (`iobewi-http`) | HTTP dispatcher for a connected socket and composable application/service routes. |
 | `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
 | `services/config-space` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
@@ -51,7 +52,7 @@ The first execution target uses Embassy with the existing ESP runtime. `iobewi` 
 ## First milestones
 
 1. Separate the portable HTTP dispatcher and HTTPS listener contract without ESP dependencies. Initial code is present; integration validation is in progress.
-2. Let FiBeWI supply its OTA routes to the shared HTTP server.
+2. Connect `iobewi-ota` to the shared HTTP server; the portable OTA routes remain to be implemented.
 3. Connect the existing ESP adapter and migrate `embewi-agent` to framework services.
 4. Build the same application against a second platform adapter to validate portability.
 
