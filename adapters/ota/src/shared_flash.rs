@@ -9,7 +9,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use iobewi_esp_flash::{EspFlash, SharedFlash};
-use fibewi::{BackendOutcome, Committed, Digest, Error, WriteSession};
+use iobewi_ota::{BackendOutcome, Committed, Digest, Error, WriteSession};
 use sha2::{Digest as _, Sha256};
 
 use crate::{
@@ -77,7 +77,7 @@ pub const fn erase_size() -> usize { <EspFlash as NorFlash>::ERASE_SIZE }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreloadedError { NoTarget, TooLarge, Flash }
 
-/// Hash the factory-preloaded image in the inactive slot before FiBeWI
+/// Hash the factory-preloaded image in the inactive slot before IOBEWI OTA
 /// publishes a staged transaction. The flash lock is released before any
 /// ConfigSpace commit by the caller.
 pub async fn hash_preloaded(flash: &SharedFlash, size: u32) -> Result<(AppSlot, Digest), PreloadedError> {
@@ -99,7 +99,7 @@ pub async fn hash_preloaded(flash: &SharedFlash, size: u32) -> Result<(AppSlot, 
     Ok((target.slot, Digest(hasher.finalize().into())))
 }
 
-/// ESP physical state for one FiBeWI upload session. The FiBeWI engine keeps
+/// ESP physical state for one IOBEWI OTA upload session. The IOBEWI OTA engine keeps
 /// the received/durable watermarks and digest; only flash geometry lives here.
 pub struct ArtifactWriter {
     partition: AppPartition,
@@ -124,7 +124,7 @@ impl ArtifactWriter {
     pub fn sectors_flushed(&self) -> u32 { self.sectors_flushed }
     pub fn erase_batches(&self) -> u32 { self.erase_batches }
 
-    /// Erase ahead in 64 KiB blocks while FiBeWI's durable watermark still
+    /// Erase ahead in 64 KiB blocks while IOBEWI OTA's durable watermark still
     /// advances only after each sector has been programmed successfully.
     pub async fn append(&mut self, flash: &SharedFlash, engine: &mut WriteSession, data: &[u8]) -> bool {
         if !engine.can_append(data.len()) {
@@ -162,7 +162,7 @@ impl ArtifactWriter {
     }
 
     /// Flush a final partial sector after every received byte was covered
-    /// by a prior erase. Returns FiBeWI's digest/completeness decision.
+    /// by a prior erase. Returns IOBEWI OTA's digest/completeness decision.
     pub async fn finish(
         &mut self,
         flash: &SharedFlash,

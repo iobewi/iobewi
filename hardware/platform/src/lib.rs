@@ -37,7 +37,7 @@ pub mod chips {
     pub mod esp32c3 {
         use crate::MemoryMap;
 
-        /// ESP32-C3 boot memory geometry for the current FiBeWI second-stage
+        /// ESP32-C3 boot memory geometry for the current IOBEWI OTA second-stage
         /// loader RAM window.
         ///
         /// The concrete bootloader linker script must stay consistent with
@@ -66,7 +66,7 @@ pub mod chips {
     pub mod esp32s3 {
         use crate::MemoryMap;
 
-        /// ESP32-S3 boot memory geometry for the FiBeWI second-stage loader
+        /// ESP32-S3 boot memory geometry for the IOBEWI OTA second-stage loader
         /// RAM window.
         ///
         /// Sources, same methodology as ESP32-C3's map: `drom`/`irom`/`iram`/
@@ -81,7 +81,7 @@ pub mod chips {
         /// esp-idf's `soc/esp32s3/include/soc/soc.h`.
         ///
         /// `boot_window` must stay consistent with the concrete bootloader
-        /// linker script (`fibewi`'s `bootloader/esp32c3/boot-esp32s3.x` at
+        /// linker script (ESP bootloader `boot-esp32s3.x` at
         /// the time of writing). Deliberately generous: a first hardware
         /// test with a straight C3-sized reservation (0x9000/0x8000)
         /// panicked with a corrupted panic location, consistent with

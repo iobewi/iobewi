@@ -6,7 +6,7 @@ name = "iobewi-esp-bootloader"
 rust-version = "1.88"
 version = "0.1.0"
 license = "MIT"
-description = "ESP second-stage bootloader executor using FiBeWI lifecycle semantics"
+description = "ESP second-stage bootloader executor using IOBEWI OTA lifecycle semantics"
 
 [[bin]]
 name = "iobewi-esp-bootloader"
@@ -34,7 +34,7 @@ esp-hal = { version = "~1.1.0", default-features = false }
 esp-println = { version = "0.17.0", default-features = false }
 iobewi-esp-boot = { path = "../../hardware/boot", default-features = false }
 iobewi-esp-platform = { path = "../../hardware/platform" }
-fibewi = { git = "https://github.com/iobewi/fibewi", rev = "5d086645fc612d3da49ae5d779b57ffbf295b775", default-features = false, features = ["boot"] }
+iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
 
 [profile.dev]
 opt-level = "s"

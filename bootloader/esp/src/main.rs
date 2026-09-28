@@ -1,9 +1,9 @@
 //! iobewi-esp second-stage bootloader for supported ESP targets.
 //!
-//!   ROM -> iobewi-esp-bootloader -> the slot FiBeWI selects -> application
+//!   ROM -> iobewi-esp-bootloader -> the slot IOBEWI OTA selects -> application
 //!
 //! Every *decision* -- which slot, what to write to `otadata`, whether an image
-//! is bootable -- is `fibewi::boot`, tested on the host against power cuts.
+//! is bootable -- is `iobewi-esp-ota-boot`, tested on the host against power cuts.
 //! This file only performs them on the real flash and hands over control.
 //!
 //! What it does today (boot chain step 5):
@@ -38,7 +38,7 @@ compile_error!("select a supported ESP boot target feature");
 #[cfg(all(feature = "esp32c3", feature = "esp32s3"))]
 compile_error!("select exactly one ESP boot target feature");
 
-use fibewi::boot as boot_core;
+use iobewi_esp_ota_boot as boot_core;
 
 use boot_core::image::{self, MemoryMap, Verify};
 use boot_core::{BLANK, Boot, Decoded, ENTRY_SIZE, Halt, Op, Raw, Write, decode, plan_boot};

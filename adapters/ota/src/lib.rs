@@ -1,11 +1,11 @@
 #![no_std]
 
-//! ESP-specific OTA storage adapter for [`fibewi`].
+//! ESP-specific OTA storage adapter for [`iobewi_ota`].
 //!
-//! `iobewi-esp-ota` adapts FiBeWI firmware semantics to ESP storage. Generic ESP
+//! `iobewi-esp-ota` adapts IOBEWI OTA firmware semantics to ESP storage. Generic ESP
 //! partition-table access and raw erase mechanics are delegated to
-//! `iobewi-esp`; this module keeps FiBeWI-specific slot mapping and
-//! the [`fibewi::ArtifactStorage`] erase-block buffering contract.
+//! `iobewi-esp`; this module keeps IOBEWI OTA-specific slot mapping and
+//! the [`iobewi_ota::ArtifactStorage`] erase-block buffering contract.
 //!
 //! It deliberately does **not** own:
 //!
@@ -15,7 +15,7 @@
 //! - EWBT or any other `otadata` state machine;
 //! - HTTP, TLS, Embassy tasks, or application orchestration.
 
-use fibewi::ArtifactStorage;
+use iobewi_ota::ArtifactStorage;
 use embedded_storage::Storage;
 use embedded_storage::nor_flash::NorFlash;
 use esp_bootloader_esp_idf::partitions::{
@@ -152,7 +152,7 @@ where
 /// partition.
 ///
 /// The caller owns the flash object. The common ESP hardware layer is
-/// `iobewi-esp`; FiBeWI only layers artifact semantics over the
+/// `iobewi-esp`; IOBEWI OTA only layers artifact semantics over the
 /// already-selected partition.
 pub struct EspArtifactStorage<'a, F> {
     flash: &'a mut F,

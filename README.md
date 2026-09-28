@@ -9,8 +9,8 @@ Chaque composant a son propre `Cargo.toml` :
 
 | Répertoire | Crate | Rôle |
 | --- | --- | --- |
-| `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,watchdog}` | Accès au matériel |
-| `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des contrats FiBeWI et IOBEWI ConfigSpace |
+| `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,ota-boot,watchdog}` | Accès au matériel, état EWBT et validation d'image ESP |
+| `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des services IOBEWI OTA et ConfigSpace |
 | `services/wifi`, `services/tls` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
 | `services/http` | `iobewi-esp-http` | Listener TCP/HTTP sans TLS ; exposition explicite par l’application |
 | `services/https` | `iobewi-esp-https` | Handshake TLS ESP et entrée HTTPS vers `iobewi-https` |
@@ -23,6 +23,8 @@ transmettre le socket via `iobewi-https`. L’agent utilise uniquement HTTPS ;
 sans identité valide, il n’ouvre aucun port HTTP de repli.
 Le backend NVS `iobewi-esp-config-space` implémente le contrat portable
 `iobewi-config-space` depuis le workspace IOBEWI.
+Le service portable `iobewi-ota` possède les transactions et leurs métadonnées ;
+`iobewi-esp-ota-boot` possède le format EWBT et la validation des images ESP.
 
 Le code de l'ancien dépôt reste accessible pour l'historique. Les projets
 consommateurs doivent désormais pointer vers ce dépôt et utiliser les nouveaux

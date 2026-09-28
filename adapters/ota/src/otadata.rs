@@ -1,6 +1,6 @@
-//! ESP flash adapter for FiBeWI's EWBT boot entries.
+//! ESP flash adapter for IOBEWI OTA's EWBT boot entries.
 //!
-//! FiBeWI decides what to boot and which entry transition to make. This
+//! IOBEWI OTA decides what to boot and which entry transition to make. This
 //! module locates the ESP `otadata` partition and executes those transitions
 //! with readback verification. The caller owns and locks the physical flash.
 
@@ -9,8 +9,8 @@ use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use esp_bootloader_esp_idf::partitions::{
     DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
 };
-use fibewi::BackendOutcome;
-use fibewi::boot::{self, Decoded};
+use iobewi_ota::BackendOutcome;
+use iobewi_esp_ota_boot::{self as boot, Decoded};
 
 use crate::{AppPartition, AppSlot, find_app_partition};
 
@@ -63,7 +63,7 @@ pub fn booted_slot<F: Storage>(flash: &mut F, scratch: &mut TableBuffer) -> Resu
     })
 }
 
-/// Choose the other slot only after FiBeWI entries identify a running Valid
+/// Choose the other slot only after IOBEWI OTA entries identify a running Valid
 /// or Pending image. A stale Valid entry may remain in the other sector.
 pub fn write_target<F: Storage + ReadNorFlash>(
     flash: &mut F,

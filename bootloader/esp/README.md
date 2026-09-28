@@ -6,7 +6,7 @@ Feature-driven Rust `no_std` second-stage bootloader owned by `iobewi-esp`.
 ESP ROM
   -> iobewi-esp-bootloader
        -> iobewi-esp-platform / iobewi-esp-boot   (hardware)
-       -> fibewi::boot                  (firmware lifecycle semantics)
+       -> iobewi-esp-ota-boot                    (EWBT and ESP image validation)
   -> ota_0 / ota_1
   -> application
 ```
@@ -14,8 +14,8 @@ ESP ROM
 The executable owns the ESP execution boundary: HAL runtime, ROM flash access,
 watchdog handoff, MMU/cache mapping, RAM loading, linker profile and final jump.
 
-FiBeWI remains the policy/semantic dependency. It decides which image may boot
-and which EWBT transitions are required, but it does not own an ESP executable.
+`iobewi-esp-ota-boot` supplies the EWBT policy and ESP image validation to the
+bootloader. The executable applies those decisions using the ESP hardware layer.
 
 ## Targets
 
@@ -37,4 +37,4 @@ cargo build --release --locked \
 
 No target is enabled by default. Additional SoCs add an `iobewi-esp-platform`
 profile, an `iobewi-esp-boot` hardware backend and a linker profile without
-duplicating FiBeWI boot semantics.
+duplicating IOBEWI OTA boot semantics.

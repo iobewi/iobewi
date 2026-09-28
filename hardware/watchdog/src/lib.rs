@@ -3,7 +3,7 @@
 //! Low-level ESP TIMG0 watchdog access for an application boot window.
 //!
 //! The caller decides whether to arm, feed or disable it and owns the
-//! timeout. This crate has no knowledge of FiBeWI, OTA or self-checks.
+//! timeout. This crate has no knowledge of IOBEWI OTA, OTA or self-checks.
 //! `esp_hal::init()` disables watchdogs. On the current runtime, TIMG0 must
 //! be initialized for `esp_rtos` before calling `arm_ms`: constructing that
 //! timer group later resets its peripheral block and clears the watchdog.

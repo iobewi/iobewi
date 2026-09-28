@@ -4,7 +4,7 @@
 //!
 //! ConfigSpace persistence semantics live here. Physical flash ownership and
 //! the ESP NVS platform bridge are supplied by iobewi-esp, allowing
-//! this backend to coexist with other storage consumers such as FiBeWI.
+//! this backend to coexist with other storage consumers such as IOBEWI OTA.
 
 extern crate alloc;
 

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "ESP partition and NOR-flash adapter for FiBeWI ArtifactStorage"
+description = "ESP partition and NOR-flash adapter for IOBEWI OTA"
 keywords = ["esp32", "ota", "flash", "embedded", "no-std"]
 categories = ["embedded", "hardware-support", "no-std"]
 
@@ -24,7 +24,8 @@ esp32s3 = [
 shared-flash = ["dep:iobewi-esp-flash", "dep:sha2"]
 
 [dependencies]
-fibewi = { git = "https://github.com/iobewi/fibewi", rev = "5d086645fc612d3da49ae5d779b57ffbf295b775", default-features = false, features = ["engine", "boot"] }
+iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "3e0b19b095a9a8afe9cd20730e97bf59e82e1f7e" }
+iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
 embedded-storage = "0.3.1"
 esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
 iobewi-esp-partitions = { path = "../../hardware/partitions", default-features = false }
