@@ -14,11 +14,9 @@ mod esp {
     use iobewi_esp_tls::service::{self as tls, ClientStream, TlsConfigSpace, TlsReferenceStatic};
     use iobewi_log_stream::Transport;
 
-    /// ESP console output; the portable service owns filtering and buffering.
-    pub fn install(application_target: &'static str) {
-        iobewi_log_stream::install(|record: &log::Record<'_>| {
-            esp_println::println!("{} - {}", record.level(), record.args());
-        }, application_target);
+    /// ESP console output passed to the portable service at composition time.
+    pub fn console_print(record: &log::Record<'_>) {
+        esp_println::println!("{} - {}", record.level(), record.args());
     }
 
     #[derive(Clone, Copy)]
@@ -55,4 +53,4 @@ mod esp {
 }
 
 #[cfg(feature = "esp32s3")]
-pub use esp::{install, EspLogTransport};
+pub use esp::{console_print, EspLogTransport};
