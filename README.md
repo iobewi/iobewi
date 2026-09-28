@@ -11,8 +11,8 @@ Chaque composant a son propre `Cargo.toml` :
 | --- | --- | --- |
 | `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,watchdog}` | Accès au matériel |
 | `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des contrats FiBeWI et CSM |
-| `services/` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
-| `.` | `iobewi-esp` | Listener HTTPS reliant TLS ESP à `iobewi-http` |
+| `services/wifi`, `services/tls` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
+| `services/http` | `iobewi-esp-http` | Listener HTTPS reliant TLS ESP à `iobewi-http` |
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |
 
 Le listener charge l'identité serveur via une capacité injectée, accepte TCP,

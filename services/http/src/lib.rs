@@ -1,3 +1,5 @@
+#![no_std]
+
 //! ESP32-S3 TLS listener for the portable IOBEWI HTTP server.
 
 use embassy_net::Stack;
