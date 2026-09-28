@@ -25,6 +25,9 @@ Le backend NVS `iobewi-esp-config-space` implémente le contrat portable
 `iobewi-config-space` depuis le workspace IOBEWI.
 Le service portable `iobewi-ota` possède les transactions et leurs métadonnées ;
 `iobewi-esp-ota-boot` possède le format EWBT et la validation des images ESP.
+L’adaptateur `iobewi-esp-ota` fournit aussi au service la persistance
+ConfigSpace, le writer flash, la sélection des slots et les effets boot et
+watchdog. Le service portable garde les décisions de reprise et de confirmation.
 
 Le code de l'ancien dépôt reste accessible pour l'historique. Les projets
 consommateurs doivent désormais pointer vers ce dépôt et utiliser les nouveaux
