@@ -12,3 +12,4 @@ jobs:
       - run: cargo check --workspace --no-default-features
       - run: cargo test -p iobewi-config-space
       - run: cargo test -p iobewi-ota
+      - run: cargo test -p iobewi-ota --features http

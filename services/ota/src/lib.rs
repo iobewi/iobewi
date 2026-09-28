@@ -44,7 +44,10 @@ extern crate std;
 
 pub mod artifact;
 pub mod error;
+#[cfg(feature = "http")]
+pub mod http;
 pub mod metadata;
+pub mod service;
 pub mod state;
 pub mod storage;
 pub mod transaction;
