@@ -8,6 +8,10 @@ IOBEWI is the company behind this portable Rust framework for embedded services.
 
 `iobewi` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
 
+This repository is a Cargo workspace: each service lives in its own crate under
+`services/` with its own `Cargo.toml`. The first member is
+[`iobewi-http`](services/http), the portable HTTP server.
+
 The intended dependency direction is:
 
 ```text
@@ -26,7 +30,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
 | [FiBeWI](https://github.com/iobewi/fibewi) | OTA lifecycle, transactions, validation policy, and the OTA HTTP service. |
-| `iobewi::http` (first component) | Shared HTTP dispatcher for TLS connections and application/service routes. Authentication policy and route migration are still pending. |
+| `services/http` (`iobewi-http`) | Shared HTTP dispatcher for TLS connections and application/service routes. Authentication policy and route migration are still pending. |
 | [ConfigSpace Manager](https://github.com/iobewi/config-space-manager) | Logical persistent configuration spaces independent of a particular NVS backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | Framework ESP adapter: TLS listener first; further hardware capabilities are planned. It uses the existing [espbewi](https://github.com/iobewi/espbewi) hardware libraries. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |

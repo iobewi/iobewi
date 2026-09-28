@@ -1,3 +1,5 @@
+#![no_std]
+
 //! Shared HTTP server. The platform adapter supplies a *handshaken* TLS
 //! socket; this module never accepts raw TCP or provides a cleartext fallback.
 
