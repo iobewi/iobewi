@@ -13,7 +13,6 @@ http = ["dep:iobewi-http", "dep:serde", "dep:serde_json"]
 runtime = ["dep:embassy-sync", "dep:embassy-time", "dep:embassy-futures"]
 
 [dependencies]
-iobewi-config-space = { path = "../config-space" }
 sha2 = { version = "0.10", default-features = false }
 iobewi-http = { path = "../http", optional = true }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
