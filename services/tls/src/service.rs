@@ -1,9 +1,11 @@
 //! ESP crypto and Embassy socket adapter for the portable IOBEWI TLS service.
 
 use embassy_net::{Stack, tcp::TcpSocket};
+use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_config_space::ConfigSpace;
 use iobewi_esp_config_space::NvsConfigBackend;
 use iobewi_tls::{Identity, PairError, TlsCrypto, TlsService};
+use iobewi_transport::{Close, SecureClientTransport};
 use log::warn;
 use mbedtls_rs::{Session, SessionConfig, SessionError};
 
@@ -11,9 +13,43 @@ pub use iobewi_tls::{CONFIG_BUDGET, IdentityBootstrapError, SaveCertError};
 pub use crate::TlsReferenceStatic;
 
 pub type TlsConfigSpace = ConfigSpace<NvsConfigBackend>;
+
 /// Connected client transport. Protocol callers depend on the async I/O
 /// traits; the concrete MbedTLS session stays in the ESP adapter.
-pub type ClientStream<'host, 'buffers> = Session<'host, TcpSocket<'buffers>>;
+///
+/// A newtype rather than a type alias over `Session` -- `iobewi_transport`'s
+/// `Close` is a foreign trait and `Session` a foreign type, so implementing
+/// one for the other here needs a locally-owned wrapper (Rust's orphan
+/// rule). Read/Write are delegated straight through to the inner session.
+pub struct ClientStream<'buf>(Session<'static, TcpSocket<'buf>>);
+
+impl ErrorType for ClientStream<'_> {
+    type Error = SessionError;
+}
+
+impl Read for ClientStream<'_> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, SessionError> {
+        self.0.read(buf).await
+    }
+}
+
+impl Write for ClientStream<'_> {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, SessionError> {
+        self.0.write(buf).await
+    }
+
+    async fn flush(&mut self) -> Result<(), SessionError> {
+        self.0.flush().await
+    }
+}
+
+impl Close for ClientStream<'_> {
+    type Error = SessionError;
+
+    async fn close(&mut self) -> Result<(), SessionError> {
+        self.0.close().await
+    }
+}
 
 struct EspCrypto;
 
@@ -71,6 +107,8 @@ pub enum ClientTlsError {
     ClockUnsynced,
     NoCa,
     BadCa,
+    /// `host` contains an embedded NUL byte.
+    InvalidHost,
     Dns,
     Tcp(embassy_net::tcp::ConnectError),
     Handshake(SessionError),
@@ -82,6 +120,7 @@ impl core::fmt::Display for ClientTlsError {
             Self::ClockUnsynced => write!(f, "clock not synchronized yet (SNTP)"),
             Self::NoCa => write!(f, "no CA configured (POST /v1alpha1/tls/ca)"),
             Self::BadCa => write!(f, "stored CA failed to parse"),
+            Self::InvalidHost => write!(f, "host name contains a nul byte"),
             Self::Dns => write!(f, "DNS resolution failed"),
             Self::Tcp(e) => write!(f, "TCP connect failed: {e:?}"),
             Self::Handshake(e) => write!(f, "TLS handshake failed: {e}"),
@@ -91,24 +130,58 @@ impl core::fmt::Display for ClientTlsError {
 
 /// Connect only when the application wall clock has synchronized and the
 /// durable CA is present. MbedTLS and Embassy network details stay here.
-pub async fn connect_client<'h, 'buf>(
+pub async fn connect_client<'buf>(
     tls: TlsReferenceStatic,
     stack: Stack<'static>,
     space: &TlsConfigSpace,
     clock_is_set: bool,
     rx_buffer: &'buf mut [u8],
     tx_buffer: &'buf mut [u8],
-    host: &'h core::ffi::CStr,
+    host: &str,
     port: u16,
-) -> Result<ClientStream<'h, 'buf>, ClientTlsError> {
+) -> Result<ClientStream<'buf>, ClientTlsError> {
     if !clock_is_set { return Err(ClientTlsError::ClockUnsynced); }
     let ca = TlsService::new(EspCrypto).trusted_ca(space).await.ok_or(ClientTlsError::NoCa)?;
     crate::embassy::connect_client(tls, stack, rx_buffer, tx_buffer, host, port, &ca)
         .await
+        .map(ClientStream)
         .map_err(|e| match e {
             crate::embassy::ClientConnectError::BadCa => ClientTlsError::BadCa,
+            crate::embassy::ClientConnectError::InvalidHost => ClientTlsError::InvalidHost,
             crate::embassy::ClientConnectError::Dns => ClientTlsError::Dns,
             crate::embassy::ClientConnectError::Tcp(e) => ClientTlsError::Tcp(e),
             crate::embassy::ClientConnectError::Handshake(e) => ClientTlsError::Handshake(e),
         })
+}
+
+/// ESP implementation of the portable `SecureClientTransport` capability.
+/// Trust material (the TLS config space holding the CA, and whether the
+/// clock has converged) is bound here, at construction -- `connect()`
+/// itself takes only `host`/`port`/buffers, so every call automatically
+/// gets the same fail-closed policy without the caller having to know it
+/// exists.
+#[derive(Clone, Copy)]
+pub struct EspClientTransport {
+    pub tls: TlsReferenceStatic,
+    pub stack: Stack<'static>,
+    pub tls_config: &'static TlsConfigSpace,
+    pub clock_is_set: fn() -> bool,
+}
+
+impl SecureClientTransport for EspClientTransport {
+    type Error = ClientTlsError;
+    type Connection<'a>
+        = ClientStream<'a>
+    where
+        Self: 'a;
+
+    async fn connect<'a>(
+        &'a self,
+        host: &'a str,
+        port: u16,
+        rx: &'a mut [u8],
+        tx: &'a mut [u8],
+    ) -> Result<Self::Connection<'a>, Self::Error> {
+        connect_client(self.tls, self.stack, self.tls_config, (self.clock_is_set)(), rx, tx, host, port).await
+    }
 }

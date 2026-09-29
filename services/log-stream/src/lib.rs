@@ -6,13 +6,11 @@ extern crate alloc;
 
 #[cfg(feature = "esp32s3")]
 mod esp {
-    use alloc::{format, string::String};
-    use core::ffi::CStr;
     use embassy_net::Stack;
     use esp_hal::rng::Rng;
-    use iobewi_esp_tls::mbedtls_rs::SessionError;
-    use iobewi_esp_tls::service::{self as tls, ClientStream, TlsConfigSpace, TlsReferenceStatic};
-    use iobewi_log_stream::Transport;
+    use iobewi_esp_tls::service::{self as tls, ClientStream, ClientTlsError, TlsConfigSpace, TlsReferenceStatic};
+    use iobewi_log_stream::Entropy;
+    use iobewi_transport::SecureClientTransport;
 
     /// ESP console output passed to the portable service at composition time.
     pub fn console_print(record: &log::Record<'_>) {
@@ -27,21 +25,25 @@ mod esp {
         pub clock_is_set: fn() -> bool,
     }
 
-    impl Transport for EspLogTransport {
-        type IoError = SessionError;
-        type Connection<'host, 'buffers> = ClientStream<'host, 'buffers>;
+    impl SecureClientTransport for EspLogTransport {
+        type Error = ClientTlsError;
+        type Connection<'a>
+            = ClientStream<'a>
+        where
+            Self: 'a;
 
-        async fn connect<'host, 'buffers>(
-            &self,
-            host: &'host CStr,
+        async fn connect<'a>(
+            &'a self,
+            host: &'a str,
             port: u16,
-            rx: &'buffers mut [u8],
-            tx: &'buffers mut [u8],
-        ) -> Result<Self::Connection<'host, 'buffers>, String> {
-            tls::connect_client(self.tls, self.stack, self.tls_config, (self.clock_is_set)(), rx, tx, host, port)
-                .await.map_err(|error| format!("connect to {host:?}:{port} failed: {error}"))
+            rx: &'a mut [u8],
+            tx: &'a mut [u8],
+        ) -> Result<Self::Connection<'a>, Self::Error> {
+            tls::connect_client(self.tls, self.stack, self.tls_config, (self.clock_is_set)(), rx, tx, host, port).await
         }
+    }
 
+    impl Entropy for EspLogTransport {
         fn random_bytes(&self, output: &mut [u8]) {
             Rng::new().read(output);
         }

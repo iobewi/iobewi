@@ -509,6 +509,9 @@ pub mod embassy {
     #[derive(Debug)]
     pub enum ClientConnectError {
         BadCa,
+        /// `host` contains an embedded NUL byte, so it cannot be turned into
+        /// the C string MbedTLS' hostname/SNI setter requires.
+        InvalidHost,
         Dns,
         Tcp(ConnectError),
         Handshake(SessionError),
@@ -516,22 +519,28 @@ pub mod embassy {
 
     /// Resolve, connect, and complete a certificate-verifying client TLS
     /// handshake over Embassy networking.
-    pub async fn connect_client<'h, 'buf>(
+    ///
+    /// Returns `Session<'static, _>`: nothing this function passes into
+    /// `ClientSessionConfig` needs to outlive the call (the CA is parsed into
+    /// owned, `'static` storage by `Certificate::new`, and the hostname is
+    /// set *after* construction via `set_server_name`, which MbedTLS copies
+    /// into its own allocation immediately -- see that call below). Only the
+    /// TCP buffers' lifetime survives into the returned type.
+    pub async fn connect_client<'buf>(
         tls: TlsReference<'static>,
         stack: embassy_net::Stack<'static>,
         rx_buffer: &'buf mut [u8],
         tx_buffer: &'buf mut [u8],
-        host: &'h core::ffi::CStr,
+        host: &str,
         port: u16,
         ca_pem: &str,
-    ) -> Result<Session<'h, TcpSocket<'buf>>, ClientConnectError> {
+    ) -> Result<Session<'static, TcpSocket<'buf>>, ClientConnectError> {
         let ca_c = CString::new(ca_pem).map_err(|_| ClientConnectError::BadCa)?;
         let ca_chain = Certificate::new(X509::PEM(&ca_c)).map_err(|_| ClientConnectError::BadCa)?;
 
-        let host_str = host.to_str().map_err(|_| ClientConnectError::Dns)?;
         let dns = embassy_net::dns::DnsSocket::new(stack);
         let ip = dns
-            .query(host_str, embassy_net::dns::DnsQueryType::A)
+            .query(host, embassy_net::dns::DnsQueryType::A)
             .await
             .ok()
             .and_then(|addrs| addrs.into_iter().next())
@@ -540,12 +549,21 @@ pub mod embassy {
         let mut socket = TcpSocket::new(stack, rx_buffer, tx_buffer);
         socket.connect((ip, port)).await.map_err(ClientConnectError::Tcp)?;
 
+        // No `server_name` here (unlike the config's other fields, that one
+        // would force this function's returned `Session<'a, _>` down to the
+        // lifetime of a *local* `host_c` -- see `set_server_name` below,
+        // called separately once the session already exists).
         let config = SessionConfig::Client(ClientSessionConfig {
             ca_chain: Some(ca_chain),
-            server_name: Some(host),
             ..ClientSessionConfig::new()
         });
         let mut session = Session::new(tls, socket, &config).map_err(ClientConnectError::Handshake)?;
+        // Must happen before `connect()`/the handshake (required by
+        // `set_server_name`'s own contract); the local `host_c` only needs
+        // to live for this one synchronous call, since MbedTLS copies the
+        // hostname into its own allocation right away.
+        let host_c = CString::new(host).map_err(|_| ClientConnectError::InvalidHost)?;
+        session.set_server_name(&host_c).map_err(ClientConnectError::Handshake)?;
         session.connect().await.map_err(ClientConnectError::Handshake)?;
         Ok(session)
     }
