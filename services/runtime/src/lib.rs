@@ -109,8 +109,16 @@ impl EspRuntimeDiagnostics {
     }
 }
 
+// The stack-painting half above works unconditionally on any riscv32/xtensa
+// target; only `heap_free_bytes` needs an actual esp-alloc chip feature, so
+// the trait impl itself is gated on having one selected.
+#[cfg(any(feature = "esp32c3", feature = "esp32s3"))]
 impl RuntimeDiagnostics for EspRuntimeDiagnostics {
     fn stack_headroom_bytes(&self) -> u32 {
         free_bytes()
+    }
+
+    fn heap_free_bytes(&self) -> u32 {
+        esp_alloc::HEAP.free() as u32
     }
 }
