@@ -12,6 +12,7 @@ jobs:
       - run: cargo check --workspace --no-default-features
       - run: cargo test -p iobewi-config-space
       - run: cargo test -p iobewi-transport
+      - run: cargo test -p iobewi-indicator
       - run: cargo test -p iobewi-http
       - run: cargo test -p iobewi-log-stream
       - run: cargo test -p iobewi-ntp

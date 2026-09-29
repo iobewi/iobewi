@@ -1,0 +1,10 @@
+[package]
+name = "iobewi-indicator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable device status indicator capability (semantic state only, no rendering)"
+
+[dependencies]
