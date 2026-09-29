@@ -1,0 +1,24 @@
+[package]
+name = "iobewi-esp-indicator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP RMT/WS2812 status LED renderer for the portable IOBEWI indicator capability"
+
+[features]
+default = []
+esp32c3 = ["dep:esp-hal", "esp-hal/esp32c3"]
+esp32s3 = ["dep:esp-hal", "esp-hal/esp32s3"]
+
+[dependencies]
+# TEMPORARY: pinned to iobewi's feat/status-indicator branch while that
+# chantier is in flight; bump to a main commit once it merges.
+iobewi-indicator = { git = "https://github.com/iobewi/iobewi", rev = "283886febc95796169d55049a4e19aca11a55927" }
+esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }
+esp-hal-smartled2 = "0.29.0"
+smart-leds = "0.4"
+embassy-executor = "0.10.0"
+embassy-time = { version = "0.5.0", default-features = false }
+log = "0.4"
