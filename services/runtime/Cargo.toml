@@ -1,0 +1,13 @@
+[package]
+name = "iobewi-esp-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP/Xtensa/RISC-V stack high-water-mark measurement for the portable IOBEWI runtime diagnostics capability"
+
+[dependencies]
+# TEMPORARY: pinned to iobewi's feat/runtime-diagnostics branch while that
+# chantier is in flight; bump to a main commit once it merges.
+iobewi-runtime = { git = "https://github.com/iobewi/iobewi", rev = "2879366e182ed48c73cdeb5139457f437266f33d" }
