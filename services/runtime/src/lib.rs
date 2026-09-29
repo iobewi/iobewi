@@ -13,22 +13,34 @@ pub trait RuntimeDiagnostics {
     /// Bytes of stack never touched since measurement began -- the
     /// remaining headroom before an overflow.
     fn stack_headroom_bytes(&self) -> u32;
+
+    /// Bytes currently free in the heap allocator.
+    fn heap_free_bytes(&self) -> u32;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    struct Fixed(u32);
+    struct Fixed {
+        stack_headroom: u32,
+        heap_free: u32,
+    }
 
     impl RuntimeDiagnostics for Fixed {
         fn stack_headroom_bytes(&self) -> u32 {
-            self.0
+            self.stack_headroom
+        }
+
+        fn heap_free_bytes(&self) -> u32 {
+            self.heap_free
         }
     }
 
     #[test]
-    fn stack_headroom_bytes_reports_the_implementation_value() {
-        assert_eq!(Fixed(12_345).stack_headroom_bytes(), 12_345);
+    fn reports_both_implementation_values_independently() {
+        let diagnostics = Fixed { stack_headroom: 12_345, heap_free: 67_890 };
+        assert_eq!(diagnostics.stack_headroom_bytes(), 12_345);
+        assert_eq!(diagnostics.heap_free_bytes(), 67_890);
     }
 }
