@@ -19,6 +19,8 @@ use static_cell::StaticCell;
 const LINE_MAX: usize = 160;
 const RING_CAPACITY: usize = 24;
 const DRAIN_PERIOD: Duration = Duration::from_millis(200);
+const FRAME_TIMEOUT: Duration = Duration::from_secs(10);
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const BASE_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 const STABLE_THRESHOLD: Duration = Duration::from_secs(30);
@@ -126,6 +128,10 @@ fn split_host_port(ctrl_url: &str) -> Option<(&str, u16)> {
     }
 }
 
+fn websocket_authority(host: &str, port: u16) -> String {
+    if port == 443 { String::from(host) } else { format!("{host}:{port}") }
+}
+
 fn next_backoff(current: Duration) -> Duration {
     Duration::from_secs((current.as_secs() * 2).min(MAX_BACKOFF.as_secs()))
 }
@@ -149,7 +155,8 @@ async fn connect_and_upgrade<'host, 'buffers, T: Transport>(
     let host_str = host.to_str().unwrap_or("");
     let mut nonce = [0u8; iobewi_http::websocket::NONCE_LENGTH];
     transport.random_bytes(&mut nonce);
-    iobewi_http::websocket::upgrade(&mut session, host_str, path, token, &nonce).await?;
+    let authority = websocket_authority(host_str, port);
+    iobewi_http::websocket::upgrade(&mut session, &authority, path, token, &nonce).await?;
     info!("logs: connected to {host_str}:{port}");
     Ok(session)
 }
@@ -165,14 +172,22 @@ where S::Error: Display + Debug {
         if config.token().await != token_snapshot {
             return String::from("bearer token changed, reconnecting");
         }
-        match with_timeout(DRAIN_PERIOD,
-            iobewi_http::websocket::process_frame(&mut *session, transport.random_u32())
-        ).await {
-            Ok(Ok(true)) | Err(_) => {}
-            Ok(Ok(false)) => return String::from("server closed the connection"),
-            Ok(Err(error)) => return error,
+        let mut first = [0u8; 1];
+        match with_timeout(DRAIN_PERIOD, session.read(&mut first)).await {
+            Err(_) => {} // Idle; no WebSocket frame byte was consumed.
+            Ok(Ok(0)) => return String::from("server closed the connection"),
+            Ok(Err(error)) => return format!("frame read failed: {error}"),
+            Ok(Ok(_)) => match with_timeout(FRAME_TIMEOUT,
+                iobewi_http::websocket::process_frame_after_first(&mut *session, first[0], transport.random_u32())
+            ).await {
+                Ok(Ok(true)) => {},
+                Ok(Ok(false)) => return String::from("server closed the connection"),
+                Ok(Err(error)) => return error,
+                Err(_) => return String::from("incomplete WebSocket frame timed out"),
+            },
         }
-        while let Some(line) = pop_line() {
+        for _ in 0..RING_CAPACITY {
+            let Some(line) = pop_line() else { break; };
             let node_id = config.node_id().await;
             let frame = LogFrame {
                 ts: config.timestamp(), node: &node_id,
@@ -211,7 +226,10 @@ pub async fn run<C: LogConfig, T: Transport>(config: &C, transport: &T) -> ! {
             continue;
         };
         let path = config.path();
-        let stable = match connect_and_upgrade(transport, &mut rx, &mut tx, &host_c, port, &path, &token).await {
+        let connected = with_timeout(HANDSHAKE_TIMEOUT,
+            connect_and_upgrade(transport, &mut rx, &mut tx, &host_c, port, &path, &token)
+        ).await.unwrap_or_else(|_| Err(String::from("WebSocket handshake timed out")));
+        let stable = match connected {
             Ok(mut session) => {
                 let connected_at = Instant::now();
                 let error = pump_session(&mut session, config, transport, &token).await;
@@ -239,6 +257,8 @@ mod tests {
         assert_eq!(split_host_port("https://core.example:8443/foo"), Some(("core.example", 8443)));
         assert_eq!(split_host_port("core.example"), Some(("core.example", 443)));
         assert_eq!(split_host_port(""), None);
+        assert_eq!(websocket_authority("core.example", 8443), "core.example:8443");
+        assert_eq!(websocket_authority("core.example", 443), "core.example");
         assert_eq!(next_backoff(Duration::from_secs(40)), Duration::from_secs(60));
         assert_eq!(jittered(Duration::from_secs(5), 0), Duration::from_millis(3500));
     }
