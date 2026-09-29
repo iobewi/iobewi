@@ -15,8 +15,8 @@ esp32s3 = ["dep:esp-hal", "dep:esp-println", "esp-hal/esp32s3", "esp-println/esp
 # TEMPORARY: pinned to the feat/secure-client-transport branch while that
 # chantier is in flight across iobewi/iobewi-esp/embewi-agent; bump to a
 # main commit once iobewi's branch merges.
-iobewi-log-stream = { git = "https://github.com/iobewi/iobewi", rev = "60a5e385165147b5a673bc21dca7a04be821a3aa" }
-iobewi-transport = { git = "https://github.com/iobewi/iobewi", rev = "60a5e385165147b5a673bc21dca7a04be821a3aa" }
+iobewi-log-stream = { git = "https://github.com/iobewi/iobewi", rev = "d959db9b4ca581af44c7a380c919227d865b2d49" }
+iobewi-transport = { git = "https://github.com/iobewi/iobewi", rev = "d959db9b4ca581af44c7a380c919227d865b2d49" }
 iobewi-esp-tls = { path = "../tls", features = ["service"] }
 embassy-net = { version = "0.9.1", default-features = false, features = ["dns", "medium-ethernet", "tcp"] }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }

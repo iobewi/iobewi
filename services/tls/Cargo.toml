@@ -38,7 +38,7 @@ iobewi-tls = { git = "https://github.com/iobewi/iobewi", rev = "fc6bd3cbbeb697e9
 # TEMPORARY: pinned to the feat/secure-client-transport branch while that
 # chantier is in flight across iobewi/iobewi-esp/embewi-agent; bump to a
 # main commit once iobewi's branch merges.
-iobewi-transport = { git = "https://github.com/iobewi/iobewi", rev = "60a5e385165147b5a673bc21dca7a04be821a3aa", optional = true }
+iobewi-transport = { git = "https://github.com/iobewi/iobewi", rev = "d959db9b4ca581af44c7a380c919227d865b2d49", optional = true }
 iobewi-esp-config-space = { path = "../../adapters/config-space", optional = true }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }
 embassy-time = { version = "0.5.0", default-features = false }

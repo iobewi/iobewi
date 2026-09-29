@@ -184,4 +184,8 @@ impl SecureClientTransport for EspClientTransport {
     ) -> Result<Self::Connection<'a>, Self::Error> {
         connect_client(self.tls, self.stack, self.tls_config, (self.clock_is_set)(), rx, tx, host, port).await
     }
+
+    fn local_address(&self) -> Option<alloc::string::String> {
+        self.stack.config_v4().map(|c| alloc::format!("{}", c.address.address()))
+    }
 }
