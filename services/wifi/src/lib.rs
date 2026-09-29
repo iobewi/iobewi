@@ -27,12 +27,34 @@ pub struct Network {
 /// which credentials become authoritative after a connection attempt.
 pub trait WifiTransport {
     type Address;
-    type Stack: Copy;
+    /// Opaque handle to whatever network stack the platform runs once
+    /// online (an `embassy_net::Stack`, a different runtime's socket
+    /// manager, ...). This crate never interprets it -- it only carries it
+    /// from the transport up to [`WifiManager`]'s own caller.
+    type NetworkHandle: Copy;
 
     async fn connect(&mut self, ssid: &str, password: String) -> bool;
     async fn scan(&mut self) -> Vec<Network>;
     fn ip(&self) -> Option<Self::Address>;
-    fn ip_stack(&self) -> Option<Self::Stack>;
+    fn network_handle(&self) -> Option<Self::NetworkHandle>;
+    fn is_online(&self) -> bool;
+}
+
+/// Consumer-facing capability: the functional operations a Wi-Fi
+/// provisioning workflow (e.g. Improv Serial) needs. Deliberately narrower
+/// than [`WifiTransport`] (the platform-facing port `WifiManager` itself
+/// consumes) -- a provisioning UI has no business touching durable-config
+/// internals, only scanning, provisioning, and reading the resulting state.
+#[allow(async_fn_in_trait)]
+pub trait WifiProvisioning {
+    type Address: core::fmt::Display;
+    type NetworkHandle: Copy;
+
+    async fn scan(&mut self) -> Vec<Network>;
+    async fn provision(&mut self, ssid: &str, password: String) -> bool;
+
+    fn address(&self) -> Option<Self::Address>;
+    fn network_handle(&self) -> Option<Self::NetworkHandle>;
     fn is_online(&self) -> bool;
 }
 
@@ -144,8 +166,43 @@ where
 
     pub async fn scan(&mut self) -> Vec<Network> { self.transport.scan().await }
     pub fn ip(&self) -> Option<T::Address> { self.transport.ip() }
-    pub fn ip_stack(&self) -> Option<T::Stack> { self.transport.ip_stack() }
+    pub fn network_handle(&self) -> Option<T::NetworkHandle> { self.transport.network_handle() }
     pub fn is_online(&self) -> bool { self.transport.is_online() }
+}
+
+/// Delegates straight to `WifiManager`'s own methods -- no policy lives
+/// here, this only narrows the surface a provisioning workflow sees.
+impl<T: WifiTransport, B: ConfigBackend> WifiProvisioning for WifiManager<T, B>
+where
+    B::Error: Debug,
+    T::Address: core::fmt::Display,
+{
+    type Address = T::Address;
+    type NetworkHandle = T::NetworkHandle;
+
+    async fn scan(&mut self) -> Vec<Network> {
+        self.transport.scan().await
+    }
+
+    async fn provision(&mut self, ssid: &str, password: String) -> bool {
+        // Explicit associated-function syntax, not `self.provision(...)`:
+        // this impl and the inherent one share the method name, and this
+        // makes unambiguous which one carries the real
+        // connect+commit+restore-on-failure policy.
+        Self::provision(self, ssid, password).await
+    }
+
+    fn address(&self) -> Option<Self::Address> {
+        self.transport.ip()
+    }
+
+    fn network_handle(&self) -> Option<Self::NetworkHandle> {
+        self.transport.network_handle()
+    }
+
+    fn is_online(&self) -> bool {
+        self.transport.is_online()
+    }
 }
 
 #[cfg(test)]
