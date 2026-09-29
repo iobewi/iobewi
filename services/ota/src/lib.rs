@@ -14,7 +14,7 @@
 //!   power cut at any point is always deterministic
 //!   ([`transaction::reconcile`], [`state`]);
 //! * a first-install bootstrap lifecycle kept separate from normal OTA transaction state ([`bootstrap`]);
-* two effect boundaries a backend implements ([`storage`]): bulk artifact
+//! * two effect boundaries a backend implements ([`storage`]): bulk artifact
 //!   bytes (streamed, not read-back-verified here) and a small transaction
 //!   record (the one place this crate requires a genuinely atomic publish).
 //!
