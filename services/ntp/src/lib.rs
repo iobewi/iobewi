@@ -11,8 +11,6 @@ use critical_section::Mutex;
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use log::{info, warn};
 use sntpc::{NtpContext, get_time};
@@ -25,6 +23,8 @@ pub struct SyncOptions {
     pub server: &'static str,
     pub resync_period: Duration,
     pub retry_period: Duration,
+    /// Maximum time for DNS and one UDP exchange, including a dropped reply.
+    pub exchange_timeout: Duration,
     pub plausible_epoch_floor: u64,
 }
 
@@ -36,7 +36,6 @@ struct Sync {
 }
 
 static SYNC: Mutex<RefCell<Option<Sync>>> = Mutex::new(RefCell::new(None));
-static FIRST_SYNC: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 /// Whether SNTP has converged at least once since boot.
 pub fn is_set() -> bool {
@@ -53,25 +52,25 @@ pub fn now() -> Option<u64> {
 /// Blocks until the first sync completes or `timeout` elapses. Returns
 /// `true` immediately if already synced from an earlier call.
 pub async fn wait(timeout: Duration) -> bool {
-    if is_set() {
-        return true;
-    }
-    with_timeout(timeout, FIRST_SYNC.wait()).await.is_ok()
+    let observed = with_timeout(timeout, async {
+        while !is_set() {
+            Timer::after_millis(50).await;
+        }
+    }).await.is_ok();
+    observed || is_set()
 }
 
 /// Resync forever; a network failure retains the last estimate.
 #[embassy_executor::task]
 pub async fn sync_task(stack: Stack<'static>, options: SyncOptions) -> ! {
-    let mut first_sync_done = false;
     loop {
-        match sync_once(stack, options).await {
+        let attempt = with_timeout(options.exchange_timeout, sync_once(stack, options)).await
+            .map_err(|_| SyncError::Timeout)
+            .and_then(core::convert::identity);
+        match attempt {
             Ok(epoch) => {
                 let sync = Sync { epoch_at_sync_s: epoch, mono_at_sync_us: Instant::now().as_micros() };
                 critical_section::with(|cs| *SYNC.borrow(cs).borrow_mut() = Some(sync));
-                if !first_sync_done {
-                    first_sync_done = true;
-                    FIRST_SYNC.signal(());
-                }
                 info!("SNTP: synced, ts={epoch}");
                 Timer::after(options.resync_period).await;
             }
@@ -92,6 +91,7 @@ enum SyncError {
     NoAddress,
     Bind(embassy_net::udp::BindError),
     Ntp(sntpc::Error),
+    Timeout,
     Implausible(u64),
 }
 

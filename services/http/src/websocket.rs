@@ -5,7 +5,7 @@ use alloc::{format, string::String};
 use core::fmt::Write as _;
 use edge_http::ws::{is_upgrade_accepted, upgrade_request_headers, MAX_BASE64_KEY_LEN, MAX_BASE64_KEY_RESPONSE_LEN, NONCE_LEN};
 use edge_ws::{FrameHeader, FrameType};
-use embedded_io_async::{Read, Write};
+use embedded_io_async::{ErrorType, Read, Write};
 
 pub const NONCE_LENGTH: usize = NONCE_LEN;
 
@@ -90,6 +90,49 @@ where
         _ => {}
     }
     Ok(true)
+}
+
+/// Process a frame after the caller has read its first byte to distinguish
+/// an idle connection from a partially received frame. Once any frame byte
+/// arrives, callers must close the session if processing times out.
+pub async fn process_frame_after_first<S>(session: &mut S, first: u8, mask_key: u32) -> Result<bool, String>
+where
+    S: Read + Write,
+    S::Error: core::fmt::Debug,
+{
+    let mut prefixed = Prefixed { session, first: Some(first) };
+    process_frame(&mut prefixed, mask_key).await
+}
+
+struct Prefixed<'a, S> {
+    session: &'a mut S,
+    first: Option<u8>,
+}
+
+impl<S: ErrorType> ErrorType for Prefixed<'_, S> {
+    type Error = S::Error;
+}
+
+impl<S: Read> Read for Prefixed<'_, S> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        if !buf.is_empty() {
+            if let Some(first) = self.first.take() {
+                buf[0] = first;
+                return Ok(1);
+            }
+        }
+        self.session.read(buf).await
+    }
+}
+
+impl<S: Write> Write for Prefixed<'_, S> {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.session.write(buf).await
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        self.session.flush().await
+    }
 }
 
 /// Write one masked text frame. The platform must supply a fresh masking key.
