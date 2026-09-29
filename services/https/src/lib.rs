@@ -9,16 +9,44 @@ use iobewi_esp_tls::{TlsReferenceStatic, embassy::PicoserveTlsSocket};
 use iobewi_esp_http::EspTcpListener;
 use iobewi_https::TlsListener;
 use log::{debug, warn};
-use picoserve::routing::PathRouter;
 
 const ADMIN_PORT_HTTPS: u16 = 443;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
-struct EspTlsListener<'a, LoadIdentity> {
+/// ESP adapter implementing IOBEWI's portable `TlsListener` over MbedTLS and
+/// the ESP TCP stack. `identity` reads the current server certificate and
+/// key through an application-provided capability; a missing identity never
+/// falls back to unencrypted HTTP.
+///
+/// `rx`/`tx` are caller-owned so this type never borrows a buffer that could
+/// go out of scope before the listener itself does -- construct it (and its
+/// backing buffers) at the composition boundary that also never returns,
+/// e.g. an embassy task, and hand it to a generic `serve` loop from there.
+pub struct EspTlsListener<'a, LoadIdentity> {
     tcp: EspTcpListener<'a>,
     tls: TlsReferenceStatic,
     identity: LoadIdentity,
     config: Option<SessionConfig<'static>>,
+}
+
+impl<'a, LoadIdentity> EspTlsListener<'a, LoadIdentity>
+where
+    LoadIdentity: AsyncFn() -> Option<SessionConfig<'static>>,
+{
+    pub fn new(
+        stack: Stack<'static>,
+        tls: TlsReferenceStatic,
+        identity: LoadIdentity,
+        rx: &'a mut [u8],
+        tx: &'a mut [u8],
+    ) -> Self {
+        Self {
+            tcp: EspTcpListener::new(stack, ADMIN_PORT_HTTPS, rx, tx),
+            tls,
+            identity,
+            config: None,
+        }
+    }
 }
 
 impl<LoadIdentity> TlsListener for EspTlsListener<'_, LoadIdentity>
@@ -70,28 +98,4 @@ where
 fn is_peer_hangup(e: &SessionError) -> bool {
     const MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE: i32 = -0x7780;
     matches!(e, SessionError::MbedTls(m) if m.code() == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE)
-}
-
-/// ESP adapter for IOBEWI's shared HTTP server. `identity` reads the current
-/// server certificate and key through an application-provided capability.
-/// A missing identity never falls back to unencrypted HTTP.
-pub async fn serve<R, LoadIdentity>(
-    stack: Stack<'static>,
-    tls: TlsReferenceStatic,
-    identity: LoadIdentity,
-    router: &picoserve::Router<R>,
-) -> !
-where
-    R: PathRouter,
-    LoadIdentity: AsyncFn() -> Option<SessionConfig<'static>>,
-{
-    let mut rx = [0u8; 1024];
-    let mut tx = [0u8; 1024];
-    let mut listener = EspTlsListener {
-        tcp: EspTcpListener::new(stack, ADMIN_PORT_HTTPS, &mut rx, &mut tx),
-        tls,
-        identity,
-        config: None,
-    };
-    iobewi_https::serve_forever(&mut listener, router).await
 }
