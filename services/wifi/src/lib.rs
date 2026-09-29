@@ -68,15 +68,19 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
         Some(self.radio.as_ref()?.stack.config_v4()?.address.address())
     }
 
-    /// Returns the IP-capable network stack once DHCP has configured it.
-    pub fn ip_stack(&self) -> Option<Stack<'static>> {
+    /// Returns the IP-capable network stack handle once DHCP has configured
+    /// it. Opaque to every portable caller above `iobewi-wifi`'s own
+    /// `WifiTransport`/`WifiProvisioning` ports -- only this crate and
+    /// whatever the application composition root does with it know it's an
+    /// `embassy_net::Stack`.
+    pub fn network_handle(&self) -> Option<Stack<'static>> {
         let radio = self.radio.as_ref()?;
         radio.stack.config_v4()?;
         Some(radio.stack)
     }
 
     pub fn is_online(&self) -> bool {
-        self.ip_stack().is_some()
+        self.network_handle().is_some()
     }
 
     fn radio(&mut self) -> Option<&mut Radio> {
@@ -217,7 +221,7 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
 
 impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
     type Address = embassy_net::Ipv4Address;
-    type Stack = Stack<'static>;
+    type NetworkHandle = Stack<'static>;
 
     async fn connect(&mut self, ssid: &str, password: String) -> bool {
         WifiManager::connect(self, ssid, password).await
@@ -231,8 +235,8 @@ impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
         WifiManager::ip(self)
     }
 
-    fn ip_stack(&self) -> Option<Self::Stack> {
-        WifiManager::ip_stack(self)
+    fn network_handle(&self) -> Option<Self::NetworkHandle> {
+        WifiManager::network_handle(self)
     }
 
     fn is_online(&self) -> bool {
