@@ -13,7 +13,8 @@
 //!   whatever the backend reports after a restart, so the outcome of a
 //!   power cut at any point is always deterministic
 //!   ([`transaction::reconcile`], [`state`]);
-//! * two effect boundaries a backend implements ([`storage`]): bulk artifact
+//! * a first-install bootstrap lifecycle kept separate from normal OTA transaction state ([`bootstrap`]);
+* two effect boundaries a backend implements ([`storage`]): bulk artifact
 //!   bytes (streamed, not read-back-verified here) and a small transaction
 //!   record (the one place this crate requires a genuinely atomic publish).
 //!
@@ -43,6 +44,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod artifact;
+pub mod bootstrap;
 pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
