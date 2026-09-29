@@ -20,6 +20,8 @@
 //!   a consumer that needs it (e.g. WebSocket frame masking) should ask for
 //!   it as its own, narrower capability.
 
+extern crate alloc;
+
 use embedded_io_async::{Read, Write};
 
 /// A connection that can be shut down cleanly (e.g. a TLS close-notify)
@@ -56,6 +58,16 @@ pub trait SecureClientTransport {
         rx: &'a mut [u8],
         tx: &'a mut [u8],
     ) -> Result<Self::Connection<'a>, Self::Error>;
+
+    /// Best-effort description of the local address this transport is
+    /// currently reachable on (e.g. for status reporting in an outbound
+    /// payload). `None` when no address is assigned yet. Defaulted: most
+    /// consumers of `connect()` have no use for their own address, so an
+    /// implementation only needs to override this when something (like a
+    /// heartbeat) actually reports it.
+    fn local_address(&self) -> Option<alloc::string::String> {
+        None
+    }
 }
 
 #[cfg(test)]
