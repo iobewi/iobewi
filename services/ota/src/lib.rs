@@ -45,6 +45,8 @@ extern crate std;
 
 pub mod artifact;
 pub mod bootstrap;
+#[cfg(feature = "config-space")]
+pub mod config_space;
 pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
