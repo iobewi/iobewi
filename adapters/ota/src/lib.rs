@@ -37,6 +37,16 @@ pub const PARTITION_TABLE_BUFFER_SIZE: usize = PARTITION_TABLE_MAX_LEN;
 /// Partition layout identifier exposed to OTA clients for this ESP image.
 pub const PARTITION_LAYOUT: &str = "embewi-ab-v1";
 
+/// ESP implementation of IOBEWI's portable OTA platform metadata.
+#[derive(Clone, Copy, Default)]
+pub struct EspOtaPlatformMetadata;
+
+impl iobewi_ota::OtaPlatformMetadata for EspOtaPlatformMetadata {
+    fn partition_layout(&self) -> &'static str {
+        PARTITION_LAYOUT
+    }
+}
+
 /// OTA-capable application slots this backend can locate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppSlot {
