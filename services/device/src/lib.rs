@@ -11,6 +11,14 @@ use alloc::string::String;
 /// eFuse value, serial number, or any other platform-specific representation.
 pub trait DeviceIdentity {
     fn hardware_id(&self) -> String;
+
+    /// Link-layer MAC address when the platform exposes one.
+    ///
+    /// Not every device has a MAC, so callers must treat this as an
+    /// optional capability rather than deriving platform identity from it.
+    fn mac_address(&self) -> Option<[u8; 6]> {
+        None
+    }
 }
 
 /// Static facts about the device/platform that applications may report.
@@ -32,6 +40,10 @@ mod tests {
         fn hardware_id(&self) -> String {
             String::from("abc123")
         }
+
+        fn mac_address(&self) -> Option<[u8; 6]> {
+            Some([0, 1, 2, 3, 4, 5])
+        }
     }
 
     impl DeviceMetadata for Fixed {
@@ -48,6 +60,7 @@ mod tests {
     fn capabilities_report_implementation_values_verbatim() {
         let device = Fixed;
         assert_eq!(device.hardware_id(), "abc123");
+        assert_eq!(device.mac_address(), Some([0, 1, 2, 3, 4, 5]));
         assert_eq!(device.chip_name(), "test-chip");
         assert_eq!(device.ram_size(), 123_456);
     }
