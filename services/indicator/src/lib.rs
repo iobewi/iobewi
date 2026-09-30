@@ -30,6 +30,16 @@ pub trait StatusIndicator {
     fn set(&self, status: Status);
 }
 
+/// Platform capability describing how a configurable status indicator may be
+/// wired on this target.
+///
+/// The values are platform pin identifiers, interpreted by the concrete
+/// adapter. Applications may expose them in configuration UIs but must not
+/// assume any platform-specific electrical meaning.
+pub trait StatusIndicatorCapabilities {
+    fn configurable_pins(&self) -> &'static [u8];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
