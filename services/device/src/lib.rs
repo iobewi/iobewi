@@ -23,7 +23,8 @@ impl DeviceIdentity for EspDeviceIdentity {
 
     fn mac_address(&self) -> Option<[u8; 6]> {
         let mac = esp_hal::efuse::base_mac_address();
-        Some(*mac.as_bytes())
+        let bytes = mac.as_bytes();
+        Some([bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]])
     }
 }
 
