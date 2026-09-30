@@ -20,7 +20,7 @@ use esp_hal::peripherals::RMT;
 use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
 use esp_hal_smartled::{RmtSmartLeds, Timing, buffer_size, color_order};
-use iobewi_indicator::{Status, StatusIndicator};
+use iobewi_indicator::{Status, StatusIndicator, StatusIndicatorCapabilities};
 use log::warn;
 use smart_leds::{RGB8, SmartLedsWrite};
 
@@ -81,6 +81,18 @@ static STATE: AtomicU8 = AtomicU8::new(0);
 /// [`led_task`] -- there is only ever one status LED on this device.
 #[derive(Clone, Copy, Default)]
 pub struct EspStatusIndicator;
+
+pub const STATUS_LED_GPIO_NUMBERS: &[u8] = &[
+    0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9, 10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21,
+];
+
+impl StatusIndicatorCapabilities for EspStatusIndicator {
+    fn configurable_pins(&self) -> &'static [u8] {
+        STATUS_LED_GPIO_NUMBERS
+    }
+}
 
 impl StatusIndicator for EspStatusIndicator {
     fn set(&self, status: Status) {
