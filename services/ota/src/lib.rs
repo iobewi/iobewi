@@ -61,3 +61,12 @@ pub use error::Error;
 pub use state::{Action, BackendOutcome, TransactionState};
 pub use storage::{ArtifactStorage, TransactionMetadata};
 pub use transaction::{ArtifactRecord, TransactionRecord, activate, clear_stale, finish, reconcile};
+
+/// Static OTA/platform facts needed by portable callers.
+///
+/// The partition-layout identifier is an opaque compatibility contract. Its
+/// concrete value is supplied by the selected platform adapter.
+pub trait OtaPlatformMetadata {
+    fn partition_layout(&self) -> &'static str;
+}
+
