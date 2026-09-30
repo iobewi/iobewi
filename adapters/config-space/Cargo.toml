@@ -21,7 +21,7 @@ esp32s3 = [
 ]
 
 [dependencies]
-iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "c47100e36b429dcfca1c735749f6079a3b2463df" }
+iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c" }
 iobewi-esp-flash = { path = "../../hardware/flash" }
 iobewi-esp-nvs = { path = "../../hardware/nvs" }
 esp-nvs = "0.5.0"

@@ -17,7 +17,7 @@ esp32s3 = ["esp-hal/esp32s3"]
 # real trait defined in iobewi_ota::http, not a re-exported alias, so this
 # must be the exact instance the router's `R: RebootPort` bound resolves
 # against wherever iobewi_ota::http::routes() gets called.
-iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "c47100e36b429dcfca1c735749f6079a3b2463df", features = ["http"] }
+iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", features = ["http"] }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-executor = "0.10.0"
 embassy-time = { version = "0.5.0", default-features = false }

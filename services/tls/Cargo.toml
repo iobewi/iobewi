@@ -33,8 +33,8 @@ service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-transport", 
 [dependencies]
 log = "0.4"
 embedded-io-async = "0.7.0"
-iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "c47100e36b429dcfca1c735749f6079a3b2463df", optional = true }
-iobewi-tls = { git = "https://github.com/iobewi/iobewi", rev = "c47100e36b429dcfca1c735749f6079a3b2463df", optional = true }
+iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", optional = true }
+iobewi-tls = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", optional = true }
 # TEMPORARY: pinned to the feat/secure-client-transport branch while that
 # chantier is in flight across iobewi/iobewi-esp/embewi-agent; bump to a
 # main commit once iobewi's branch merges.
