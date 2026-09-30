@@ -3,16 +3,16 @@
 use embassy_net::{Stack, tcp::TcpSocket};
 use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_config_space::ConfigSpace;
-use iobewi_esp_config_space::NvsConfigBackend;
 use iobewi_tls::{Identity, PairError, TlsCrypto, TlsService};
 use iobewi_transport::{Close, SecureClientTransport};
 use log::warn;
 use mbedtls_rs::{Session, SessionConfig, SessionError};
 
+pub use iobewi_config_space::ConfigBackend;
 pub use iobewi_tls::{CONFIG_BUDGET, IdentityBootstrapError, SaveCertError};
 pub use crate::TlsReferenceStatic;
 
-pub type TlsConfigSpace = ConfigSpace<NvsConfigBackend>;
+pub type TlsConfigSpace<B> = ConfigSpace<B>;
 
 /// Connected client transport. Protocol callers depend on the async I/O
 /// traits; the concrete MbedTLS session stays in the ESP adapter.
@@ -83,23 +83,28 @@ pub fn init(now: crate::UnixTimeFn) -> TlsReferenceStatic {
     crate::init(now)
 }
 
-pub async fn ensure_server_identity(space: &TlsConfigSpace, common_name: &str) -> Result<(), IdentityBootstrapError> {
+pub async fn ensure_server_identity<B: ConfigBackend>(space: &TlsConfigSpace<B>, common_name: &str) -> Result<(), IdentityBootstrapError>
+where B::Error: core::fmt::Debug {
     TlsService::new(EspCrypto).ensure_server_identity(space, common_name).await
 }
 
-pub async fn server_identity_valid(space: &TlsConfigSpace) -> bool {
+pub async fn server_identity_valid<B: ConfigBackend>(space: &TlsConfigSpace<B>) -> bool
+where B::Error: core::fmt::Debug {
     TlsService::new(EspCrypto).server_identity_valid(space).await
 }
 
-pub async fn save_cert(space: &TlsConfigSpace, cert_pem: &str, key_pem: &str) -> Result<(), SaveCertError> {
+pub async fn save_cert<B: ConfigBackend>(space: &TlsConfigSpace<B>, cert_pem: &str, key_pem: &str) -> Result<(), SaveCertError>
+where B::Error: core::fmt::Debug {
     TlsService::new(EspCrypto).save_cert(space, cert_pem, key_pem).await
 }
 
-pub async fn server_config(space: &TlsConfigSpace) -> Option<SessionConfig<'static>> {
+pub async fn server_config<B: ConfigBackend>(space: &TlsConfigSpace<B>) -> Option<SessionConfig<'static>>
+where B::Error: core::fmt::Debug {
     TlsService::new(EspCrypto).server_config(space).await
 }
 
-pub async fn save_ca(space: &TlsConfigSpace, ca_pem: &str) -> Result<(), SaveCertError> {
+pub async fn save_ca<B: ConfigBackend>(space: &TlsConfigSpace<B>, ca_pem: &str) -> Result<(), SaveCertError>
+where B::Error: core::fmt::Debug {
     TlsService::new(EspCrypto).save_ca(space, ca_pem).await
 }
 
@@ -130,16 +135,17 @@ impl core::fmt::Display for ClientTlsError {
 
 /// Connect only when the application wall clock has synchronized and the
 /// durable CA is present. MbedTLS and Embassy network details stay here.
-pub async fn connect_client<'buf>(
+pub async fn connect_client<'buf, B: ConfigBackend>(
     tls: TlsReferenceStatic,
     stack: Stack<'static>,
-    space: &TlsConfigSpace,
+    space: &TlsConfigSpace<B>,
     clock_is_set: bool,
     rx_buffer: &'buf mut [u8],
     tx_buffer: &'buf mut [u8],
     host: &str,
     port: u16,
-) -> Result<ClientStream<'buf>, ClientTlsError> {
+) -> Result<ClientStream<'buf>, ClientTlsError>
+where B::Error: core::fmt::Debug {
     if !clock_is_set { return Err(ClientTlsError::ClockUnsynced); }
     let ca = TlsService::new(EspCrypto).trusted_ca(space).await.ok_or(ClientTlsError::NoCa)?;
     crate::embassy::connect_client(tls, stack, rx_buffer, tx_buffer, host, port, &ca)
@@ -161,14 +167,18 @@ pub async fn connect_client<'buf>(
 /// gets the same fail-closed policy without the caller having to know it
 /// exists.
 #[derive(Clone, Copy)]
-pub struct EspClientTransport {
+pub struct EspClientTransport<B: ConfigBackend + 'static> {
     pub tls: TlsReferenceStatic,
     pub stack: Stack<'static>,
-    pub tls_config: &'static TlsConfigSpace,
+    pub tls_config: &'static TlsConfigSpace<B>,
     pub clock_is_set: fn() -> bool,
 }
 
-impl SecureClientTransport for EspClientTransport {
+impl<B> SecureClientTransport for EspClientTransport<B>
+where
+    B: ConfigBackend + 'static,
+    B::Error: core::fmt::Debug,
+{
     type Error = ClientTlsError;
     type Connection<'a>
         = ClientStream<'a>

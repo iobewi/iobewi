@@ -8,7 +8,7 @@ extern crate alloc;
 mod esp {
     use embassy_net::Stack;
     use esp_hal::rng::Rng;
-    use iobewi_esp_tls::service::{self as tls, ClientStream, ClientTlsError, TlsConfigSpace, TlsReferenceStatic};
+    use iobewi_esp_tls::service::{self as tls, ClientStream, ClientTlsError, ConfigBackend, TlsConfigSpace, TlsReferenceStatic};
     use iobewi_log_stream::Entropy;
     use iobewi_transport::SecureClientTransport;
 
@@ -18,14 +18,18 @@ mod esp {
     }
 
     #[derive(Clone, Copy)]
-    pub struct EspLogTransport {
+    pub struct EspLogTransport<B: ConfigBackend + 'static> {
         pub stack: Stack<'static>,
         pub tls: TlsReferenceStatic,
-        pub tls_config: &'static TlsConfigSpace,
+        pub tls_config: &'static TlsConfigSpace<B>,
         pub clock_is_set: fn() -> bool,
     }
 
-    impl SecureClientTransport for EspLogTransport {
+    impl<B> SecureClientTransport for EspLogTransport<B>
+    where
+        B: ConfigBackend + 'static,
+        B::Error: core::fmt::Debug,
+    {
         type Error = ClientTlsError;
         type Connection<'a>
             = ClientStream<'a>
@@ -43,7 +47,7 @@ mod esp {
         }
     }
 
-    impl Entropy for EspLogTransport {
+    impl<B: ConfigBackend + 'static> Entropy for EspLogTransport<B> {
         fn random_bytes(&self, output: &mut [u8]) {
             Rng::new().read(output);
         }
