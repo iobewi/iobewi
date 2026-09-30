@@ -1,0 +1,17 @@
+[package]
+name = "iobewi-esp-entropy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP implementation of the portable IOBEWI entropy capability"
+
+[features]
+default = []
+esp32c3 = ["esp-hal/esp32c3"]
+esp32s3 = ["esp-hal/esp32s3"]
+
+[dependencies]
+iobewi-entropy = { git = "https://github.com/iobewi/iobewi", rev = "c47100e36b429dcfca1c735749f6079a3b2463df" }
+esp-hal = { version = "~1.1.0", default-features = false }
