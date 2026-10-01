@@ -33,9 +33,9 @@ service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-transport", 
 [dependencies]
 log = "0.4"
 embedded-io-async = "0.7.0"
-iobewi-config-space = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", optional = true }
-iobewi-tls = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", optional = true }
-iobewi-transport = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c", optional = true }
+iobewi-config-space = { path = "../../../services/config-space", optional = true }
+iobewi-tls = { path = "../../../services/tls", optional = true }
+iobewi-transport = { path = "../../../services/transport", optional = true }
 iobewi-esp-config-space = { path = "../../adapters/config-space", optional = true }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }
 embassy-time = { version = "0.5.0", default-features = false }
