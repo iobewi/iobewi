@@ -11,7 +11,7 @@ IOBEWI is the company behind this portable Rust framework for embedded services.
 This repository is a Cargo workspace: each service lives in its own crate under
 `services/` with its own `Cargo.toml`. Current members are [`iobewi-http`](services/http), the portable HTTP
 dispatcher and outbound HTTP/WebSocket client; [`iobewi-https`](services/https), its TLS-only entry point; and
-[`iobewi-config-space`](services/config-space), configuration ownership and quotas; and
+[`iobewi-config-space`](fs/config), configuration ownership and quotas; and
 [`iobewi-ota`](services/ota), transactional firmware updates.
 
 The intended dependency direction is:
@@ -37,7 +37,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `services/log-stream` (`iobewi-log-stream`) | Bounded log capture, WebSocket forwarding and reconnect policy over a supplied secure transport. |
 | `services/ntp` (`iobewi-ntp`) | SNTP synchronization and an epoch clock over Embassy networking; server and timing policy are supplied at startup. |
 | `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
-| `services/config-space` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
+| `fs/config` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |
 

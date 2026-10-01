@@ -8,5 +8,5 @@ repository.workspace = true
 description = "Portable Wi-Fi provisioning, credential storage and reconnection service"
 
 [dependencies]
-iobewi-config-space = { path = "../config-space" }
+iobewi-config-space = { path = "../../fs/config" }
 log = { version = "0.4", default-features = false }

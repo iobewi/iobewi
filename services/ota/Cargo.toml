@@ -21,4 +21,4 @@ serde_json = { version = "1", default-features = false, features = ["alloc"], op
 embassy-sync = { version = "0.8.0", optional = true }
 embassy-time = { version = "0.5.0", optional = true }
 embassy-futures = { version = "0.1", optional = true }
-iobewi-config-space = { path = "../config-space", optional = true }
+iobewi-config-space = { path = "../../fs/config", optional = true }
