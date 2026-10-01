@@ -1,5 +1,6 @@
 [package]
 name = "iobewi-esp-wifi"
+workspace = "../../../../iobewi-esp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,7 +17,7 @@ esp32c3 = ["esp-hal/esp32c3", "esp-radio/esp32c3"]
 esp32s3 = ["esp-hal/esp32s3", "esp-hal/rt", "esp-radio/esp32s3"]
 
 [dependencies]
-iobewi-wifi-core = { path = "../../../net/wifi/core" }
+iobewi-wifi-core = { path = "../../../../net/wifi/core" }
 embassy-executor = { version = "0.10.0", default-features = false }
 embassy-net = { version = "0.9.1", default-features = false, features = [
   "dhcpv4",
