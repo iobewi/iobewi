@@ -10,6 +10,7 @@ use alloc::{format, string::String};
 use core::fmt::{Debug, Display};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::{ErrorType, Read, Write};
+use iobewi_entropy::EntropySource;
 use iobewi_log::{discard, pop_line, LogMetadata, RING_CAPACITY};
 use iobewi_net_tls_core::SecureClientTransport;
 use log::{info, warn};
@@ -31,15 +32,14 @@ pub trait StreamConfig {
     fn path(&self) -> String;
 }
 
-/// Randomness needed by the WebSocket protocol layer: the handshake nonce
-/// and RFC 6455 client-frame masking. Not a property of the secure
-/// transport itself (a plain HTTPS client, e.g. the heartbeat, never needs
-/// this) -- its own narrow capability, supplied to [`run`] separately from
-/// the transport.
-#[allow(async_fn_in_trait)]
-pub trait Entropy {
-    fn random_bytes(&self, output: &mut [u8]);
-    fn random_u32(&self) -> u32;
+/// One random 32-bit value (frame masking key, backoff jitter) drawn from the
+/// platform's [`EntropySource`]. The WebSocket layer's nonce and RFC 6455
+/// client-frame masking need the same unpredictable bytes TLS does, so it asks
+/// for the shared capability rather than a private one.
+fn random_u32<E: EntropySource>(entropy: &E) -> u32 {
+    let mut bytes = [0u8; 4];
+    entropy.fill_random(&mut bytes);
+    u32::from_le_bytes(bytes)
 }
 
 #[derive(Serialize)]
@@ -75,7 +75,7 @@ fn jittered(base: Duration, random: u32) -> Duration {
     Duration::from_millis((base_ms + base_ms * percent / 100).max(1000) as u64)
 }
 
-async fn connect_and_upgrade<'a, T: SecureClientTransport, E: Entropy>(
+async fn connect_and_upgrade<'a, T: SecureClientTransport, E: EntropySource>(
     transport: &'a T,
     entropy: &E,
     rx: &'a mut [u8],
@@ -90,14 +90,14 @@ async fn connect_and_upgrade<'a, T: SecureClientTransport, E: Entropy>(
         .await
         .map_err(|e| format!("connect failed: {e}"))?;
     let mut nonce = [0u8; iobewi_http_client::websocket::NONCE_LENGTH];
-    entropy.random_bytes(&mut nonce);
+    entropy.fill_random(&mut nonce);
     let authority = websocket_authority(host, port);
     iobewi_http_client::websocket::upgrade(&mut session, &authority, path, token, &nonce).await?;
     info!("logs: connected to {host}:{port}");
     Ok(session)
 }
 
-async fn pump_session<S: ErrorType + Read + Write, C: StreamConfig + LogMetadata, E: Entropy>(
+async fn pump_session<S: ErrorType + Read + Write, C: StreamConfig + LogMetadata, E: EntropySource>(
     session: &mut S,
     config: &C,
     entropy: &E,
@@ -114,7 +114,7 @@ where S::Error: Display + Debug {
             Ok(Ok(0)) => return String::from("server closed the connection"),
             Ok(Err(error)) => return format!("frame read failed: {error}"),
             Ok(Ok(_)) => match with_timeout(FRAME_TIMEOUT,
-                iobewi_http_client::websocket::process_frame_after_first(&mut *session, first[0], entropy.random_u32())
+                iobewi_http_client::websocket::process_frame_after_first(&mut *session, first[0], random_u32(entropy))
             ).await {
                 Ok(Ok(true)) => {},
                 Ok(Ok(false)) => return String::from("server closed the connection"),
@@ -130,7 +130,7 @@ where S::Error: Display + Debug {
                 workload: config.workload(), level: "raw", msg: &line,
             };
             let Ok(json) = serde_json::to_vec(&frame) else { continue; };
-            if let Err(error) = iobewi_http_client::websocket::send_text(&mut *session, &json, entropy.random_u32()).await {
+            if let Err(error) = iobewi_http_client::websocket::send_text(&mut *session, &json, random_u32(entropy)).await {
                 return error;
             }
         }
@@ -139,7 +139,7 @@ where S::Error: Display + Debug {
 
 /// Reconnect with capped jittered backoff. Fresh logs are sent only while a
 /// connection is active; the ring is cleared on every failed session.
-pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: Entropy>(config: &C, transport: &T, entropy: &E) -> ! {
+pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: EntropySource>(config: &C, transport: &T, entropy: &E) -> ! {
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 512];
     let mut backoff = BASE_BACKOFF;
@@ -174,7 +174,7 @@ pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: Ent
         };
         discard();
         if stable { backoff = BASE_BACKOFF; }
-        Timer::after(jittered(backoff, entropy.random_u32())).await;
+        Timer::after(jittered(backoff, random_u32(entropy))).await;
         backoff = next_backoff(backoff);
     }
 }
@@ -192,5 +192,29 @@ mod tests {
         assert_eq!(websocket_authority("core.example", 443), "core.example");
         assert_eq!(next_backoff(Duration::from_secs(40)), Duration::from_secs(60));
         assert_eq!(jittered(Duration::from_secs(5), 0), Duration::from_millis(3500));
+    }
+}
+
+#[cfg(test)]
+mod entropy_tests {
+    use super::*;
+    use core::cell::Cell;
+
+    struct Counter(Cell<u8>);
+
+    impl EntropySource for Counter {
+        fn fill_random(&self, output: &mut [u8]) {
+            for byte in output.iter_mut() {
+                self.0.set(self.0.get().wrapping_add(1));
+                *byte = self.0.get();
+            }
+        }
+    }
+
+    #[test]
+    fn masking_keys_and_jitter_come_from_the_shared_entropy_source() {
+        let source = Counter(Cell::new(0));
+        assert_eq!(random_u32(&source), u32::from_le_bytes([1, 2, 3, 4]));
+        assert_eq!(random_u32(&source), u32::from_le_bytes([5, 6, 7, 8]));
     }
 }

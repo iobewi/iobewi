@@ -12,11 +12,11 @@ default = []
 esp32s3 = ["esp-hal/esp32s3", "iobewi-esp-tls/esp32s3", "iobewi-esp-http/esp32s3"]
 
 [dependencies]
-iobewi-https = { path = "../../../services/https" }
+iobewi-net-io = { path = "../../../net/io" }
+iobewi-net-tls-core = { path = "../../../net/tls/core" }
 iobewi-esp-http = { path = "../http", default-features = false }
-iobewi-esp-tls = { path = "../tls", default-features = false, features = ["picoserve"] }
+iobewi-esp-tls = { path = "../tls", default-features = false, features = ["embassy-net"] }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-net = { version = "0.9.1", default-features = false, features = ["tcp", "medium-ethernet"] }
 embassy-time = { version = "0.5.0", default-features = false }
-picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
 log = "0.4"

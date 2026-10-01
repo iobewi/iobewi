@@ -1,19 +1,22 @@
 #![no_std]
 
-//! ESP32-S3 TLS listener for the portable IOBEWI HTTP server.
+//! ESP32-S3 TLS listener: a `net/tls` [`TlsListener`] over MbedTLS and the ESP
+//! TCP stack. It yields generic `net/io` connections; the HTTP server adapts
+//! them (this crate names no HTTP framework).
 
 use embassy_net::Stack;
 use embassy_time::{Duration, Timer, with_timeout};
 use iobewi_esp_tls::mbedtls_rs::{Session, SessionConfig, SessionError};
-use iobewi_esp_tls::{TlsReferenceStatic, embassy::PicoserveTlsSocket};
+use iobewi_esp_tls::{TlsReferenceStatic, embassy::TlsStream};
 use iobewi_esp_http::EspTcpListener;
-use iobewi_https::TlsListener;
+use iobewi_net_io::ConnectionListener;
+use iobewi_net_tls_core::TlsListener;
 use log::{debug, warn};
 
 const ADMIN_PORT_HTTPS: u16 = 443;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// ESP adapter implementing IOBEWI's portable `TlsListener` over MbedTLS and
+/// ESP adapter implementing the `net/tls` `TlsListener` over MbedTLS and
 /// the ESP TCP stack. `identity` reads the current server certificate and
 /// key through an application-provided capability; a missing identity never
 /// falls back to unencrypted HTTP.
@@ -49,13 +52,13 @@ where
     }
 }
 
-impl<LoadIdentity> TlsListener for EspTlsListener<'_, LoadIdentity>
+impl<LoadIdentity> ConnectionListener for EspTlsListener<'_, LoadIdentity>
 where
     LoadIdentity: AsyncFn() -> Option<SessionConfig<'static>>,
 {
-    type Connection<'a> = PicoserveTlsSocket<'a, 'a> where Self: 'a;
+    type Connection<'a> = TlsStream<'a, 'a> where Self: 'a;
 
-    async fn accept_tls(&mut self) -> Result<Self::Connection<'_>, ()> {
+    async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
         let Some(config) = (self.identity)().await else {
             warn!("HTTPS: no usable server identity; administrative surface remains closed");
             Timer::after(Duration::from_secs(5)).await;
@@ -78,7 +81,7 @@ where
             }
         };
         match with_timeout(HANDSHAKE_TIMEOUT, session.connect()).await {
-            Ok(Ok(())) => Ok(PicoserveTlsSocket::new(session)),
+            Ok(Ok(())) => Ok(TlsStream::server(session)),
             Ok(Err(e)) if is_peer_hangup(&e) => {
                 debug!("HTTPS: handshake aborted by peer: {e}");
                 Err(())
@@ -93,6 +96,12 @@ where
             }
         }
     }
+}
+
+/// Only a completed handshake yields a connection; there is no plaintext path.
+impl<LoadIdentity> TlsListener for EspTlsListener<'_, LoadIdentity> where
+    LoadIdentity: AsyncFn() -> Option<SessionConfig<'static>>
+{
 }
 
 fn is_peer_hangup(e: &SessionError) -> bool {

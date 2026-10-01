@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "ESP HAL glue for mbedtls-rs with Embassy networking adapters"
+description = "ESP TLS transport glue: global MbedTLS instance, Embassy DNS/TCP/TLS dialer and session stream"
 repository.workspace = true
 readme = "README.md"
 keywords = ["esp32", "tls", "mbedtls", "embedded", "no-std"]
@@ -12,7 +12,7 @@ categories = ["embedded", "network-programming", "no-std"]
 
 [features]
 default = []
-esp32c3 = ["dep:esp-hal", "dep:rand_core", "dep:static_cell", "esp-hal/esp32c3", "iobewi-esp-config-space?/esp32c3"]
+esp32c3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp32c3", "iobewi-esp-entropy/rand-core"]
 # `use-gcc` is NOT enabled for ESP32-C3: mbedtls-rs-sys defaults to clang there
 # and that already works (a standard-shaped riscv32 triple isn't affected by
 # the bug below). ESP32-S3 needs it: mbedtls-rs-sys's default clang path
@@ -25,38 +25,14 @@ esp32c3 = ["dep:esp-hal", "dep:rand_core", "dep:static_cell", "esp-hal/esp32c3",
 # (`derive_forced_c_compiler`), which for this target selects the real
 # `xtensa-esp32s3-elf-gcc` cross-compiler directly and never calls
 # `Config::target()` with the problematic triple at all.
-esp32s3 = ["dep:esp-hal", "dep:rand_core", "dep:static_cell", "esp-hal/esp32s3", "mbedtls-rs/use-gcc", "iobewi-esp-config-space?/esp32s3"]
-embassy-net = ["dep:embassy-net"]
-picoserve = ["embassy-net", "dep:embassy-sync", "dep:picoserve"]
-service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-net-io", "dep:iobewi-net-tls-core", "dep:iobewi-esp-config-space", "embassy-net"]
+esp32s3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp32s3", "iobewi-esp-entropy/rand-core", "iobewi-crypto-mbedtls/use-gcc"]
+embassy-net = ["dep:embassy-net", "dep:embedded-io-async", "dep:iobewi-net-io", "dep:iobewi-net-tls-core"]
 
 [dependencies]
-log = "0.4"
-embedded-io-async = "0.7.0"
-iobewi-config-space = { path = "../../../fs/config", optional = true }
-iobewi-tls = { path = "../../../services/tls", optional = true }
+iobewi-crypto-mbedtls = { path = "../../../crypto/mbedtls" }
+iobewi-esp-entropy = { path = "../../../drivers/hw_random/esp32", default-features = false, optional = true }
 iobewi-net-io = { path = "../../../net/io", optional = true }
 iobewi-net-tls-core = { path = "../../../net/tls/core", optional = true }
-iobewi-esp-config-space = { path = "../../adapters/config-space", optional = true }
-esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }
-embassy-time = { version = "0.5.0", default-features = false }
-rand_core = { version = "0.10.1", default-features = false, optional = true }
+embedded-io-async = { version = "0.7.0", optional = true }
 static_cell = { version = "2.1.1", optional = true }
-
-embassy-net = { version = "0.9.1", default-features = false, features = ["dns", "medium-ethernet", "tcp"], optional = true }
-embassy-sync = { version = "0.8.0", optional = true }
-picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"], optional = true }
-
-mbedtls-rs = { version = "0.3.0", default-features = false, features = [
-  "tls-core", "tls-client", "tls-server",
-  "tls-proto-tls12", "tls-proto-tls13",
-  "x509-parse", "x509-write", "pk", "pem-parse", "pem-write", "base64",
-  "alg-sha256", "alg-sha512", "alg-hkdf",
-  "alg-ecp", "alg-ecdh", "alg-ecdsa", "curve-secp256r1",
-  "alg-gcm", "alg-chacha20", "alg-chachapoly", "alg-aes", "cipher-mode-cbc",
-  "kex-ecdhe-ecdsa",
-  "drbg-ctr", "entropy",
-  "tls-debug",
-  "hook-wall-clock",
-  "ssl-in-content-len-16384", "ssl-out-content-len-2048",
-] }
+embassy-net = { version = "0.9.1", default-features = false, features = ["dns", "medium-ethernet", "proto-ipv4", "tcp"], optional = true }

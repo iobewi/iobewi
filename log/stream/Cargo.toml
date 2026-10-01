@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Portable outbound WebSocket streaming of captured logs"
 
 [dependencies]
+iobewi-entropy = { path = "../../crypto/rng" }
 iobewi-log = { path = "../core" }
 iobewi-http-client = { path = "../../net/http/client", features = ["websocket"] }
 iobewi-net-io = { path = "../../net/io" }

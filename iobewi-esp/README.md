@@ -11,16 +11,17 @@ Chaque composant a son propre `Cargo.toml` :
 | --- | --- | --- |
 | `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,ota-boot,watchdog}` | Accès au matériel, état EWBT et validation d'image ESP |
 | `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des services IOBEWI OTA et ConfigSpace |
-| `services/tls` | `iobewi-esp-tls` | TLS ESP |
+| `services/tls` | `iobewi-esp-tls` | Transport TLS ESP : instance MbedTLS globale, dialer Embassy, flux de session (`net/io`) |
+| `../crypto/mbedtls` | `iobewi-crypto-mbedtls` | Implémentation MbedTLS du contrat crypto (PEM/X.509, identité) |
 | `../drivers/net/wifi/esp32` | `iobewi-esp-wifi` | Driver Wi-Fi station ESP (implémente `iobewi-wifi-core::WifiTransport`) |
 | `services/http` | `iobewi-esp-http` | Listener TCP/HTTP sans TLS ; exposition explicite par l’application |
-| `services/https` | `iobewi-esp-https` | Handshake TLS ESP et entrée HTTPS vers `iobewi-https` |
+| `services/https` | `iobewi-esp-https` | Listener TLS ESP (`TlsListener`) ; HTTPS = serveur HTTP + ce listener |
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |
 
 Le service HTTP accepte TCP et transmet la connexion au dispatcher portable
 `iobewi-http-server`. Le service HTTPS utilise ce même transport TCP, charge l’identité
 serveur via une capacité injectée et termine le handshake MbedTLS avant de
-transmettre le socket via `iobewi-https`. L’agent utilise uniquement HTTPS ;
+transmettre la connexion au serveur HTTP (`serve_forever_tls`). L’agent utilise uniquement HTTPS ;
 sans identité valide, il n’ouvre aucun port HTTP de repli.
 Le backend NVS `iobewi-esp-config-space` implémente le contrat portable
 `iobewi-config-space` depuis le workspace IOBEWI.
