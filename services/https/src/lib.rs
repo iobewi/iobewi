@@ -2,7 +2,6 @@
 
 //! HTTPS entry point: only a completed TLS handshake yields an HTTP socket.
 
-use iobewi_http_server::SocketListener;
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{EmbassyRuntime, Router};
@@ -18,20 +17,21 @@ pub trait TlsListener {
     async fn accept_tls(&mut self) -> Result<Self::Connection<'_>, ()>;
 }
 
-struct TlsConnections<'a, L>(&'a mut L);
-
-impl<L: TlsListener> SocketListener for TlsConnections<'_, L> {
-    type Connection<'a> = L::Connection<'a> where Self: 'a;
-
-    async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
-        self.0.accept_tls().await
-    }
-}
-
-/// Run the portable HTTP dispatcher using TLS-only connections.
+/// Run the portable HTTP dispatcher using TLS-only connections: accept a
+/// completed handshake, serve it, repeat (same loop and buffer as the generic
+/// `iobewi_http_server::serve_forever_io`, over native picoserve sockets).
 pub async fn serve_forever<L: TlsListener, R: PathRouter>(
     listener: &mut L,
     router: &Router<R>,
 ) -> ! {
-    iobewi_http_server::serve_forever(&mut TlsConnections(listener), router).await
+    let config = iobewi_http_server::server_config();
+    let mut http_buffer = [0u8; iobewi_http_server::HTTP_BUFFER_LEN];
+    loop {
+        match listener.accept_tls().await {
+            Ok(socket) => iobewi_http_server::serve_one(router, &config, &mut http_buffer, socket).await,
+            Err(()) => {
+                // The listener owns the retry delay and any platform log.
+            }
+        }
+    }
 }

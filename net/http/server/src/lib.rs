@@ -22,23 +22,6 @@ pub mod json;
 pub mod range;
 pub mod stream;
 
-/// Accepts connections that are already `picoserve` sockets.
-///
-/// TEMPORARY (S3 migration debt): this is the former `ConnectionListener`
-/// contract, kept only for listeners whose connections are native picoserve
-/// sockets (the TLS path: `iobewi-https`'s `TlsListener`). The generic,
-/// protocol-free contract is `iobewi_net_io::ConnectionListener`, served
-/// through [`serve_forever_io`] and the [`io_socket::IoSocket`] adapter.
-/// TLS enforcement belongs to `iobewi-https`.
-#[allow(async_fn_in_trait)]
-pub trait SocketListener {
-    type Connection<'a>: Socket<EmbassyRuntime>
-    where
-        Self: 'a;
-
-    async fn accept(&mut self) -> Result<Self::Connection<'_>, ()>;
-}
-
 /// Serve a connected socket with a caller-provided router.
 /// Services and applications may contribute routes to the same router.
 pub async fn serve_connection<R: PathRouter, S: Socket<EmbassyRuntime>>(
@@ -50,43 +33,42 @@ pub async fn serve_connection<R: PathRouter, S: Socket<EmbassyRuntime>>(
     picoserve::Server::new(router, config, http_buffer).serve(socket).await
 }
 
-/// Serve one connection at a time, reusing the HTTP buffer. The listener
-/// determines how connections are accepted and whether they are encrypted.
-pub async fn serve_forever<L: SocketListener, R: PathRouter>(
-    listener: &mut L,
-    router: &Router<R>,
-) -> ! {
-    let config = Config::const_default().keep_connection_alive();
-    let mut http_buffer = [0u8; 2048];
-    loop {
-        match listener.accept().await {
-            Ok(socket) => {
-                if serve_connection(router, &config, &mut http_buffer, socket).await.is_err() {
-                    log::debug!("http: connection closed with an error");
-                }
-            }
-            Err(()) => {
-                // The listener owns the retry delay and any platform log.
-            }
-        }
-    }
+/// Size of the HTTP request/response buffer reused across connections.
+pub const HTTP_BUFFER_LEN: usize = 2048;
+
+/// The server configuration used by the serve loops: picoserve defaults with
+/// persistent (keep-alive) connections.
+pub fn server_config() -> Config {
+    Config::const_default().keep_connection_alive()
 }
 
-struct IoListener<'l, L>(&'l mut L);
-
-impl<L: ConnectionListener> SocketListener for IoListener<'_, L> {
-    type Connection<'a> = io_socket::IoSocket<L::Connection<'a>> where Self: 'a;
-
-    async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
-        self.0.accept().await.map(io_socket::IoSocket::new)
+/// Serve one accepted connection and log (at debug level) if it ended with an
+/// error. This is the body of the serve loops: a listener-specific loop
+/// (such as the TLS one in `iobewi-https`) accepts, then calls this.
+pub async fn serve_one<R: PathRouter, S: Socket<EmbassyRuntime>>(
+    router: &Router<R>,
+    config: &Config,
+    http_buffer: &mut [u8],
+    socket: S,
+) {
+    if serve_connection(router, config, http_buffer, socket).await.is_err() {
+        log::debug!("http: connection closed with an error");
     }
 }
 
 /// Serve one connection at a time on a protocol-free `net/io` listener,
-/// adapting each accepted connection to a picoserve socket.
+/// adapting each accepted connection to a picoserve socket
+/// ([`io_socket::IoSocket`]). The listener owns the retry delay and any
+/// platform log: an `Err` from `accept` just loops.
 pub async fn serve_forever_io<L: ConnectionListener, R: PathRouter>(
     listener: &mut L,
     router: &Router<R>,
 ) -> ! {
-    serve_forever(&mut IoListener(listener), router).await
+    let config = server_config();
+    let mut http_buffer = [0u8; HTTP_BUFFER_LEN];
+    loop {
+        if let Ok(connection) = listener.accept().await {
+            serve_one(router, &config, &mut http_buffer, io_socket::IoSocket::new(connection)).await;
+        }
+    }
 }

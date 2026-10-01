@@ -1,10 +1,13 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 //! Outbound HTTP/1.1 primitives over any connected async transport.
 //! TLS connection setup and certificate policy belong to the platform adapter.
 //! Knows nothing about an HTTP server, `picoserve` or any listener.
 
 extern crate alloc;
+
+#[cfg(test)]
+mod testutil;
 
 /// Outbound WebSocket upgrade and frame handling (feature `websocket`).
 #[cfg(feature = "websocket")]
@@ -40,6 +43,8 @@ where
 /// Consume exactly one response and report whether the stream can be reused.
 /// The buffer must hold the complete response headers; bodies are discarded
 /// incrementally, including Content-Length and chunked transfer encoding.
+/// Requests and responses are strictly lock-step: bytes pipelined after the
+/// response may be read into the scratch buffer and dropped.
 pub async fn drain_response<S>(
     session: &mut S,
     resp_buf: &mut [u8],
@@ -183,4 +188,76 @@ where
     }
 
     Ok((status, keep_alive))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testutil::{block_on, Duplex};
+
+    fn response(bytes: &[u8]) -> Duplex {
+        let d = Duplex::default();
+        d.state.borrow_mut().input.extend(bytes.iter().copied());
+        d
+    }
+
+    #[test]
+    fn post_json_writes_the_exact_request_and_keeps_the_connection_open() {
+        let mut d = Duplex::default();
+        block_on(post_json(&mut d, "core.example", "/v1/heartbeat", "tok", "{\"a\":1}")).unwrap();
+        let out = alloc::string::String::from_utf8(d.state.borrow().output.clone()).unwrap();
+        assert_eq!(
+            out,
+            "POST /v1/heartbeat HTTP/1.1\r\nHost: core.example\r\nAuthorization: Bearer tok\r\nContent-Type: application/json\r\nContent-Length: 7\r\n\r\n{\"a\":1}"
+        );
+        assert!(!d.state.borrow().closed, "post_json must not close the connection");
+    }
+
+    #[test]
+    fn post_json_rejects_header_injection_and_relative_paths() {
+        let mut d = Duplex::default();
+        for (host, path, bearer) in [("h\r\nX: y", "/p", "t"), ("h", "/p\n", "t"), ("h", "/p", "t\r\n"), ("h", "p", "t")] {
+            assert!(block_on(post_json(&mut d, host, path, bearer, "{}")).is_err());
+        }
+        assert!(d.state.borrow().output.is_empty(), "nothing is written for a rejected request");
+    }
+
+    #[test]
+    fn drain_response_content_length_status_and_keep_alive() {
+        let mut d = response(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello");
+        let mut buf = [0u8; 256];
+        assert_eq!(block_on(drain_response(&mut d, &mut buf)).unwrap(), (200, true));
+        assert!(d.state.borrow().input.is_empty(), "the whole body is consumed");
+    }
+
+    #[test]
+    fn drain_response_connection_close_and_missing_length_end_keep_alive() {
+        let mut buf = [0u8; 256];
+        let mut d = response(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        assert_eq!(block_on(drain_response(&mut d, &mut buf)).unwrap(), (204, false));
+        let mut d = response(b"HTTP/1.1 200 OK\r\n\r\n");
+        assert_eq!(block_on(drain_response(&mut d, &mut buf)).unwrap(), (200, false));
+    }
+
+    #[test]
+    fn drain_response_chunked_body_with_extension_is_fully_consumed() {
+        let mut d = response(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n4;ext=1\r\ndefg\r\n0\r\n\r\n",
+        );
+        let mut buf = [0u8; 256];
+        assert_eq!(block_on(drain_response(&mut d, &mut buf)).unwrap(), (200, true));
+        assert!(d.state.borrow().input.is_empty());
+    }
+
+    #[test]
+    fn drain_response_reports_truncation_and_oversized_headers() {
+        let mut buf = [0u8; 256];
+        let mut d = response(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc");
+        assert!(block_on(drain_response(&mut d, &mut buf)).is_err());
+        let mut d = response(b"HTTP/1.1 200 OK\r\nX-Pad: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n");
+        let mut small = [0u8; 16];
+        assert!(block_on(drain_response(&mut d, &mut small)).is_err());
+        let mut d = response(b"garbage\r\n\r\n");
+        assert!(block_on(drain_response(&mut d, &mut buf)).is_err());
+    }
 }
