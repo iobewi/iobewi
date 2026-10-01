@@ -18,7 +18,7 @@ pub type TlsConfigSpace<B> = ConfigSpace<B>;
 /// Connected client transport. Protocol callers depend on the async I/O
 /// traits; the concrete MbedTLS session stays in the ESP adapter.
 ///
-/// A newtype rather than a type alias over `Session` -- `iobewi_transport`'s
+/// A newtype rather than a type alias over `Session` -- `iobewi_net_io`'s
 /// `Close` is a foreign trait and `Session` a foreign type, so implementing
 /// one for the other here needs a locally-owned wrapper (Rust's orphan
 /// rule). Read/Write are delegated straight through to the inner session.
@@ -45,8 +45,6 @@ impl Write for ClientStream<'_> {
 }
 
 impl Close for ClientStream<'_> {
-    type Error = SessionError;
-
     async fn close(&mut self) -> Result<(), SessionError> {
         self.0.close().await
     }

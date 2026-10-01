@@ -10,8 +10,13 @@ description = "Portable HTTP server, client and connection contracts for IOBEWI"
 [dependencies]
 log = "0.4"
 embedded-io-async = "0.7.0"
+iobewi-net-io = { path = "../../net/io" }
+embassy-sync = "0.8.0"
 httparse = { version = "1", default-features = false }
 edge-http = { version = "0.8", default-features = false, features = ["io"] }
 edge-ws = { version = "0.8", default-features = false, features = ["io"] }
 heapless = "0.9"
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
+
+[dev-dependencies]
+critical-section = { version = "1.2", features = ["std"] }

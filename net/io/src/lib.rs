@@ -27,9 +27,10 @@ pub use embedded_io_async::{ErrorType, Read, Write};
 /// TCP FIN) instead of an abrupt reset. Kept separate from `Read`/`Write`
 /// because not every consumer needs it -- a client that just drops the
 /// connection on reconnect has no use for this.
-pub trait Close {
-    type Error;
-
+///
+/// Its error is the connection's I/O error (`ErrorType::Error`): every
+/// implementation so far already used the same type for both.
+pub trait Close: ErrorType {
     async fn close(&mut self) -> Result<(), Self::Error>;
 }
 
@@ -148,8 +149,6 @@ mod tests {
     }
 
     impl Close for Loopback {
-        type Error = Infallible;
-
         async fn close(&mut self) -> Result<(), Infallible> {
             Ok(())
         }

@@ -5,7 +5,8 @@
 
 use embassy_net::Stack;
 use embassy_net::tcp::TcpSocket;
-use iobewi_http::ConnectionListener;
+use embedded_io_async::{ErrorType, Read, Write};
+use iobewi_net_io::{Close, ConnectionListener};
 use log::warn;
 use picoserve::routing::PathRouter;
 
@@ -32,11 +33,43 @@ impl<'a> EspTcpListener<'a> {
     }
 }
 
+/// An accepted ESP TCP connection as a `net/io` connection: reads and writes
+/// go straight to the embassy-net socket; `close` is a graceful TCP close
+/// (FIN) followed by a flush.
+pub struct EspTcpStream<'a>(TcpSocket<'a>);
+
+impl ErrorType for EspTcpStream<'_> {
+    type Error = embassy_net::tcp::Error;
+}
+
+impl Read for EspTcpStream<'_> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        self.0.read(buf).await
+    }
+}
+
+impl Write for EspTcpStream<'_> {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.0.write(buf).await
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        self.0.flush().await
+    }
+}
+
+impl Close for EspTcpStream<'_> {
+    async fn close(&mut self) -> Result<(), Self::Error> {
+        self.0.close();
+        self.0.flush().await
+    }
+}
+
 impl ConnectionListener for EspTcpListener<'_> {
-    type Connection<'a> = TcpSocket<'a> where Self: 'a;
+    type Connection<'a> = EspTcpStream<'a> where Self: 'a;
 
     async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
-        self.accept_connection().await
+        self.accept_connection().await.map(EspTcpStream)
     }
 }
 
@@ -50,5 +83,5 @@ pub async fn serve<R: PathRouter>(
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 1024];
     let mut listener = EspTcpListener::new(stack, port, &mut rx, &mut tx);
-    iobewi_http::serve_forever(&mut listener, router).await
+    iobewi_http::serve_forever_io(&mut listener, router).await
 }

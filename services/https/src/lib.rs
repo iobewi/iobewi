@@ -2,7 +2,7 @@
 
 //! HTTPS entry point: only a completed TLS handshake yields an HTTP socket.
 
-use iobewi_http::ConnectionListener;
+use iobewi_http::SocketListener;
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{EmbassyRuntime, Router};
@@ -20,7 +20,7 @@ pub trait TlsListener {
 
 struct TlsConnections<'a, L>(&'a mut L);
 
-impl<L: TlsListener> ConnectionListener for TlsConnections<'_, L> {
+impl<L: TlsListener> SocketListener for TlsConnections<'_, L> {
     type Connection<'a> = L::Connection<'a> where Self: 'a;
 
     async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {

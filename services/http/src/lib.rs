@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use iobewi_net_io::ConnectionListener;
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{Config, EmbassyRuntime, Router};
@@ -16,16 +17,23 @@ pub use picoserve::{io, request, response, routing, ResponseSent};
 pub use picoserve::Router as HttpRouter;
 
 pub mod auth;
+pub mod io_socket;
 pub mod client;
 pub mod json;
 pub mod range;
 pub mod stream;
 pub mod websocket;
 
-/// Platform capability: accept a connection over the caller-selected transport.
+/// Accepts connections that are already `picoserve` sockets.
+///
+/// TEMPORARY (S3 migration debt): this is the former `ConnectionListener`
+/// contract, kept only for listeners whose connections are native picoserve
+/// sockets (the TLS path: `iobewi-https`'s `TlsListener`). The generic,
+/// protocol-free contract is `iobewi_net_io::ConnectionListener`, served
+/// through [`serve_forever_io`] and the [`io_socket::IoSocket`] adapter.
 /// TLS enforcement belongs to `iobewi-https`.
 #[allow(async_fn_in_trait)]
-pub trait ConnectionListener {
+pub trait SocketListener {
     type Connection<'a>: Socket<EmbassyRuntime>
     where
         Self: 'a;
@@ -46,7 +54,7 @@ pub async fn serve_connection<R: PathRouter, S: Socket<EmbassyRuntime>>(
 
 /// Serve one connection at a time, reusing the HTTP buffer. The listener
 /// determines how connections are accepted and whether they are encrypted.
-pub async fn serve_forever<L: ConnectionListener, R: PathRouter>(
+pub async fn serve_forever<L: SocketListener, R: PathRouter>(
     listener: &mut L,
     router: &Router<R>,
 ) -> ! {
@@ -64,4 +72,23 @@ pub async fn serve_forever<L: ConnectionListener, R: PathRouter>(
             }
         }
     }
+}
+
+struct IoListener<'l, L>(&'l mut L);
+
+impl<L: ConnectionListener> SocketListener for IoListener<'_, L> {
+    type Connection<'a> = io_socket::IoSocket<L::Connection<'a>> where Self: 'a;
+
+    async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
+        self.0.accept().await.map(io_socket::IoSocket::new)
+    }
+}
+
+/// Serve one connection at a time on a protocol-free `net/io` listener,
+/// adapting each accepted connection to a picoserve socket.
+pub async fn serve_forever_io<L: ConnectionListener, R: PathRouter>(
+    listener: &mut L,
+    router: &Router<R>,
+) -> ! {
+    serve_forever(&mut IoListener(listener), router).await
 }
