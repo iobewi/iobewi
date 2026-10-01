@@ -1,0 +1,18 @@
+[package]
+name = "iobewi-esp-boot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Low-level ESP second-stage boot hardware primitives"
+keywords = ["esp32", "bootloader", "embedded", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[features]
+default = []
+esp32c3 = []
+esp32s3 = []
+
+[dependencies]
+iobewi-esp-platform = { path = "../platform" }

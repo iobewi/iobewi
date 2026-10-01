@@ -1,0 +1,43 @@
+[package]
+name = "iobewi-esp-ota"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP partition and NOR-flash adapter for IOBEWI OTA"
+keywords = ["esp32", "ota", "flash", "embedded", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[features]
+default = []
+esp32c3 = [
+  "esp-bootloader-esp-idf/esp32c3",
+  "iobewi-esp-partitions/esp32c3",
+  "iobewi-esp-flash?/esp32c3",
+  "iobewi-esp-config-space?/esp32c3",
+  "iobewi-esp-watchdog?/esp32c3",
+  "esp-hal?/esp32c3",
+]
+esp32s3 = [
+  "esp-bootloader-esp-idf/esp32s3",
+  "iobewi-esp-partitions/esp32s3",
+  "iobewi-esp-flash?/esp32s3",
+  "iobewi-esp-config-space?/esp32s3",
+  "iobewi-esp-watchdog?/esp32s3",
+  "esp-hal?/esp32s3",
+]
+shared-flash = ["dep:iobewi-esp-flash", "dep:iobewi-esp-config-space", "dep:iobewi-esp-watchdog", "dep:esp-hal", "dep:embassy-time", "dep:sha2", "iobewi-ota/runtime"]
+
+[dependencies]
+iobewi-ota = { git = "https://github.com/iobewi/iobewi", rev = "2f2d70a69968ef0b442932ac0c00b983ccce6a7c" }
+iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
+embedded-storage = "0.3.1"
+esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
+iobewi-esp-partitions = { path = "../../hardware/partitions", default-features = false }
+iobewi-esp-flash = { path = "../../hardware/flash", default-features = false, optional = true }
+iobewi-esp-config-space = { path = "../config-space", default-features = false, optional = true }
+iobewi-esp-watchdog = { path = "../../hardware/watchdog", default-features = false, optional = true }
+sha2 = { version = "0.10", default-features = false, optional = true }
+esp-hal = { version = "~1.1.0", default-features = false, optional = true }
+embassy-time = { version = "0.5.0", optional = true }
