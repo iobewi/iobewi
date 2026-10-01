@@ -3,7 +3,7 @@ resolver = "2"
 members = [
   "hardware/flash", "hardware/nvs", "hardware/partitions",
   "hardware/platform", "hardware/boot", "hardware/ota-boot", "hardware/watchdog",
-  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https", "services/log-stream", "services/indicator", "services/runtime", "services/reboot", "services/device", "../drivers/hw_random/esp32",
+  "adapters/ota", "adapters/config-space", "services/wifi", "services/tls", "services/http", "services/https", "services/log-stream", "services/indicator", "services/runtime", "services/reboot", "services/device", "../drivers/hw_random/esp32", "../drivers/console/esp32",
 ]
 default-members = ["services/http", "services/https"]
 

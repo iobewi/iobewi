@@ -1,20 +1,13 @@
 #![no_std]
 
-//! Platform ports for the portable IOBEWI log streaming service: console
-//! output and the RNG the WebSocket layer needs. The secure outbound
-//! connection itself is the generic `iobewi_esp_tls::service::EspClientTransport`.
-
-extern crate alloc;
+//! ESP port for the portable log stream: the RNG its WebSocket layer needs.
+//! (Console output is `iobewi-esp-console`; the secure outbound connection is
+//! the generic `iobewi_esp_tls::service::EspClientTransport`.)
 
 #[cfg(feature = "esp32s3")]
 mod esp {
     use esp_hal::rng::Rng;
     use iobewi_log_stream::Entropy;
-
-    /// ESP console output passed to the portable service at composition time.
-    pub fn console_print(record: &log::Record<'_>) {
-        esp_println::println!("{} - {}", record.level(), record.args());
-    }
 
     /// ESP hardware RNG for the log stream's WebSocket nonce and frame masking.
     #[derive(Clone, Copy, Default)]
@@ -32,4 +25,4 @@ mod esp {
 }
 
 #[cfg(feature = "esp32s3")]
-pub use esp::{console_print, EspLogEntropy};
+pub use esp::EspLogEntropy;
