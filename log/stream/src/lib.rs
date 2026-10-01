@@ -89,10 +89,10 @@ async fn connect_and_upgrade<'a, T: SecureClientTransport, E: Entropy>(
         .connect(host, port, rx, tx)
         .await
         .map_err(|e| format!("connect failed: {e}"))?;
-    let mut nonce = [0u8; iobewi_http::websocket::NONCE_LENGTH];
+    let mut nonce = [0u8; iobewi_http_server::websocket::NONCE_LENGTH];
     entropy.random_bytes(&mut nonce);
     let authority = websocket_authority(host, port);
-    iobewi_http::websocket::upgrade(&mut session, &authority, path, token, &nonce).await?;
+    iobewi_http_server::websocket::upgrade(&mut session, &authority, path, token, &nonce).await?;
     info!("logs: connected to {host}:{port}");
     Ok(session)
 }
@@ -114,7 +114,7 @@ where S::Error: Display + Debug {
             Ok(Ok(0)) => return String::from("server closed the connection"),
             Ok(Err(error)) => return format!("frame read failed: {error}"),
             Ok(Ok(_)) => match with_timeout(FRAME_TIMEOUT,
-                iobewi_http::websocket::process_frame_after_first(&mut *session, first[0], entropy.random_u32())
+                iobewi_http_server::websocket::process_frame_after_first(&mut *session, first[0], entropy.random_u32())
             ).await {
                 Ok(Ok(true)) => {},
                 Ok(Ok(false)) => return String::from("server closed the connection"),
@@ -130,7 +130,7 @@ where S::Error: Display + Debug {
                 workload: config.workload(), level: "raw", msg: &line,
             };
             let Ok(json) = serde_json::to_vec(&frame) else { continue; };
-            if let Err(error) = iobewi_http::websocket::send_text(&mut *session, &json, entropy.random_u32()).await {
+            if let Err(error) = iobewi_http_server::websocket::send_text(&mut *session, &json, entropy.random_u32()).await {
                 return error;
             }
         }

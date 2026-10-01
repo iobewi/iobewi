@@ -2,7 +2,7 @@
 
 //! HTTPS entry point: only a completed TLS handshake yields an HTTP socket.
 
-use iobewi_http::SocketListener;
+use iobewi_http_server::SocketListener;
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{EmbassyRuntime, Router};
@@ -33,5 +33,5 @@ pub async fn serve_forever<L: TlsListener, R: PathRouter>(
     listener: &mut L,
     router: &Router<R>,
 ) -> ! {
-    iobewi_http::serve_forever(&mut TlsConnections(listener), router).await
+    iobewi_http_server::serve_forever(&mut TlsConnections(listener), router).await
 }

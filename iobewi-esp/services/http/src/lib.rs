@@ -83,5 +83,5 @@ pub async fn serve<R: PathRouter>(
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 1024];
     let mut listener = EspTcpListener::new(stack, port, &mut rx, &mut tx);
-    iobewi_http::serve_forever_io(&mut listener, router).await
+    iobewi_http_server::serve_forever_io(&mut listener, router).await
 }

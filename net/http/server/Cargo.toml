@@ -1,5 +1,5 @@
 [package]
-name = "iobewi-http"
+name = "iobewi-http-server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,7 @@ description = "Portable HTTP server, client and connection contracts for IOBEWI"
 [dependencies]
 log = "0.4"
 embedded-io-async = "0.7.0"
-iobewi-net-io = { path = "../../net/io" }
+iobewi-net-io = { path = "../../io" }
 embassy-sync = "0.8.0"
 httparse = { version = "1", default-features = false }
 edge-http = { version = "0.8", default-features = false, features = ["io"] }

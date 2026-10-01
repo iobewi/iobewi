@@ -6,8 +6,8 @@
 //! The caller must expose the routes only on an authenticated TLS listener.
 
 use alloc::string::String;
-use iobewi_http::json::{json_error, json_ok, JsonResponse};
-use iobewi_http::response::StatusCode;
+use iobewi_http_server::json::{json_error, json_ok, JsonResponse};
+use iobewi_http_server::response::StatusCode;
 use serde::Deserialize;
 
 use crate::SaveCertError;

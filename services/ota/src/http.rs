@@ -2,20 +2,20 @@
 //! picoserve's usual `String`/`Form` body extractors -- those buffer the
 //! *entire* body before a handler ever runs, and an OTA image (hundreds of
 //! KB) doesn't fit this device's heap. Exposes a streaming handler for the
-//! shared `iobewi-http` router, writing one `read()` at a time.
+//! shared `iobewi-http-server` router, writing one `read()` at a time.
 
 use alloc::format;
 use alloc::string::String;
 
-use iobewi_http::io::Read;
-use iobewi_http::request::Request;
-use iobewi_http::auth::{bearer_token, Bearer};
-use iobewi_http::json::{json_error, json_ok, JsonResponse};
-use iobewi_http::range::parse_content_range;
-use iobewi_http::response::{IntoResponse, ResponseWriter, StatusCode};
-use iobewi_http::routing::{post, put_service, PathRouter, RequestHandlerService};
-use iobewi_http::stream::{ChunkSink, StreamError, stream_exact};
-use iobewi_http::{HttpRouter, ResponseSent};
+use iobewi_http_server::io::Read;
+use iobewi_http_server::request::Request;
+use iobewi_http_server::auth::{bearer_token, Bearer};
+use iobewi_http_server::json::{json_error, json_ok, JsonResponse};
+use iobewi_http_server::range::parse_content_range;
+use iobewi_http_server::response::{IntoResponse, ResponseWriter, StatusCode};
+use iobewi_http_server::routing::{post, put_service, PathRouter, RequestHandlerService};
+use iobewi_http_server::stream::{ChunkSink, StreamError, stream_exact};
+use iobewi_http_server::{HttpRouter, ResponseSent};
 use serde::{Deserialize, Serialize};
 
 use crate::metadata::{PrepareRefusal, SessionParams};

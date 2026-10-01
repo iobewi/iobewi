@@ -9,7 +9,7 @@ IOBEWI is the company behind this portable Rust framework for embedded services.
 `iobewi` defines how embedded applications obtain services through platform-independent contracts. An application such as [embewi-agent](https://github.com/iobewi/embewi-agent) supplies its own behavior and consumes those services. Platform adapters provide the hardware capabilities required to run them on ESP, RP2350, Teensy, or another supported target.
 
 This repository is a Cargo workspace: each service lives in its own crate under
-`services/` with its own `Cargo.toml`. Current members are [`iobewi-http`](services/http), the portable HTTP
+`services/` with its own `Cargo.toml`. Current members are [`iobewi-http-server`](services/http), the portable HTTP
 dispatcher and outbound HTTP/WebSocket client; [`iobewi-https`](services/https), its TLS-only entry point; and
 [`iobewi-config-space`](fs/config), configuration ownership and quotas; and
 [`iobewi-ota`](services/ota), transactional firmware updates.
@@ -32,7 +32,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
 | `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
-| `services/http` (`iobewi-http`) | HTTP dispatcher, reusable outbound JSON POST/response framing and WebSocket client protocol over a connected stream. |
+| `services/http` (`iobewi-http-server`) | HTTP dispatcher, reusable outbound JSON POST/response framing and WebSocket client protocol over a connected stream. |
 | `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | `SecureClientTransport`: the guarantee that a connector's connections are authenticated and encrypted. |
