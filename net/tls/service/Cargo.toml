@@ -1,19 +1,22 @@
 [package]
-name = "iobewi-tls"
+name = "iobewi-tls-service"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable TLS identity and trust configuration service"
+description = "TLS identity/trust configuration service, provisioning API and fail-closed secure outbound connector, over the crypto and net/io contracts"
 
 [features]
 default = []
 http = ["dep:iobewi-http-server", "dep:serde", "dep:serde_json"]
 
 [dependencies]
-iobewi-config-space = { path = "../../fs/config" }
+iobewi-crypto-core = { path = "../../../crypto/core" }
+iobewi-net-io = { path = "../../io" }
+iobewi-net-tls-core = { path = "../core" }
+iobewi-config-space = { path = "../../../fs/config" }
 log = { version = "0.4", default-features = false }
-iobewi-http-server = { path = "../../net/http/server", optional = true }
+iobewi-http-server = { path = "../../http/server", optional = true }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
 serde_json = { version = "1", default-features = false, features = ["alloc"], optional = true }

@@ -1,10 +1,14 @@
 #![no_std]
 
 //! Persistent server identity and outbound trust for TLS transports.
-//! Cryptography and sockets are supplied by a platform implementation.
+//! Cryptography comes from a `iobewi_crypto_core::TlsCrypto` implementation
+//! and sockets from a [`client::TlsDialer`]; this crate names no platform type.
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
+pub mod client;
 #[cfg(feature = "http")]
 pub mod http;
 
@@ -12,6 +16,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 use iobewi_config_space::{Budget, ConfigBackend, ConfigSpace};
+use iobewi_crypto_core::{PairError, TlsCrypto};
 use log::warn;
 
 const MAGIC: &[u8; 4] = b"TLS1";
@@ -65,21 +70,6 @@ impl TlsConfig {
             key_pem: String::from(core::str::from_utf8(&raw[cert_end..key_end]).ok()?),
         })
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairError { Invalid, Mismatch }
-
-pub struct Identity { pub cert_pem: String, pub key_pem: String }
-
-/// Platform crypto boundary. The service requires validation before it
-/// stores an identity, but never refers to MbedTLS or an ESP peripheral.
-pub trait TlsCrypto {
-    type ServerConfig;
-    fn validate_pair(&self, cert: &str, key: &str) -> Result<(), PairError>;
-    fn server_config(&self, cert: &str, key: &str) -> Option<Self::ServerConfig>;
-    fn generate_identity(&self, common_name: &str) -> Option<Identity>;
-    fn validate_ca(&self, ca: &str) -> bool;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,13 +191,22 @@ impl<C: TlsCrypto> TlsService<C> {
 
     pub async fn trusted_ca<B: ConfigBackend>(&self, space: &ConfigSpace<B>) -> Option<String>
     where B::Error: Debug {
-        let config = load_config(space).await?;
-        (!config.ca_pem.is_empty()).then_some(config.ca_pem)
+        trusted_ca(space).await
     }
 }
 
+/// The durable CA, if one has been provisioned. Needs no crypto: validation
+/// happened when it was saved.
+pub async fn trusted_ca<B: ConfigBackend>(space: &ConfigSpace<B>) -> Option<String>
+where B::Error: Debug {
+    let config = load_config(space).await?;
+    (!config.ca_pem.is_empty()).then_some(config.ca_pem)
+}
+
 #[cfg(test)]
-mod tests {
+mod tests;
+#[cfg(test)]
+mod legacy_codec_tests {
     use super::*;
 
     #[test]
