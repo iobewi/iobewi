@@ -26,9 +26,9 @@ use esp_radio::wifi::{
     AuthenticationMethod, Config, Interface, WifiController, scan::ScanConfig, sta::StationConfig,
 };
 use log::{info, warn};
-use iobewi_wifi::WifiTransport;
+use iobewi_wifi_core::WifiTransport;
 
-pub use iobewi_wifi::Network;
+pub use iobewi_wifi_core::Network;
 
 struct Radio {
     controller: WifiController<'static>,
@@ -69,7 +69,7 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
     }
 
     /// Returns the IP-capable network stack handle once DHCP has configured
-    /// it. Opaque to every portable caller above `iobewi-wifi`'s own
+    /// it. Opaque to every portable caller above `iobewi-wifi-core`'s own
     /// `WifiTransport`/`WifiProvisioning` ports -- only this crate and
     /// whatever the application composition root does with it know it's an
     /// `embassy_net::Stack`.

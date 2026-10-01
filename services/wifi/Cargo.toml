@@ -9,4 +9,5 @@ description = "Portable Wi-Fi provisioning, credential storage and reconnection 
 
 [dependencies]
 iobewi-config-space = { path = "../../fs/config" }
+iobewi-wifi-core = { path = "../../net/wifi/core" }
 log = { version = "0.4", default-features = false }
