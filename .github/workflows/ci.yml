@@ -25,3 +25,54 @@ jobs:
       - run: cargo test -p iobewi-ota
       - run: cargo test -p iobewi-ota --features http
       - run: cargo test -p iobewi-ota --features config-space
+  # --- iobewi-esp/ provisional subtree (S1): same checks as the former iobewi-esp CI ---
+  esp-host:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iobewi-esp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check -p iobewi-esp-platform
+      - run: cargo test -p iobewi-esp-ota-boot
+  esp-esp32s3:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iobewi-esp
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          buildtargets: esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-http --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-https --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,service,picoserve
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-log-stream --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-watchdog --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-indicator --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-runtime --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-device --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-reboot --features esp32s3
+  esp-bootloader:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iobewi-esp
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          buildtargets: esp32s3
+      - run: cargo +esp check --manifest-path bootloader/esp/Cargo.toml --locked -Z build-std=core,alloc --target xtensa-esp32s3-none-elf --features esp32s3
