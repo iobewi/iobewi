@@ -604,8 +604,13 @@ name = "iobewi-wifi"
 version = "0.1.0"
 dependencies = [
  "iobewi-config-space",
+ "iobewi-wifi-core",
  "log",
 ]
+
+[[package]]
+name = "iobewi-wifi-core"
+version = "0.1.0"
 
 [[package]]
 name = "itoa"
