@@ -18,6 +18,7 @@ jobs:
       - run: cargo test -p iobewi-entropy
       - run: cargo test -p iobewi-http
       - run: cargo test -p iobewi-log-stream
+      - run: cargo test -p iobewi-time
       - run: cargo test -p iobewi-ntp
       - run: cargo test -p iobewi-wifi
       - run: cargo test -p iobewi-tls

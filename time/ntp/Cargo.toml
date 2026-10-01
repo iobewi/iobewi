@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Portable SNTP synchronization and Unix epoch clock for Embassy networks"
 
 [dependencies]
-critical-section = "1.2"
+iobewi-time = { path = "../core" }
 embassy-executor = "0.10.0"
 embassy-net = { version = "0.9.1", features = ["dns", "udp"] }
 embassy-time = "0.5.0"

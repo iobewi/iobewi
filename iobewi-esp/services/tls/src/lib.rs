@@ -146,6 +146,9 @@ pub fn init(now: UnixTimeFn) -> TlsReferenceStatic {
     tls.reference()
 }
 
+// TODO(S7): purely temporal conversion that belongs in time/core; kept here for
+// now because its return type is MbedTLS' `tm` (moving it would touch the TLS
+// refactor, which is out of scope for S2).
 /// Unix epoch seconds -> MbedTLS broken-down UTC time.
 ///
 /// Kept public mostly for deterministic host-side verification by consumers.

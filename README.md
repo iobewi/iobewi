@@ -35,7 +35,8 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `services/http` (`iobewi-http`) | HTTP dispatcher, reusable outbound JSON POST/response framing and WebSocket client protocol over a connected stream. |
 | `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
 | `services/log-stream` (`iobewi-log-stream`) | Bounded log capture, WebSocket forwarding and reconnect policy over a supplied secure transport. |
-| `services/ntp` (`iobewi-ntp`) | SNTP synchronization and an epoch clock over Embassy networking; server and timing policy are supplied at startup. |
+| `time/core` (`iobewi-time`) | Unix epoch clock state (`now`, `is_set`, `wait`, `set_synced`), independent of any network stack. |
+| `time/ntp` (`iobewi-ntp`) | SNTP synchronization over Embassy networking, feeding `iobewi-time`; server and timing policy are supplied at startup. |
 | `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
 | `fs/config` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |

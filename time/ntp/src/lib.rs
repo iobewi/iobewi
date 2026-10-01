@@ -1,18 +1,21 @@
 #![no_std]
 
-//! SNTP synchronization of a Unix epoch clock based on Embassy's monotonic time.
+//! SNTP synchronization feeding the Unix epoch clock of `iobewi-time`.
 //! The clock is absent until the first valid response; network failures retain
 //! the last synchronized value while the service retries.
 
-use core::cell::RefCell;
 use core::net::{IpAddr, SocketAddr};
 
-use critical_section::Mutex;
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_time::{Duration, Instant, Timer, with_timeout};
+use embassy_time::{Duration, Timer, with_timeout};
 use log::{info, warn};
+
+// TEMPORARY (S2 migration debt): the clock state moved to `iobewi-time`
+// (time/core). Re-exported here so existing consumers keep compiling; to be
+// removed once consumers import `iobewi_time` directly.
+pub use iobewi_time::{is_set, now, wait};
 use sntpc::{NtpContext, get_time};
 use sntpc_net_embassy::UdpSocketWrapper;
 use sntpc_time_embassy::EmbassyTimestampGenerator;
@@ -28,38 +31,6 @@ pub struct SyncOptions {
     pub plausible_epoch_floor: u64,
 }
 
-/// Keep 64-bit clock state valid also on targets without 64-bit atomics.
-#[derive(Clone, Copy)]
-struct Sync {
-    epoch_at_sync_s: u64,
-    mono_at_sync_us: u64,
-}
-
-static SYNC: Mutex<RefCell<Option<Sync>>> = Mutex::new(RefCell::new(None));
-
-/// Whether SNTP has converged at least once since boot.
-pub fn is_set() -> bool {
-    critical_section::with(|cs| SYNC.borrow(cs).borrow().is_some())
-}
-
-/// Current Unix epoch seconds UTC, or `None` before the first valid sync.
-pub fn now() -> Option<u64> {
-    let sync = critical_section::with(|cs| *SYNC.borrow(cs).borrow())?;
-    let elapsed_us = Instant::now().as_micros().saturating_sub(sync.mono_at_sync_us);
-    Some(sync.epoch_at_sync_s + elapsed_us / 1_000_000)
-}
-
-/// Blocks until the first sync completes or `timeout` elapses. Returns
-/// `true` immediately if already synced from an earlier call.
-pub async fn wait(timeout: Duration) -> bool {
-    let observed = with_timeout(timeout, async {
-        while !is_set() {
-            Timer::after_millis(50).await;
-        }
-    }).await.is_ok();
-    observed || is_set()
-}
-
 /// Resync forever; a network failure retains the last estimate.
 #[embassy_executor::task]
 pub async fn sync_task(stack: Stack<'static>, options: SyncOptions) -> ! {
@@ -69,8 +40,7 @@ pub async fn sync_task(stack: Stack<'static>, options: SyncOptions) -> ! {
             .and_then(core::convert::identity);
         match attempt {
             Ok(epoch) => {
-                let sync = Sync { epoch_at_sync_s: epoch, mono_at_sync_us: Instant::now().as_micros() };
-                critical_section::with(|cs| *SYNC.borrow(cs).borrow_mut() = Some(sync));
+                iobewi_time::set_synced(epoch);
                 info!("SNTP: synced, ts={epoch}");
                 Timer::after(options.resync_period).await;
             }
