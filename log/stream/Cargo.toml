@@ -5,17 +5,15 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable bounded log capture and outbound WebSocket streaming service"
+description = "Portable outbound WebSocket streaming of captured logs"
 
 [dependencies]
-iobewi-http = { path = "../http" }
+iobewi-log = { path = "../core" }
+iobewi-http = { path = "../../services/http" }
 iobewi-net-io = { path = "../../net/io" }
 iobewi-net-tls-core = { path = "../../net/tls/core" }
-critical-section = "1.2"
 embassy-time = { version = "0.5.0", default-features = false }
 embedded-io-async = "0.7.0"
-heapless = "0.9"
 log = "0.4"
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
-static_cell = "2.1.1"

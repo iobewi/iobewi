@@ -1,24 +1,20 @@
 #![no_std]
 
-//! Bounded log capture and best-effort WebSocket streaming over a platform
-//! supplied secure transport. Failed connections discard stale logs; logging
-//! never waits on network I/O.
+//! Best-effort WebSocket streaming of the lines captured by `iobewi-log`,
+//! over a platform supplied secure transport. Failed connections discard
+//! stale logs; logging never waits on network I/O.
 
 extern crate alloc;
 
 use alloc::{format, string::String};
-use core::{cell::RefCell, fmt::{Debug, Display, Write as _}};
-use critical_section::Mutex;
+use core::fmt::{Debug, Display};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::{ErrorType, Read, Write};
-use heapless::{Deque, String as FixedString};
+use iobewi_log::{discard, pop_line, LogMetadata, RING_CAPACITY};
 use iobewi_net_tls_core::SecureClientTransport;
-use log::{Level, LevelFilter, Metadata, Record, info, warn};
+use log::{info, warn};
 use serde::Serialize;
-use static_cell::StaticCell;
 
-const LINE_MAX: usize = 160;
-const RING_CAPACITY: usize = 24;
 const DRAIN_PERIOD: Duration = Duration::from_millis(200);
 const FRAME_TIMEOUT: Duration = Duration::from_secs(10);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -26,68 +22,12 @@ const BASE_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 const STABLE_THRESHOLD: Duration = Duration::from_secs(30);
 
-static RING: Mutex<RefCell<Deque<FixedString<LINE_MAX>, RING_CAPACITY>>> =
-    Mutex::new(RefCell::new(Deque::new()));
-static LOGGER: StaticCell<Logger> = StaticCell::new();
-
-struct Logger {
-    print: fn(&Record<'_>),
-    application_target: &'static str,
-}
-
-impl log::Log for Logger {
-    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        if metadata.target().starts_with(self.application_target)
-            || metadata.target().starts_with("iobewi_log_stream") {
-            metadata.level() <= Level::Info
-        } else {
-            metadata.level() <= Level::Warn
-        }
-    }
-
-    fn log(&self, record: &Record<'_>) {
-        if !self.enabled(record.metadata()) { return; }
-        (self.print)(record);
-        let mut line: FixedString<LINE_MAX> = FixedString::new();
-        if write!(line, "{}", record.args()).is_err() { return; }
-        critical_section::with(|cs| {
-            let mut ring = RING.borrow(cs).borrow_mut();
-            if !ring.is_full() { let _ = ring.push_back(line); }
-        });
-    }
-
-    fn flush(&self) {}
-}
-
-/// Install once, during single-threaded startup, before other code logs.
-/// The platform owns local console output and chooses the app log target.
-pub fn install(print: fn(&Record<'_>), application_target: &'static str) {
-    let logger = LOGGER.init(Logger { print, application_target });
-    // SAFETY: the logger is process-lifetime storage and installation takes
-    // place only once, before the executor and interrupt-driven loggers start.
-    unsafe {
-        let _ = log::set_logger_racy(logger);
-        log::set_max_level_racy(LevelFilter::Info);
-    }
-}
-
-fn pop_line() -> Option<FixedString<LINE_MAX>> {
-    critical_section::with(|cs| RING.borrow(cs).borrow_mut().pop_front())
-}
-
-fn discard() {
-    critical_section::with(|cs| RING.borrow(cs).borrow_mut().clear());
-}
-
-/// Application-supplied configuration and log metadata. The service never
-/// knows the application's persistence schema or endpoint version.
+/// Where and how to stream logs to the Core. The service never knows the
+/// application's persistence schema or endpoint version.
 #[allow(async_fn_in_trait)]
-pub trait LogConfig {
+pub trait StreamConfig {
     async fn ctrl_url(&self) -> String;
     async fn token(&self) -> String;
-    async fn node_id(&self) -> String;
-    fn timestamp(&self) -> u64;
-    fn workload(&self) -> &'static str;
     fn path(&self) -> String;
 }
 
@@ -157,7 +97,7 @@ async fn connect_and_upgrade<'a, T: SecureClientTransport, E: Entropy>(
     Ok(session)
 }
 
-async fn pump_session<S: ErrorType + Read + Write, C: LogConfig, E: Entropy>(
+async fn pump_session<S: ErrorType + Read + Write, C: StreamConfig + LogMetadata, E: Entropy>(
     session: &mut S,
     config: &C,
     entropy: &E,
@@ -199,7 +139,7 @@ where S::Error: Display + Debug {
 
 /// Reconnect with capped jittered backoff. Fresh logs are sent only while a
 /// connection is active; the ring is cleared on every failed session.
-pub async fn run<C: LogConfig, T: SecureClientTransport, E: Entropy>(config: &C, transport: &T, entropy: &E) -> ! {
+pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: Entropy>(config: &C, transport: &T, entropy: &E) -> ! {
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 512];
     let mut backoff = BASE_BACKOFF;
