@@ -18,11 +18,9 @@ pub use picoserve::Router as HttpRouter;
 
 pub mod auth;
 pub mod io_socket;
-pub mod client;
 pub mod json;
 pub mod range;
 pub mod stream;
-pub mod websocket;
 
 /// Accepts connections that are already `picoserve` sockets.
 ///

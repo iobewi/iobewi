@@ -18,6 +18,8 @@ jobs:
       - run: cargo test -p iobewi-device
       - run: cargo test -p iobewi-entropy
       - run: cargo test -p iobewi-http-server
+      - run: cargo test -p iobewi-http-client --features websocket
+      - run: cargo check -p iobewi-http-client
       - run: cargo test -p iobewi-log
       - run: cargo test -p iobewi-log-stream
       - run: cargo test -p iobewi-time

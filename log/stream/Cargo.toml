@@ -9,7 +9,7 @@ description = "Portable outbound WebSocket streaming of captured logs"
 
 [dependencies]
 iobewi-log = { path = "../core" }
-iobewi-http-server = { path = "../../net/http/server" }
+iobewi-http-client = { path = "../../net/http/client", features = ["websocket"] }
 iobewi-net-io = { path = "../../net/io" }
 iobewi-net-tls-core = { path = "../../net/tls/core" }
 embassy-time = { version = "0.5.0", default-features = false }

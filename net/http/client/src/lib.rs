@@ -1,5 +1,14 @@
+#![no_std]
+
 //! Outbound HTTP/1.1 primitives over any connected async transport.
 //! TLS connection setup and certificate policy belong to the platform adapter.
+//! Knows nothing about an HTTP server, `picoserve` or any listener.
+
+extern crate alloc;
+
+/// Outbound WebSocket upgrade and frame handling (feature `websocket`).
+#[cfg(feature = "websocket")]
+pub mod websocket;
 
 use alloc::{format, string::String};
 use embedded_io_async::{Read, Write};
