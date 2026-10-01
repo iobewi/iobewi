@@ -11,7 +11,8 @@ Chaque composant a son propre `Cargo.toml` :
 | --- | --- | --- |
 | `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,ota-boot,watchdog}` | Accès au matériel, état EWBT et validation d'image ESP |
 | `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des services IOBEWI OTA et ConfigSpace |
-| `services/wifi`, `services/tls` | `iobewi-esp-{wifi,tls}` | Réseau et TLS ESP |
+| `services/tls` | `iobewi-esp-tls` | TLS ESP |
+| `../drivers/net/wifi/esp32` | `iobewi-esp-wifi` | Driver Wi-Fi station ESP (implémente `iobewi-wifi-core::WifiTransport`) |
 | `services/http` | `iobewi-esp-http` | Listener TCP/HTTP sans TLS ; exposition explicite par l’application |
 | `services/https` | `iobewi-esp-https` | Handshake TLS ESP et entrée HTTPS vers `iobewi-https` |
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |

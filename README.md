@@ -35,6 +35,9 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `net/http/server` (`iobewi-http-server`) | HTTP dispatcher (picoserve confined here), `IoSocket` adapter from any `net/io` connection, serve loops. |
 | `net/http/client` (`iobewi-http-client`) | Outbound JSON POST/response framing and, behind the `websocket` feature, the WebSocket client protocol over a connected stream. No picoserve. |
 | `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
+| `net/wifi/core` (`iobewi-wifi-core`) | Wi-Fi contracts: `WifiTransport`, `WifiProvisioning`, `Network`; no config, radio or stack types. |
+| `net/wifi/manager` (`iobewi-wifi-manager`) | Durable credentials (WFC1), reconnection, provisioning/reprovisioning policy over any `WifiTransport`. |
+| `drivers/net/wifi/esp32` (`iobewi-esp-wifi`) | ESP station driver (esp-radio + embassy-net DHCP); implements `WifiTransport`, depends on the core only. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | `SecureClientTransport`: the guarantee that a connector's connections are authenticated and encrypted. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |

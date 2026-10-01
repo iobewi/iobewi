@@ -600,17 +600,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-wifi"
+name = "iobewi-wifi-core"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-wifi-manager"
 version = "0.1.0"
 dependencies = [
  "iobewi-config-space",
  "iobewi-wifi-core",
  "log",
 ]
-
-[[package]]
-name = "iobewi-wifi-core"
-version = "0.1.0"
 
 [[package]]
 name = "itoa"

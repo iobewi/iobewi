@@ -24,7 +24,8 @@ jobs:
       - run: cargo test -p iobewi-log-stream
       - run: cargo test -p iobewi-time
       - run: cargo test -p iobewi-ntp
-      - run: cargo test -p iobewi-wifi
+      - run: cargo test -p iobewi-wifi-core
+      - run: cargo test -p iobewi-wifi-manager
       - run: cargo test -p iobewi-tls
       - run: cargo test -p iobewi-tls --features http
       - run: cargo test -p iobewi-ota
