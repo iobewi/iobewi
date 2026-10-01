@@ -17,7 +17,7 @@ Chaque composant a son propre `Cargo.toml` :
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |
 
 Le service HTTP accepte TCP et transmet la connexion au dispatcher portable
-`iobewi-http`. Le service HTTPS utilise ce même transport TCP, charge l’identité
+`iobewi-http-server`. Le service HTTPS utilise ce même transport TCP, charge l’identité
 serveur via une capacité injectée et termine le handshake MbedTLS avant de
 transmettre le socket via `iobewi-https`. L’agent utilise uniquement HTTPS ;
 sans identité valide, il n’ouvre aucun port HTTP de repli.
