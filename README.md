@@ -10,7 +10,7 @@ IOBEWI is the company behind this portable Rust framework for embedded services.
 
 This repository is a Cargo workspace: each service lives in its own crate under
 `services/` with its own `Cargo.toml`. Current members are [`iobewi-http-server`](net/http/server), the portable HTTP
-dispatcher; [`iobewi-http-client`](net/http/client), outbound HTTP/WebSocket client primitives; [`iobewi-https`](services/https), its TLS-only entry point; and
+dispatcher; [`iobewi-http-client`](net/http/client), outbound HTTP/WebSocket client primitives; and
 [`iobewi-config-space`](fs/config), configuration ownership and quotas; and
 [`iobewi-ota`](services/ota), transactional firmware updates.
 
@@ -32,19 +32,20 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
 | `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
-| `net/http/server` (`iobewi-http-server`) | HTTP dispatcher (picoserve confined here), `IoSocket` adapter from any `net/io` connection, serve loops. |
+| `net/http/server` (`iobewi-http-server`) | HTTP dispatcher (picoserve confined here), `IoSocket` adapter from any `net/io` connection, serve loops (`serve_forever_io`, `serve_forever_tls` for HTTPS). |
 | `net/http/client` (`iobewi-http-client`) | Outbound JSON POST/response framing and, behind the `websocket` feature, the WebSocket client protocol over a connected stream. No picoserve. |
-| `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
+| `net/tls/service` (`iobewi-tls-service`) | Durable TLS identity/CA policy (TLS1 config), authenticated provisioning API, and the fail-closed secure outbound connector (`SecureConnector`) over the crypto and `net/tls/core` contracts; no ESP/MbedTLS type. |
+| `crypto/core` (`iobewi-crypto-core`) | `TlsCrypto` contract: certificate/key/CA validation and identity generation. |
+| `crypto/mbedtls` (`iobewi-crypto-mbedtls`) | MbedTLS implementation of `TlsCrypto` (PEM/X.509, P-256 identity, hooks); randomness injected via `crypto/rng`. Provisional ESP workspace: mbedtls-rs-sys does not build for the x86_64 host. |
 | `net/wifi/core` (`iobewi-wifi-core`) | Wi-Fi contracts: `WifiTransport`, `WifiProvisioning`, `Network`; no config, radio or stack types. |
 | `net/wifi/manager` (`iobewi-wifi-manager`) | Durable credentials (WFC1), reconnection, provisioning/reprovisioning policy over any `WifiTransport`. |
 | `drivers/net/wifi/esp32` (`iobewi-esp-wifi`) | ESP station driver (esp-radio + embassy-net DHCP); implements `WifiTransport`, depends on the core only. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
-| `net/tls/core` (`iobewi-net-tls-core`) | `SecureClientTransport`: the guarantee that a connector's connections are authenticated and encrypted. |
+| `net/tls/core` (`iobewi-net-tls-core`) | TLS network contracts: `SecureClientTransport`, `TlsListener` (a `ConnectionListener` yielding only TLS-handshaken connections), `TlsDialer`; no picoserve, config or ESP type. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |
 | `log/stream` (`iobewi-log-stream`) | WebSocket forwarding of captured logs and reconnect policy over a supplied secure transport. |
 | `time/core` (`iobewi-time`) | Unix epoch clock state (`now`, `is_set`, `wait`, `set_synced`), independent of any network stack. |
 | `time/ntp` (`iobewi-ntp`) | SNTP synchronization over Embassy networking, feeding `iobewi-time`; server and timing policy are supplied at startup. |
-| `services/https` (`iobewi-https`) | TLS listener contract: only a completed handshake reaches the HTTP dispatcher. |
 | `fs/config` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
 | [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |

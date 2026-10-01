@@ -26,8 +26,8 @@ jobs:
       - run: cargo test -p iobewi-ntp
       - run: cargo test -p iobewi-wifi-core
       - run: cargo test -p iobewi-wifi-manager
-      - run: cargo test -p iobewi-tls
-      - run: cargo test -p iobewi-tls --features http
+      - run: cargo test -p iobewi-tls-service --features http
+      - run: cargo test -p iobewi-time
       - run: cargo test -p iobewi-ota
       - run: cargo test -p iobewi-ota --features http
       - run: cargo test -p iobewi-ota --features config-space
@@ -60,8 +60,9 @@ jobs:
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,service,picoserve
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-log-stream --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,embassy-net
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-crypto-mbedtls --features use-gcc
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3,rand-core
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-console --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-watchdog --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-indicator --features esp32s3

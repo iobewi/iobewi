@@ -466,6 +466,10 @@ name = "iobewi-config-space"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-crypto-core"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-device"
 version = "0.1.0"
 
@@ -493,15 +497,8 @@ dependencies = [
  "embassy-time",
  "embedded-io-async",
  "iobewi-net-io",
+ "iobewi-net-tls-core",
  "log",
- "picoserve",
-]
-
-[[package]]
-name = "iobewi-https"
-version = "0.1.0"
-dependencies = [
- "iobewi-http-server",
  "picoserve",
 ]
 
@@ -525,6 +522,7 @@ version = "0.1.0"
 dependencies = [
  "embassy-time",
  "embedded-io-async",
+ "iobewi-entropy",
  "iobewi-http-client",
  "iobewi-log",
  "iobewi-net-io",
@@ -589,11 +587,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-tls"
+name = "iobewi-tls-service"
 version = "0.1.0"
 dependencies = [
  "iobewi-config-space",
+ "iobewi-crypto-core",
  "iobewi-http-server",
+ "iobewi-net-io",
+ "iobewi-net-tls-core",
  "log",
  "serde",
  "serde_json",
