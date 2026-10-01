@@ -13,6 +13,11 @@ default = []
 esp32c3 = ["esp-hal/esp32c3"]
 esp32s3 = ["esp-hal/esp32s3"]
 
+# `rand-core`: also expose the RNG through rand_core's crypto-RNG traits (what
+# mbedtls-rs' `Tls::new` requires).
+rand-core = ["dep:rand_core"]
+
 [dependencies]
+rand_core = { version = "0.10.1", default-features = false, optional = true }
 iobewi-entropy = { path = "../../../crypto/rng" }
 esp-hal = { version = "~1.1.0", default-features = false }
