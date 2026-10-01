@@ -4,7 +4,8 @@ use embassy_net::{Stack, tcp::TcpSocket};
 use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_config_space::ConfigSpace;
 use iobewi_tls::{Identity, PairError, TlsCrypto, TlsService};
-use iobewi_transport::{Close, SecureClientTransport};
+use iobewi_net_io::{Close, Connector};
+use iobewi_net_tls_core::SecureClientTransport;
 use log::warn;
 use mbedtls_rs::{Session, SessionConfig, SessionError};
 
@@ -160,7 +161,8 @@ where B::Error: core::fmt::Debug {
         })
 }
 
-/// ESP implementation of the portable `SecureClientTransport` capability.
+/// ESP implementation of the portable outbound [`Connector`] (and its
+/// `SecureClientTransport` guarantee: see the marker impl below).
 /// Trust material (the TLS config space holding the CA, and whether the
 /// clock has converged) is bound here, at construction -- `connect()`
 /// itself takes only `host`/`port`/buffers, so every call automatically
@@ -174,7 +176,7 @@ pub struct EspClientTransport<B: ConfigBackend + 'static> {
     pub clock_is_set: fn() -> bool,
 }
 
-impl<B> SecureClientTransport for EspClientTransport<B>
+impl<B> Connector for EspClientTransport<B>
 where
     B: ConfigBackend + 'static,
     B::Error: core::fmt::Debug,
@@ -198,4 +200,13 @@ where
     fn local_address(&self) -> Option<alloc::string::String> {
         self.stack.config_v4().map(|c| alloc::format!("{}", c.address.address()))
     }
+}
+
+/// Every connection this transport returns is authenticated and encrypted
+/// (MbedTLS handshake against the durable CA, fail-closed on clock/CA).
+impl<B> SecureClientTransport for EspClientTransport<B>
+where
+    B: ConfigBackend + 'static,
+    B::Error: core::fmt::Debug,
+{
 }

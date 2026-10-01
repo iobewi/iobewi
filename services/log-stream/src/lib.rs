@@ -12,7 +12,7 @@ use critical_section::Mutex;
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::{ErrorType, Read, Write};
 use heapless::{Deque, String as FixedString};
-use iobewi_transport::SecureClientTransport;
+use iobewi_net_tls_core::SecureClientTransport;
 use log::{Level, LevelFilter, Metadata, Record, info, warn};
 use serde::Serialize;
 use static_cell::StaticCell;
@@ -94,8 +94,8 @@ pub trait LogConfig {
 /// Randomness needed by the WebSocket protocol layer: the handshake nonce
 /// and RFC 6455 client-frame masking. Not a property of the secure
 /// transport itself (a plain HTTPS client, e.g. the heartbeat, never needs
-/// this) -- kept as its own narrow capability so a transport implementation
-/// doesn't have to grow an RNG method it has no other use for.
+/// this) -- its own narrow capability, supplied to [`run`] separately from
+/// the transport.
 #[allow(async_fn_in_trait)]
 pub trait Entropy {
     fn random_bytes(&self, output: &mut [u8]);
@@ -135,8 +135,9 @@ fn jittered(base: Duration, random: u32) -> Duration {
     Duration::from_millis((base_ms + base_ms * percent / 100).max(1000) as u64)
 }
 
-async fn connect_and_upgrade<'a, T: SecureClientTransport + Entropy>(
+async fn connect_and_upgrade<'a, T: SecureClientTransport, E: Entropy>(
     transport: &'a T,
+    entropy: &E,
     rx: &'a mut [u8],
     tx: &'a mut [u8],
     host: &'a str,
@@ -149,17 +150,17 @@ async fn connect_and_upgrade<'a, T: SecureClientTransport + Entropy>(
         .await
         .map_err(|e| format!("connect failed: {e}"))?;
     let mut nonce = [0u8; iobewi_http::websocket::NONCE_LENGTH];
-    transport.random_bytes(&mut nonce);
+    entropy.random_bytes(&mut nonce);
     let authority = websocket_authority(host, port);
     iobewi_http::websocket::upgrade(&mut session, &authority, path, token, &nonce).await?;
     info!("logs: connected to {host}:{port}");
     Ok(session)
 }
 
-async fn pump_session<S: ErrorType + Read + Write, C: LogConfig, T: Entropy>(
+async fn pump_session<S: ErrorType + Read + Write, C: LogConfig, E: Entropy>(
     session: &mut S,
     config: &C,
-    transport: &T,
+    entropy: &E,
     token_snapshot: &str,
 ) -> String
 where S::Error: Display + Debug {
@@ -173,7 +174,7 @@ where S::Error: Display + Debug {
             Ok(Ok(0)) => return String::from("server closed the connection"),
             Ok(Err(error)) => return format!("frame read failed: {error}"),
             Ok(Ok(_)) => match with_timeout(FRAME_TIMEOUT,
-                iobewi_http::websocket::process_frame_after_first(&mut *session, first[0], transport.random_u32())
+                iobewi_http::websocket::process_frame_after_first(&mut *session, first[0], entropy.random_u32())
             ).await {
                 Ok(Ok(true)) => {},
                 Ok(Ok(false)) => return String::from("server closed the connection"),
@@ -189,7 +190,7 @@ where S::Error: Display + Debug {
                 workload: config.workload(), level: "raw", msg: &line,
             };
             let Ok(json) = serde_json::to_vec(&frame) else { continue; };
-            if let Err(error) = iobewi_http::websocket::send_text(&mut *session, &json, transport.random_u32()).await {
+            if let Err(error) = iobewi_http::websocket::send_text(&mut *session, &json, entropy.random_u32()).await {
                 return error;
             }
         }
@@ -198,7 +199,7 @@ where S::Error: Display + Debug {
 
 /// Reconnect with capped jittered backoff. Fresh logs are sent only while a
 /// connection is active; the ring is cleared on every failed session.
-pub async fn run<C: LogConfig, T: SecureClientTransport + Entropy>(config: &C, transport: &T) -> ! {
+pub async fn run<C: LogConfig, T: SecureClientTransport, E: Entropy>(config: &C, transport: &T, entropy: &E) -> ! {
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 512];
     let mut backoff = BASE_BACKOFF;
@@ -217,12 +218,12 @@ pub async fn run<C: LogConfig, T: SecureClientTransport + Entropy>(config: &C, t
         }
         let path = config.path();
         let connected = with_timeout(HANDSHAKE_TIMEOUT,
-            connect_and_upgrade(transport, &mut rx, &mut tx, host, port, &path, &token)
+            connect_and_upgrade(transport, entropy, &mut rx, &mut tx, host, port, &path, &token)
         ).await.unwrap_or_else(|_| Err(String::from("WebSocket handshake timed out")));
         let stable = match connected {
             Ok(mut session) => {
                 let connected_at = Instant::now();
-                let error = pump_session(&mut session, config, transport, &token).await;
+                let error = pump_session(&mut session, config, entropy, &token).await;
                 warn!("logs: session ended: {error}");
                 connected_at.elapsed() >= STABLE_THRESHOLD
             }
@@ -233,7 +234,7 @@ pub async fn run<C: LogConfig, T: SecureClientTransport + Entropy>(config: &C, t
         };
         discard();
         if stable { backoff = BASE_BACKOFF; }
-        Timer::after(jittered(backoff, transport.random_u32())).await;
+        Timer::after(jittered(backoff, entropy.random_u32())).await;
         backoff = next_backoff(backoff);
     }
 }

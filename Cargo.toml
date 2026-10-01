@@ -1,6 +1,6 @@
 [workspace]
-members = ["services/http", "services/https", "fs/config", "services/ota", "services/wifi", "services/tls", "services/log-stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/transport", "services/indicator", "services/runtime", "services/device", "crypto/rng"]
-default-members = ["services/http", "services/https", "fs/config", "services/ota", "services/wifi", "services/tls", "services/log-stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/transport", "services/indicator", "services/runtime", "services/device", "crypto/rng"]
+members = ["services/http", "services/https", "fs/config", "services/ota", "services/wifi", "services/tls", "services/log-stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng"]
+default-members = ["services/http", "services/https", "fs/config", "services/ota", "services/wifi", "services/tls", "services/log-stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng"]
 resolver = "3"
 
 [workspace.package]

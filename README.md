@@ -34,6 +34,8 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
 | `services/http` (`iobewi-http`) | HTTP dispatcher, reusable outbound JSON POST/response framing and WebSocket client protocol over a connected stream. |
 | `services/tls` (`iobewi-tls`) | Portable certificate/CA policy and optional authenticated provisioning API mounted by the application on its HTTPS router. |
+| `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
+| `net/tls/core` (`iobewi-net-tls-core`) | `SecureClientTransport`: the guarantee that a connector's connections are authenticated and encrypted. |
 | `services/log-stream` (`iobewi-log-stream`) | Bounded log capture, WebSocket forwarding and reconnect policy over a supplied secure transport. |
 | `time/core` (`iobewi-time`) | Unix epoch clock state (`now`, `is_set`, `wait`, `set_synced`), independent of any network stack. |
 | `time/ntp` (`iobewi-ntp`) | SNTP synchronization over Embassy networking, feeding `iobewi-time`; server and timing policy are supplied at startup. |

@@ -28,14 +28,15 @@ esp32c3 = ["dep:esp-hal", "dep:rand_core", "dep:static_cell", "esp-hal/esp32c3",
 esp32s3 = ["dep:esp-hal", "dep:rand_core", "dep:static_cell", "esp-hal/esp32s3", "mbedtls-rs/use-gcc", "iobewi-esp-config-space?/esp32s3"]
 embassy-net = ["dep:embassy-net"]
 picoserve = ["embassy-net", "dep:embassy-sync", "dep:picoserve"]
-service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-transport", "dep:iobewi-esp-config-space", "embassy-net"]
+service = ["dep:iobewi-config-space", "dep:iobewi-tls", "dep:iobewi-net-io", "dep:iobewi-net-tls-core", "dep:iobewi-esp-config-space", "embassy-net"]
 
 [dependencies]
 log = "0.4"
 embedded-io-async = "0.7.0"
 iobewi-config-space = { path = "../../../fs/config", optional = true }
 iobewi-tls = { path = "../../../services/tls", optional = true }
-iobewi-transport = { path = "../../../services/transport", optional = true }
+iobewi-net-io = { path = "../../../net/io", optional = true }
+iobewi-net-tls-core = { path = "../../../net/tls/core", optional = true }
 iobewi-esp-config-space = { path = "../../adapters/config-space", optional = true }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"], optional = true }
 embassy-time = { version = "0.5.0", default-features = false }
