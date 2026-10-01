@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use iobewi_net_io::ConnectionListener;
+use iobewi_net_tls_core::TlsListener;
 use picoserve::io::Socket;
 use picoserve::routing::PathRouter;
 use picoserve::{Config, EmbassyRuntime, Router};
@@ -71,4 +72,15 @@ pub async fn serve_forever_io<L: ConnectionListener, R: PathRouter>(
             serve_one(router, &config, &mut http_buffer, io_socket::IoSocket::new(connection)).await;
         }
     }
+}
+
+/// HTTPS: the same serve loop, but only over a [`TlsListener`], whose
+/// accepted connections have all completed a TLS handshake. A plaintext
+/// listener does not satisfy the bound, so this entry point can never serve
+/// unencrypted HTTP by accident.
+pub async fn serve_forever_tls<L: TlsListener, R: PathRouter>(
+    listener: &mut L,
+    router: &Router<R>,
+) -> ! {
+    serve_forever_io(listener, router).await
 }
