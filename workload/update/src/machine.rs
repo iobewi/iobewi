@@ -195,9 +195,12 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         Ok(self.current()?.and_then(|r| r.active.map(|s| r.meta[slot_index(s)].requires)))
     }
 
-    /// Activates the staged candidate. The compatibility check runs **before**
-    /// anything is persisted or the supervisor is called.
-    pub fn activate<S: WorkloadSupervisor>(&mut self, supervisor: &mut S, agent_api: RuntimeApi) -> Result<(), UpdateError<B::Error>> {
+    /// Everything `activate` checks **before** it persists anything or calls a
+    /// supervisor, with no side effect: the state must be `Staged` and the
+    /// candidate's runtime API requirement must be met. Returns the record.
+    /// A caller with no supervisor to call uses this and stops there, leaving
+    /// the state `Staged` -- it never pretends an activation happened.
+    pub fn preflight_activate(&mut self, agent_api: RuntimeApi) -> Result<Record, UpdateError<B::Error>> {
         let current = self.current()?;
         let Some(record) = current.filter(|r| r.state == State::Staged) else {
             return Err(UpdateError::WrongState(current.map(|r| r.state)));
@@ -206,6 +209,14 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         if !agent_api.satisfies(record.meta[slot_index(candidate)].requires) {
             return Err(UpdateError::Refused(Refusal::IncompatibleRuntimeApi));
         }
+        Ok(record)
+    }
+
+    /// Activates the staged candidate. The compatibility check runs **before**
+    /// anything is persisted or the supervisor is called.
+    pub fn activate<S: WorkloadSupervisor>(&mut self, supervisor: &mut S, agent_api: RuntimeApi) -> Result<(), UpdateError<B::Error>> {
+        let record = self.preflight_activate(agent_api)?;
+        let candidate = record.candidate.unwrap_or(Side::A);
         // 1. intent
         let mut activating = record;
         activating.state = State::Activating;

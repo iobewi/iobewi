@@ -5,7 +5,6 @@
 use std::vec;
 use std::vec::Vec;
 
-use embedded_storage::nor_flash::{ErrorType, NorFlash, NorFlashError, NorFlashErrorKind, ReadNorFlash};
 use iobewi_update_model::{ArtifactDescriptor, RuntimeApi, Side, UpdateRequest, WorkloadSupervisor};
 use sha2::{Digest as _, Sha256};
 
@@ -18,95 +17,9 @@ use crate::nor::{NorError, NorMetadata, NorSlot, digest_region, erase_range, rea
 use crate::otm2::State;
 use crate::store::{Loaded, MetadataStore};
 
-const ERASE: u32 = 4096;
 const API: RuntimeApi = RuntimeApi::new(1, 3);
 
-// ---------- fake flash ----------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FakeError {
-    Crash,
-    Misaligned,
-    Range,
-}
-
-impl NorFlashError for FakeError {
-    fn kind(&self) -> NorFlashErrorKind {
-        NorFlashErrorKind::Other
-    }
-}
-
-struct Fake {
-    data: Vec<u8>,
-    ops: usize,
-    crash_at: Option<usize>,
-}
-
-impl Fake {
-    fn new(size: u32) -> Self {
-        Self { data: vec![0xFF; size as usize], ops: 0, crash_at: None }
-    }
-
-    fn reboot(&mut self) {
-        self.crash_at = None;
-    }
-
-    fn crashing_now(&mut self) -> bool {
-        let now = self.ops;
-        self.ops += 1;
-        self.crash_at == Some(now)
-    }
-}
-
-impl ErrorType for Fake {
-    type Error = FakeError;
-}
-
-impl ReadNorFlash for Fake {
-    const READ_SIZE: usize = 1;
-    fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), FakeError> {
-        let end = offset as usize + bytes.len();
-        if end > self.data.len() {
-            return Err(FakeError::Range);
-        }
-        bytes.copy_from_slice(&self.data[offset as usize..end]);
-        Ok(())
-    }
-    fn capacity(&self) -> usize {
-        self.data.len()
-    }
-}
-
-impl NorFlash for Fake {
-    const WRITE_SIZE: usize = 4;
-    const ERASE_SIZE: usize = ERASE as usize;
-
-    fn erase(&mut self, from: u32, to: u32) -> Result<(), FakeError> {
-        if from % ERASE != 0 || to % ERASE != 0 || to < from || to as usize > self.data.len() {
-            return Err(FakeError::Misaligned);
-        }
-        if self.crashing_now() {
-            // A sector erase cut short leaves the first half erased, the rest as it was.
-            let half = from + (to - from) / 2;
-            self.data[from as usize..half as usize].fill(0xFF);
-            return Err(FakeError::Crash);
-        }
-        self.data[from as usize..to as usize].fill(0xFF);
-        Ok(())
-    }
-
-    fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), FakeError> {
-        if offset % 4 != 0 || bytes.len() % 4 != 0 || offset as usize + bytes.len() > self.data.len() {
-            return Err(FakeError::Misaligned);
-        }
-        let crash = self.crashing_now();
-        let upto = if crash { bytes.len() / 2 / 4 * 4 } else { bytes.len() };
-        for (i, b) in bytes[..upto].iter().enumerate() {
-            self.data[offset as usize + i] &= *b; // programming only clears bits
-        }
-        if crash { Err(FakeError::Crash) } else { Ok(()) }
-    }
-}
+use crate::testing::{ERASE, Fake, FakeError};
 
 // ---------- layouts (mirrors of the documented tables) ----------
 
