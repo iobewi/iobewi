@@ -1,6 +1,6 @@
 [workspace]
-members = ["net/http/server", "net/http/client", "fs/config", "services/ota", "net/wifi/core", "net/wifi/manager", "net/tls/service", "log/core", "log/stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng", "crypto/core"]
-default-members = ["net/http/server", "net/http/client", "fs/config", "services/ota", "net/wifi/core", "net/wifi/manager", "net/tls/service", "log/core", "log/stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng", "crypto/core"]
+members = ["net/http/server", "net/http/client", "fs/config", "firmware/update", "firmware/boot", "firmware/image", "firmware/slots", "net/http/ota", "net/wifi/core", "net/wifi/manager", "net/tls/service", "log/core", "log/stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng", "crypto/core"]
+default-members = ["net/http/server", "net/http/client", "fs/config", "firmware/update", "firmware/boot", "firmware/image", "firmware/slots", "net/http/ota", "net/wifi/core", "net/wifi/manager", "net/tls/service", "log/core", "log/stream", "time/core", "time/ntp", "net/io", "net/tls/core", "services/indicator", "services/runtime", "services/device", "crypto/rng", "crypto/core"]
 resolver = "3"
 
 [workspace.package]

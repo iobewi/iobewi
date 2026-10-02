@@ -31,7 +31,11 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | Component | Responsibility |
 | --- | --- |
 | `iobewi` | Portable service contracts, capability requirements, application bootstrap, and service composition. |
-| `services/ota` (`iobewi-ota`) | OTA transactions, durable metadata, streaming writes, validation policy and restart recovery. |
+| `firmware/update` (`iobewi-ota`) | Firmware update transactions: prepare, streaming write, publish, activate, reconcile after restart, confirm-or-rollback orchestration (OTM1 metadata, bootstrap lifecycle). No HTTP, ESP or flash types. Package name is historical. |
+| `firmware/image` (`iobewi-firmware-image`) | SHA-256 digest type and text form; ESP application image bootability validation (pure, host-testable). |
+| `firmware/slots` (`iobewi-firmware-slots`) | The current A/B slot model: `AppSlot::{Ota0, Ota1}` and the `embewi-ab-v1` layout identifier. |
+| `firmware/boot` (`iobewi-firmware-boot`) | Logical boot state: the EWBT `otadata` entry format and the power-cut-safe boot/activate/confirm/reject transitions. No hardware, no allocation. |
+| `net/http/ota` (`iobewi-ota-http`) | The OTA HTTP routes (prepare / streaming write / activate); handlers call into `firmware/update`. |
 | `net/http/server` (`iobewi-http-server`) | HTTP dispatcher (picoserve confined here), `IoSocket` adapter from any `net/io` connection, serve loops (`serve_forever_io`, `serve_forever_tls` for HTTPS). |
 | `net/http/client` (`iobewi-http-client`) | Outbound JSON POST/response framing and, behind the `websocket` feature, the WebSocket client protocol over a connected stream. No picoserve. |
 | `net/tls/service` (`iobewi-tls-service`) | Durable TLS identity/CA policy (TLS1 config), authenticated provisioning API, and the fail-closed secure outbound connector (`SecureConnector`) over the crypto and `net/tls/core` contracts; no ESP/MbedTLS type. |

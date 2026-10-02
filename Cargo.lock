@@ -478,6 +478,21 @@ name = "iobewi-entropy"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-firmware-boot"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-firmware-image"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "iobewi-firmware-slots"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-http-client"
 version = "0.1.0"
 dependencies = [
@@ -568,10 +583,18 @@ dependencies = [
  "embassy-sync",
  "embassy-time",
  "iobewi-config-space",
+ "iobewi-firmware-image",
+ "sha2",
+]
+
+[[package]]
+name = "iobewi-ota-http"
+version = "0.1.0"
+dependencies = [
  "iobewi-http-server",
+ "iobewi-ota",
  "serde",
  "serde_json",
- "sha2",
 ]
 
 [[package]]

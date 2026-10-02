@@ -29,7 +29,10 @@ jobs:
       - run: cargo test -p iobewi-tls-service --features http
       - run: cargo test -p iobewi-time
       - run: cargo test -p iobewi-ota
-      - run: cargo test -p iobewi-ota --features http
+      - run: cargo test -p iobewi-ota-http
+      - run: cargo test -p iobewi-firmware-slots
+      - run: cargo test -p iobewi-firmware-image --features alloc
+      - run: cargo test -p iobewi-firmware-boot
       - run: cargo test -p iobewi-ota --features config-space
   # --- iobewi-esp/ provisional subtree (S1): same checks as the former iobewi-esp CI ---
   esp-host:
@@ -41,7 +44,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check -p iobewi-esp-platform
-      - run: cargo test -p iobewi-esp-ota-boot
   esp-esp32s3:
     runs-on: ubuntu-latest
     defaults:
