@@ -14,7 +14,6 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use esp_hal::peripherals::LPWR;
-use esp_hal::rtc_cntl::{Rtc, RwdtStage, RwdtStageAction};
 use iobewi_ota_http::RebootPort;
 use static_cell::StaticCell;
 
@@ -25,7 +24,8 @@ type LpwrCell = Mutex<CriticalSectionRawMutex, Option<LPWR<'static>>>;
 /// connection before picoserve ever writes the confirmation page.
 ///
 /// Uses the RTC watchdog (`ResetSystem`, the broadest of the three reset
-/// scopes esp-hal exposes) instead of `esp_hal::system::software_reset()`.
+/// scopes esp-hal exposes, `iobewi_esp_reset::arm_system_reset`) instead of
+/// `iobewi_esp_reset::software_reset()`.
 /// That function only does a "digital core" reset, which on this chip
 /// leaves the native USB-Serial-JTAG peripheral's link state untouched: the
 /// host still sees the old USB session, the freshly-booted firmware expects
@@ -35,11 +35,9 @@ type LpwrCell = Mutex<CriticalSectionRawMutex, Option<LPWR<'static>>>;
 #[embassy_executor::task]
 async fn reboot_after_delay(lpwr: LPWR<'static>) -> ! {
     Timer::after(Duration::from_millis(500)).await;
-    let mut rtc = Rtc::new(lpwr);
-    rtc.rwdt
-        .set_timeout(RwdtStage::Stage0, esp_hal::time::Duration::from_millis(100));
-    rtc.rwdt.set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);
-    rtc.rwdt.enable();
+    // The physical reset (RTC watchdog, system scope) is `iobewi-esp-reset`;
+    // this task is only the graceful part: wait, then arm it.
+    let _rtc = iobewi_esp_reset::arm_system_reset(lpwr, 100);
     loop {
         Timer::after(Duration::from_secs(10)).await;
     }

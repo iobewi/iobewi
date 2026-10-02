@@ -1,0 +1,17 @@
+[package]
+name = "iobewi-esp-reset"
+workspace = "../../../iobewi-esp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ESP32 SoC reset primitives: digital-core software reset and an RTC-watchdog system reset (no executor, no network, no firmware policy)"
+
+[features]
+default = []
+esp32c3 = ["esp-hal/esp32c3"]
+esp32s3 = ["esp-hal/esp32s3"]
+
+[dependencies]
+esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }

@@ -66,7 +66,7 @@ impl BootWatchdog for EspBootRuntime<'_> {
 
 pub fn arm_watchdog_ms(deadline: u64) { iobewi_esp_watchdog::arm_ms(deadline); }
 
-pub fn reset_now() -> ! { esp_hal::system::software_reset() }
+pub fn reset_now() -> ! { iobewi_esp_reset::software_reset() }
 
 pub async fn reset_for_rollback() -> ! {
     embassy_time::Timer::after(embassy_time::Duration::from_millis(200)).await;

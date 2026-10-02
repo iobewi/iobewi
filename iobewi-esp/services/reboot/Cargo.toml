@@ -9,14 +9,15 @@ description = "ESP RTC-watchdog one-shot reboot adapter for the portable IOBEWI 
 
 [features]
 default = []
-esp32c3 = ["esp-hal/esp32c3"]
-esp32s3 = ["esp-hal/esp32s3"]
+esp32c3 = ["esp-hal/esp32c3", "iobewi-esp-reset/esp32c3"]
+esp32s3 = ["esp-hal/esp32s3", "iobewi-esp-reset/esp32s3"]
 
 [dependencies]
 # `RebootPort` is a real trait defined in iobewi_ota_http (the OTA routes), not a
 # re-exported alias, so this must be the exact instance the router's
 # `R: RebootPort` bound resolves against.
 iobewi-ota-http = { path = "../../../net/http/ota" }
+iobewi-esp-reset = { path = "../../../arch/esp32/reset", default-features = false }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-executor = "0.10.0"
 embassy-time = { version = "0.5.0", default-features = false }
