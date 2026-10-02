@@ -14,15 +14,15 @@ use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_http_server::io_socket::IoSocket;
 use iobewi_http_server::HttpRouter;
 use iobewi_net_io::Close;
-use iobewi_update_model::{RuntimeApi, Side, WorkloadSupervisor};
+use iobewi_update_model::RuntimeApi;
 use iobewi_workload_ota::flash::WorkloadFlash;
 use iobewi_workload_ota::layout::{Region, Unsupported, assemble};
-use iobewi_workload_ota::machine::WorkloadActivator;
-use iobewi_workload_ota::service::{Availability, ServiceError, WorkloadOtaService};
-use iobewi_workload_ota::testing::{ERASE, FakeAccess};
+use iobewi_workload_ota::service::{Availability, WorkloadOtaService};
+use iobewi_workload_ota::supervisor::{Health, WorkloadSupervisor};
+use iobewi_workload_ota::testing::{ERASE, FakeAccess, FakeRuntime};
 use sha2::{Digest as _, Sha256};
 
-use crate::{ActivationPort, Authorize, NoSupervisor, routes};
+use crate::{Authorize, ControlPort, NoSupervisor, routes};
 
 const TOKEN: &str = "good-token";
 const FLASH: u32 = 0x40_0000;
@@ -102,27 +102,11 @@ impl Authorize for Auth {
     }
 }
 
-#[derive(Default)]
-struct Sup(Vec<String>);
-impl WorkloadSupervisor for Sup {
-    fn switch_to(&mut self, s: Side) {
-        self.0.push(std::format!("switch:{s:?}"));
-    }
-    fn restore(&mut self, s: Side) {
-        self.0.push(std::format!("restore:{s:?}"));
-    }
-}
-impl WorkloadActivator for Sup {
-    fn stop(&mut self) {}
-}
+type Real = &'static WorkloadSupervisor<FakeAccess, FakeRuntime>;
 
-/// A test-only supervisor authority: runs the real activation through a recording supervisor.
-#[derive(Clone, Default)]
-struct FakeSupervisorPort(Rc<RefCell<Sup>>);
-impl ActivationPort<FakeAccess> for FakeSupervisorPort {
-    async fn activate(&self, service: &WorkloadOtaService<FakeAccess>, digest: &[u8; 32]) -> Result<(), ServiceError> {
-        service.activate(Some(digest), &mut *self.0.borrow_mut()).await
-    }
+/// A real Supervisor (over the fake runtime) as the control authority.
+fn supervisor(svc: &'static WorkloadOtaService<FakeAccess>) -> Real {
+    Box::leak(Box::new(WorkloadSupervisor::new(svc, FakeRuntime::new())))
 }
 
 fn layout() -> iobewi_workload_ota::layout::WorkloadLayout {
@@ -181,7 +165,7 @@ fn request(method: &str, path: &str, token: Option<&str>, extra: &[(&str, String
 }
 
 /// Several requests on ONE connection (keep-alive), responses parsed in order.
-fn exchange<A: ActivationPort<FakeAccess> + Clone + 'static>(
+fn exchange<A: ControlPort<FakeAccess> + Clone + 'static>(
     svc: &'static WorkloadOtaService<FakeAccess>,
     port: A,
     requests: Vec<Vec<u8>>,
@@ -271,10 +255,12 @@ fn upload_requests(bytes: &[u8], version: &str, api: (u16, u16), chunk: usize) -
 fn every_route_requires_the_bearer_token_and_https_only_is_the_servers_job() {
     let svc = service(API10);
     let before = snapshot(svc);
-    let cases: [(&str, &str, Vec<u8>); 4] = [
+    let cases: [(&str, &str, Vec<u8>); 6] = [
         ("GET", "/status", Vec::new()),
         ("POST", "/prepare", b"{}".to_vec()),
         ("POST", "/activate", b"{}".to_vec()),
+        ("POST", "/confirm", Vec::new()),
+        ("POST", "/rollback", Vec::new()),
         ("PUT", "/write", b"x".to_vec()),
     ];
     for token in [None, Some("wrong-token"), Some("")] {
@@ -534,15 +520,15 @@ fn a_new_prepare_supersedes_a_staged_candidate_but_not_a_running_one() {
     let a = data(1, 6_000);
     let b = data(2, 7_000);
     let c = data(3, 5_000);
-    let port = FakeSupervisorPort::default();
-    let rs = exchange(svc, port.clone(), {
+    let port = supervisor(svc);
+    let rs = exchange(svc, port, {
         let mut r = upload_requests(&a, "1", (1, 0), 16 * 1024);
         r.extend(upload_requests(&b, "2", (1, 0), 16 * 1024));
         r.push(request("GET", "/status", Some(TOKEN), &[], b""));
         r
     });
     assert_eq!(rs.last().unwrap().json()["candidate"]["version"], "2");
-    // Activate through the fake supervisor: PendingConfirmation -> prepare refused.
+    // Activate through the Supervisor: PendingConfirmation -> prepare refused.
     let rs = exchange(
         svc,
         port,
@@ -609,23 +595,123 @@ fn activation_checks_come_before_the_supervisor_gate() {
 }
 
 #[test]
-fn a_compatible_workload_activates_through_a_real_supervisor_port() {
+fn a_compatible_workload_activates_confirms_and_the_status_shows_it_running() {
     let svc = service(RuntimeApi::new(1, 4));
     let bytes = data(1, 9_000);
-    let port = FakeSupervisorPort::default();
-    exchange(svc, port.clone(), upload_requests(&bytes, "1", (1, 3), 16 * 1024));
+    let port = supervisor(svc);
+    exchange(svc, port, upload_requests(&bytes, "1", (1, 3), 16 * 1024));
+    let activate = request("POST", "/activate", Some(TOKEN), &[], std::format!("{{\"digest\":\"{}\"}}", digest_of(&bytes)).as_bytes());
     let rs = exchange(
         svc,
-        port.clone(),
+        port,
         alloc::vec![
-            request("POST", "/activate", Some(TOKEN), &[], std::format!("{{\"digest\":\"{}\"}}", digest_of(&bytes)).as_bytes()),
+            activate,
+            request("GET", "/status", Some(TOKEN), &[], b""),
+            request("POST", "/confirm", Some(TOKEN), &[], b""),
             request("GET", "/status", Some(TOKEN), &[], b""),
         ],
     );
-    assert_eq!(rs[0].status, 200);
-    assert_eq!(rs[0].json()["status"], "activated");
+    assert_eq!(rs[0].status, 200, "{}", rs[0].body);
+    assert_eq!(rs[0].json()["status"], "pending_confirmation");
     assert_eq!(rs[1].json()["state"], "pending_confirmation");
-    assert_eq!(port.0.borrow().0, ["switch:A"]);
+    assert_eq!(rs[1].json()["runtime"]["supervised"], true);
+    assert_eq!(rs[1].json()["runtime"]["running"], true);
+    assert_eq!(rs[1].json()["runtime"]["health"], "healthy");
+    assert_eq!(rs[1].json()["runtime"]["artifact"]["version"], "1");
+    assert_eq!(rs[2].status, 200);
+    assert_eq!(rs[2].json()["status"], "valid");
+    assert_eq!(rs[3].json()["state"], "valid");
+    assert_eq!(rs[3].json()["active"]["version"], "1");
+}
+
+#[test]
+fn an_unhealthy_candidate_is_409_on_confirm_and_a_rollback_restores_the_previous() {
+    let svc = service(API10);
+    let a = data(1, 8_000);
+    let b = data(2, 8_000);
+    let port = supervisor(svc);
+    let act = |bytes: &[u8]| request("POST", "/activate", Some(TOKEN), &[], std::format!("{{\"digest\":\"{}\"}}", digest_of(bytes)).as_bytes());
+    exchange(svc, port, upload_requests(&a, "A", (1, 0), 16 * 1024));
+    exchange(svc, port, alloc::vec![act(&a), request("POST", "/confirm", Some(TOKEN), &[], b"")]);
+    exchange(svc, port, upload_requests(&b, "B", (1, 0), 16 * 1024));
+    exchange(svc, port, alloc::vec![act(&b)]);
+    port.runtime().set_health(Some(Health::Unhealthy));
+    let rs = exchange(
+        svc,
+        port,
+        alloc::vec![
+            request("POST", "/confirm", Some(TOKEN), &[], b""),
+            request("GET", "/status", Some(TOKEN), &[], b""),
+        ],
+    );
+    assert_eq!(rs[0].status, 409);
+    assert_eq!(rs[0].json()["error"], "workload_unhealthy");
+    assert_eq!(rs[0].json()["health"], "unhealthy");
+    assert_eq!(rs[1].json()["state"], "pending_confirmation");
+    assert_eq!(rs[1].json()["runtime"]["health"], "unhealthy");
+    port.runtime().set_health(None);
+    let rs = exchange(
+        svc,
+        port,
+        alloc::vec![
+            request("POST", "/rollback", Some(TOKEN), &[], b""),
+            request("GET", "/status", Some(TOKEN), &[], b""),
+        ],
+    );
+    assert_eq!(rs[0].status, 200, "{}", rs[0].body);
+    assert_eq!(rs[0].json()["status"], "rolled_back");
+    assert_eq!(rs[0].json()["state"], "valid");
+    assert_eq!(rs[1].json()["active"]["version"], "A");
+    assert_eq!(rs[1].json()["runtime"]["artifact"]["version"], "A");
+}
+
+#[test]
+fn a_start_failure_is_500_with_rolled_back_and_the_previous_workload_runs_again() {
+    let svc = service(API10);
+    let a = data(1, 8_000);
+    let b = data(2, 8_000);
+    let port = supervisor(svc);
+    let act = |bytes: &[u8]| request("POST", "/activate", Some(TOKEN), &[], std::format!("{{\"digest\":\"{}\"}}", digest_of(bytes)).as_bytes());
+    exchange(svc, port, upload_requests(&a, "A", (1, 0), 16 * 1024));
+    exchange(svc, port, alloc::vec![act(&a), request("POST", "/confirm", Some(TOKEN), &[], b"")]);
+    exchange(svc, port, upload_requests(&b, "B", (1, 0), 16 * 1024));
+    let mut digest = [0u8; 32];
+    digest.copy_from_slice(&Sha256::digest(&b));
+    port.runtime().fail_start_of(digest);
+    let rs = exchange(svc, port, alloc::vec![act(&b), request("GET", "/status", Some(TOKEN), &[], b"")]);
+    assert_eq!(rs[0].status, 500);
+    assert_eq!(rs[0].json()["error"], "activation_failed");
+    assert_eq!(rs[0].json()["rolled_back"], true);
+    assert_eq!(rs[1].json()["state"], "valid");
+    assert_eq!(rs[1].json()["active"]["version"], "A");
+    assert_eq!(rs[1].json()["runtime"]["artifact"]["version"], "A");
+}
+
+#[test]
+fn confirm_and_rollback_in_the_wrong_state_are_409_and_without_a_supervisor_501() {
+    let svc = service(API10);
+    let real = supervisor(svc);
+    let rs = exchange(
+        svc,
+        real,
+        alloc::vec![
+            request("POST", "/confirm", Some(TOKEN), &[], b""),
+            request("POST", "/rollback", Some(TOKEN), &[], b""),
+        ],
+    );
+    assert_eq!((rs[0].status, rs[1].status), (409, 409));
+    assert_eq!(rs[0].json()["error"], "not_staged");
+    let rs = exchange(
+        svc,
+        NoSupervisor,
+        alloc::vec![
+            request("POST", "/confirm", Some(TOKEN), &[], b""),
+            request("POST", "/rollback", Some(TOKEN), &[], b""),
+            request("GET", "/status", Some(TOKEN), &[], b""),
+        ],
+    );
+    assert_eq!((rs[0].status, rs[1].status), (501, 501));
+    assert_eq!(rs[2].json()["runtime"]["supervised"], false);
 }
 
 #[test]

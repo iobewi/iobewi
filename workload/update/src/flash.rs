@@ -16,7 +16,7 @@ use iobewi_update_model::{RuntimeApi, Side, UpdateRequest, WorkloadSupervisor};
 use sha2::{Digest as _, Sha256};
 
 use crate::layout::{Region, WorkloadLayout};
-use crate::machine::{Prepared, Recovery, UpdateError, WorkloadActivator, WorkloadUpdater};
+use crate::machine::{Prepared, Recovery, RollbackPlan, UpdateError, WorkloadActivator, WorkloadUpdater};
 use crate::nor::{NorError, NorMetadata, NorSlot, erase_range, read_region};
 use crate::otm2::Record;
 
@@ -105,6 +105,29 @@ impl<A: FlashAccess> WorkloadFlash<A> {
     /// it cannot wait for flash and cannot deadlock on it.
     pub async fn activate<S: WorkloadSupervisor>(&self, supervisor: &mut S, agent_api: RuntimeApi) -> Result<(), UpdateError<StorageError<A>>> {
         self.with_updater(|u| u.activate(supervisor, agent_api)).await
+    }
+
+    /// Persisted activation steps (the supervisor call goes between them, flash unlocked).
+    pub async fn begin_activation(&self, agent_api: RuntimeApi) -> Result<Record, UpdateError<StorageError<A>>> {
+        self.with_updater(|u| u.begin_activation(agent_api)).await
+    }
+
+    pub async fn complete_activation(&self) -> Result<(), UpdateError<StorageError<A>>> {
+        self.with_updater(|u| u.complete_activation()).await
+    }
+
+    pub async fn begin_rollback(&self) -> Result<RollbackPlan, UpdateError<StorageError<A>>> {
+        self.with_updater(|u| u.begin_rollback()).await
+    }
+
+    pub async fn complete_rollback(&self) -> Result<(), UpdateError<StorageError<A>>> {
+        self.with_updater(|u| u.complete_rollback()).await
+    }
+
+    /// Reads `buf.len()` bytes of a slot (one lock, one read).
+    pub async fn read_slot(&self, side: Side, offset: u64, buf: &mut [u8]) -> Result<(), StorageError<A>> {
+        let region = self.layout.slot(side);
+        self.access.with(|flash| read_region(flash, region, offset, buf)).await
     }
 
     pub async fn confirm(&self) -> Result<(), UpdateError<StorageError<A>>> {

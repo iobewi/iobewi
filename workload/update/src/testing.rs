@@ -116,3 +116,109 @@ impl FlashAccess for FakeAccess {
         f(&mut self.0.borrow_mut())
     }
 }
+
+// ---------------------------------------------------------------------------
+// A fake Workload runtime for the Supervisor's host tests.
+// ---------------------------------------------------------------------------
+
+use alloc::vec::Vec as StdVec;
+
+use crate::supervisor::{ArtifactReader, Health, Identity, RuntimeError, WorkloadRuntime};
+
+#[derive(Default)]
+struct FakeRuntimeState {
+    running: Option<Identity>,
+    health: Option<Health>,
+    report_as: Option<Identity>,
+    starts: StdVec<Identity>,
+    stops: usize,
+    /// Digests whose `start` fails.
+    fail_digests: StdVec<[u8; 32]>,
+    /// `start` called while something already ran: the Supervisor must stop first.
+    overlap: bool,
+}
+
+/// Records every call; faults are set per test.
+#[derive(Default)]
+pub struct FakeRuntime(RefCell<FakeRuntimeState>);
+
+impl FakeRuntime {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn fail_start_of(&self, digest: [u8; 32]) {
+        self.0.borrow_mut().fail_digests.push(digest);
+    }
+
+    pub fn clear_faults(&self) {
+        let mut s = self.0.borrow_mut();
+        s.fail_digests.clear();
+        s.health = None;
+        s.report_as = None;
+    }
+
+    /// Force the reported health (`None` = derived: Healthy while running).
+    pub fn set_health(&self, health: Option<Health>) {
+        self.0.borrow_mut().health = health;
+    }
+
+    /// Make `running()` claim another artifact than the one started (wrong artifact).
+    pub fn report_running_as(&self, identity: Option<Identity>) {
+        self.0.borrow_mut().report_as = identity;
+    }
+
+    pub fn starts(&self) -> StdVec<Identity> {
+        self.0.borrow().starts.clone()
+    }
+
+    pub fn stops(&self) -> usize {
+        self.0.borrow().stops
+    }
+
+    pub fn overlapped(&self) -> bool {
+        self.0.borrow().overlap
+    }
+
+    pub fn running_now(&self) -> Option<Identity> {
+        self.0.borrow().running.clone()
+    }
+}
+
+impl WorkloadRuntime for FakeRuntime {
+    async fn start<R: ArtifactReader>(&self, artifact: &Identity, reader: &R) -> Result<(), RuntimeError> {
+        // Read a few bytes through the supervisor's reader, like a real loader would.
+        let mut head = [0u8; 4];
+        reader.read(0, &mut head).await?;
+        let mut s = self.0.borrow_mut();
+        if s.running.is_some() {
+            s.overlap = true;
+        }
+        if s.fail_digests.contains(&artifact.digest) {
+            return Err(RuntimeError { reason: "fault: start fails" });
+        }
+        s.running = Some(artifact.clone());
+        s.starts.push(artifact.clone());
+        Ok(())
+    }
+
+    async fn stop(&self) {
+        let mut s = self.0.borrow_mut();
+        s.stops += 1;
+        s.running = None;
+    }
+
+    async fn health(&self) -> Health {
+        let s = self.0.borrow();
+        match (&s.running, s.health) {
+            (None, _) => Health::Unknown,
+            (Some(_), Some(h)) => h,
+            (Some(_), None) => Health::Healthy,
+        }
+    }
+
+    async fn running(&self) -> Option<Identity> {
+        let s = self.0.borrow();
+        s.report_as.clone().or_else(|| s.running.clone())
+    }
+}

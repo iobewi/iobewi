@@ -37,8 +37,10 @@ pub mod layout;
 pub mod machine;
 pub mod nor;
 pub mod otm2;
+pub mod probe;
 pub mod service;
 pub mod store;
+pub mod supervisor;
 #[cfg(any(test, feature = "test-util"))]
 pub mod testing;
 
@@ -48,3 +50,5 @@ mod tests;
 mod tests_nor;
 #[cfg(test)]
 mod tests_service;
+#[cfg(test)]
+mod tests_supervisor;

@@ -236,24 +236,40 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         Ok(record)
     }
 
-    /// Activates the staged candidate. The compatibility check runs **before**
-    /// anything is persisted or the supervisor is called.
-    pub fn activate<S: WorkloadSupervisor>(&mut self, supervisor: &mut S, agent_api: RuntimeApi) -> Result<(), UpdateError<B::Error>> {
+    /// Step 1 of an activation: every `preflight_activate` check, then `Staged ->
+    /// Activating` is persisted. Nothing has been started yet; if power is lost here
+    /// recovery reports `RollbackRequired`, never "the candidate started".
+    /// Returns the `Staged` record as it was before the transition.
+    pub fn begin_activation(&mut self, agent_api: RuntimeApi) -> Result<Record, UpdateError<B::Error>> {
         let record = self.preflight_activate(agent_api)?;
-        let candidate = record.candidate.unwrap_or(Side::A);
-        // 1. intent
         let mut activating = record;
         activating.state = State::Activating;
         self.put(activating, record.sequence)?;
-        // 2. effect (supervisor authority, never the bootloader)
-        supervisor.switch_to(candidate);
-        // 3. switched, awaiting confirmation: the old active is the way back.
-        let mut pending = activating;
+        Ok(record)
+    }
+
+    /// Step 2: the candidate really runs: `Activating -> PendingConfirmation`. The
+    /// previously active Workload (if any) becomes the way back.
+    pub fn complete_activation(&mut self) -> Result<(), UpdateError<B::Error>> {
+        let current = self.current()?;
+        let Some(record) = current.filter(|r| r.state == State::Activating) else {
+            return Err(UpdateError::WrongState(current.map(|r| r.state)));
+        };
+        let candidate = record.candidate.unwrap_or(Side::A);
+        let mut pending = record;
         pending.state = State::PendingConfirmation;
         pending.previous_valid = record.active;
         pending.active = Some(candidate);
         pending.candidate = None;
-        self.put(pending, activating.sequence.wrapping_add(1))
+        self.put(pending, record.sequence)
+    }
+
+    /// Activates the staged candidate through a *synchronous* supervisor (the
+    /// supervisor call runs between the two persisted steps, flash lock held).
+    pub fn activate<S: WorkloadSupervisor>(&mut self, supervisor: &mut S, agent_api: RuntimeApi) -> Result<(), UpdateError<B::Error>> {
+        let record = self.begin_activation(agent_api)?;
+        supervisor.switch_to(record.candidate.unwrap_or(Side::A));
+        self.complete_activation()
     }
 
     /// The trigger (health) is a future capability; this only records it.
@@ -268,9 +284,11 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         self.put(valid, record.sequence)
     }
 
-    /// Returns to the last confirmed Workload (or to none), without touching
-    /// the Agent. Also completes a rollback interrupted by a restart.
-    pub fn rollback<A: WorkloadActivator>(&mut self, activator: &mut A) -> Result<(), UpdateError<B::Error>> {
+    /// Step 1 of a rollback: persist `RollingBack` (from `Activating` or
+    /// `PendingConfirmation`; already `RollingBack` = resume after a restart) and say
+    /// what must be stopped and what restored. The previous Workload's slot and
+    /// metadata are not touched.
+    pub fn begin_rollback(&mut self) -> Result<RollbackPlan, UpdateError<B::Error>> {
         let current = self.current()?;
         let Some(record) = current.filter(|r| {
             matches!(r.state, State::Activating | State::PendingConfirmation | State::RollingBack)
@@ -281,23 +299,25 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
             State::Activating => (record.candidate, record.active),
             _ => (record.active, record.previous_valid),
         };
-        // 1. intent (skipped when resuming an interrupted rollback)
-        let mut sequence = record.sequence;
         if record.state != State::RollingBack {
             let mut rolling = record;
             rolling.state = State::RollingBack;
             rolling.active = failed;
             rolling.candidate = None;
             rolling.previous_valid = restore;
-            self.put(rolling, sequence)?;
-            sequence = sequence.wrapping_add(1);
+            self.put(rolling, record.sequence)?;
         }
-        // 2. effect
-        match restore {
-            Some(side) => activator.restore(side),
-            None => activator.stop(),
-        }
-        // 3. settled
+        Ok(RollbackPlan { failed, restore })
+    }
+
+    /// Step 2: the previous Workload is running again (or there is none):
+    /// `RollingBack -> Valid(previous)` / `Empty`.
+    pub fn complete_rollback(&mut self) -> Result<(), UpdateError<B::Error>> {
+        let current = self.current()?;
+        let Some(record) = current.filter(|r| r.state == State::RollingBack) else {
+            return Err(UpdateError::WrongState(current.map(|r| r.state)));
+        };
+        let restore = record.previous_valid;
         let mut done = record;
         done.candidate = None;
         done.previous_valid = None;
@@ -311,8 +331,29 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
                 done.active = None;
             }
         }
-        self.put(done, sequence)
+        self.put(done, record.sequence)
     }
+
+    /// Returns to the last confirmed Workload (or to none) through a synchronous
+    /// activator, without touching the Agent. Also completes a rollback interrupted
+    /// by a restart.
+    pub fn rollback<A: WorkloadActivator>(&mut self, activator: &mut A) -> Result<(), UpdateError<B::Error>> {
+        let plan = self.begin_rollback()?;
+        match plan.restore {
+            Some(side) => activator.restore(side),
+            None => activator.stop(),
+        }
+        self.complete_rollback()
+    }
+}
+
+/// What a rollback has to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RollbackPlan {
+    /// The slot that failed (to stop), if any.
+    pub failed: Option<Side>,
+    /// The slot to restore, `None` = nothing to return to (stay empty).
+    pub restore: Option<Side>,
 }
 
 /// Convenience for callers/tests: write `data` to a slot through the shared

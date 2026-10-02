@@ -76,6 +76,19 @@ pub enum ServiceError {
     /// No Workload supervisor exists on this platform: activation is refused,
     /// the state is untouched.
     SupervisorUnavailable,
+    /// Another activation/confirmation/rollback is running in the supervisor.
+    TransitionInProgress,
+    /// The candidate failed to start; the previous Workload was restored (or none).
+    ActivationFailed,
+    /// A rollback could not restore the previous Workload: the state stays
+    /// `RollingBack` (retried at the next boot), never an invented `Valid`.
+    RollbackFailed,
+    /// The slot no longer matches the staged digest; the candidate was discarded.
+    CandidateCorrupted,
+    /// The confirmed candidate is not what the supervisor is running.
+    NotRunning,
+    /// The running candidate does not report `Healthy`.
+    Unhealthy(crate::supervisor::Health),
     Storage,
 }
 

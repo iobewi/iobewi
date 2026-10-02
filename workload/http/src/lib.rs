@@ -9,7 +9,9 @@
 //! | GET  | `/status`   | capability and OTM2 state (200 even when unsupported) |
 //! | POST | `/prepare`  | name the artifact: id, version, size, SHA-256, required runtime API |
 //! | PUT  | `/write`    | streaming `Content-Range` upload, SHA-256 verified, stages on completion |
-//! | POST | `/activate` | activation gate; refuses without a supervisor, never fakes a state |
+//! | POST | `/activate` | `Staged -> Activating -> PendingConfirmation` through the Supervisor (501 without one) |
+//! | POST | `/confirm`  | `PendingConfirmation -> Valid`, only if the candidate runs and is healthy |
+//! | POST | `/rollback` | `PendingConfirmation -> RollingBack -> previous Valid / Empty` |
 //!
 //! This crate is HTTP only: parsing, auth integration, request -> service
 //! mapping, error -> status mapping. The state machine, OTM2 and the streaming
@@ -39,6 +41,7 @@ use iobewi_update_model::RuntimeApi;
 use iobewi_workload_ota::flash::FlashAccess;
 use iobewi_workload_ota::otm2::State;
 use iobewi_workload_ota::service::{ArtifactInfo, PrepareInput, ServiceError, Status, WorkloadOtaService};
+use iobewi_workload_ota::supervisor::{RuntimeStatus, WorkloadRuntime, WorkloadSupervisor};
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -50,21 +53,57 @@ pub trait Authorize {
     async fn authorize(&self, token: &str) -> bool;
 }
 
-/// The activation authority. `NoSupervisor` is the production S17 value: every
-/// check runs, then activation is refused and the state stays `Staged`. A real
-/// supervisor (tests today, a runtime later) calls `WorkloadOtaService::activate`.
+/// The control authority behind activate/confirm/rollback. `NoSupervisor` is the
+/// production default of a build without a runtime: every check runs, then the
+/// operation is refused (501) and the state is never touched. A build with a real
+/// Supervisor plugs it in through [`WorkloadSupervisor`] (see the impl below).
 #[allow(async_fn_in_trait)]
-pub trait ActivationPort<A: FlashAccess> {
+pub trait ControlPort<A: FlashAccess> {
     async fn activate(&self, service: &WorkloadOtaService<A>, digest: &[u8; 32]) -> Result<(), ServiceError>;
+    async fn confirm(&self, service: &WorkloadOtaService<A>) -> Result<(), ServiceError>;
+    async fn rollback(&self, service: &WorkloadOtaService<A>) -> Result<(), ServiceError>;
+    /// Execution status, `None` when no supervisor exists.
+    async fn runtime_status(&self) -> Option<RuntimeStatus>;
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct NoSupervisor;
 
-impl<A: FlashAccess> ActivationPort<A> for NoSupervisor {
+impl<A: FlashAccess> ControlPort<A> for NoSupervisor {
     async fn activate(&self, service: &WorkloadOtaService<A>, digest: &[u8; 32]) -> Result<(), ServiceError> {
         service.check_activation(Some(digest)).await?;
         Err(ServiceError::SupervisorUnavailable)
+    }
+
+    async fn confirm(&self, _service: &WorkloadOtaService<A>) -> Result<(), ServiceError> {
+        Err(ServiceError::SupervisorUnavailable)
+    }
+
+    async fn rollback(&self, _service: &WorkloadOtaService<A>) -> Result<(), ServiceError> {
+        Err(ServiceError::SupervisorUnavailable)
+    }
+
+    async fn runtime_status(&self) -> Option<RuntimeStatus> {
+        None
+    }
+}
+
+/// A real Supervisor as the control authority.
+impl<A: FlashAccess + 'static, R: WorkloadRuntime> ControlPort<A> for &'static WorkloadSupervisor<A, R> {
+    async fn activate(&self, _service: &WorkloadOtaService<A>, digest: &[u8; 32]) -> Result<(), ServiceError> {
+        WorkloadSupervisor::activate(self, digest).await
+    }
+
+    async fn confirm(&self, _service: &WorkloadOtaService<A>) -> Result<(), ServiceError> {
+        WorkloadSupervisor::confirm(self).await
+    }
+
+    async fn rollback(&self, _service: &WorkloadOtaService<A>) -> Result<(), ServiceError> {
+        WorkloadSupervisor::rollback(self).await
+    }
+
+    async fn runtime_status(&self) -> Option<RuntimeStatus> {
+        Some(WorkloadSupervisor::runtime_status(self).await)
     }
 }
 
@@ -114,6 +153,22 @@ struct Diagnostic {
 }
 
 #[derive(Serialize)]
+struct RunningOut {
+    id: String,
+    version: String,
+    digest: String,
+}
+
+#[derive(Serialize)]
+struct RuntimeOut {
+    /// Is there a Supervisor at all on this build?
+    supervised: bool,
+    running: bool,
+    health: &'static str,
+    artifact: Option<RunningOut>,
+}
+
+#[derive(Serialize)]
 struct StatusOut {
     supported: bool,
     reason: Option<String>,
@@ -125,6 +180,8 @@ struct StatusOut {
     runtime_api_provided: ApiOut,
     write_in_progress: bool,
     prepared: bool,
+    /// Execution state, separate from OTM2's persistent state.
+    runtime: RuntimeOut,
     /// Diagnostic only: Core never needs a slot to order an update.
     diagnostic: Diagnostic,
 }
@@ -162,7 +219,20 @@ fn slot_name(side: Option<iobewi_update_model::Side>) -> Option<&'static str> {
     })
 }
 
-pub fn status_json(status: Status) -> String {
+pub fn status_json(status: Status, runtime: Option<RuntimeStatus>) -> String {
+    let runtime = match runtime {
+        None => RuntimeOut { supervised: false, running: false, health: "unknown", artifact: None },
+        Some(r) => RuntimeOut {
+            supervised: true,
+            running: r.running.is_some(),
+            health: r.health.as_str(),
+            artifact: r.running.map(|i| RunningOut {
+                id: i.id,
+                version: i.version,
+                digest: format_digest(&iobewi_ota::Digest(i.digest)),
+            }),
+        },
+    };
     let out = StatusOut {
         supported: status.supported,
         reason: status.reason,
@@ -174,6 +244,7 @@ pub fn status_json(status: Status) -> String {
         runtime_api_provided: api_out(status.provided),
         write_in_progress: status.write_in_progress,
         prepared: status.prepared,
+        runtime,
         diagnostic: Diagnostic {
             active_slot: slot_name(status.active_slot),
             candidate_slot: slot_name(status.candidate_slot),
@@ -246,6 +317,24 @@ pub fn error_response(error: &ServiceError) -> JsonResponse {
             StatusCode::NOT_IMPLEMENTED,
             "{\"error\":\"supervisor_unavailable\"}",
         ),
+        TransitionInProgress => json_error(StatusCode::CONFLICT, "{\"error\":\"transition_in_progress\"}"),
+        ActivationFailed => json_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{\"error\":\"activation_failed\",\"rolled_back\":true}",
+        ),
+        RollbackFailed => json_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{\"error\":\"rollback_failed\",\"state\":\"rolling_back\"}",
+        ),
+        CandidateCorrupted => json_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{\"error\":\"candidate_corrupted\",\"discarded\":true}",
+        ),
+        NotRunning => json_error(StatusCode::CONFLICT, "{\"error\":\"workload_not_running\"}"),
+        Unhealthy(health) => json_error(
+            StatusCode::CONFLICT,
+            &format!("{{\"error\":\"workload_unhealthy\",\"health\":\"{}\"}}", health.as_str()),
+        ),
         Storage => json_error(StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"storage_failure\"}"),
     }
 }
@@ -282,7 +371,7 @@ pub async fn prepare_response<A: FlashAccess>(service: &WorkloadOtaService<A>, b
     }
 }
 
-pub async fn activate_response<A: FlashAccess, P: ActivationPort<A>>(
+pub async fn activate_response<A: FlashAccess, P: ControlPort<A>>(
     service: &WorkloadOtaService<A>,
     port: &P,
     body: &str,
@@ -294,13 +383,34 @@ pub async fn activate_response<A: FlashAccess, P: ActivationPort<A>>(
         return bad_request("bad_digest");
     };
     match port.activate(service, &digest).await {
-        Ok(()) => json_ok(String::from("{\"status\":\"activated\"}")),
+        Ok(()) => json_ok(String::from("{\"status\":\"pending_confirmation\"}")),
         Err(error) => {
             if error == ServiceError::SupervisorUnavailable {
                 log::warn!("workload ota: activate refused: supervisor unavailable");
             }
             error_response(&error)
         }
+    }
+}
+
+pub async fn confirm_response<A: FlashAccess, P: ControlPort<A>>(service: &WorkloadOtaService<A>, port: &P) -> JsonResponse {
+    match port.confirm(service).await {
+        Ok(()) => {
+            log::info!("workload ota: confirmed");
+            json_ok(String::from("{\"status\":\"valid\"}"))
+        }
+        Err(error) => error_response(&error),
+    }
+}
+
+pub async fn rollback_response<A: FlashAccess, P: ControlPort<A>>(service: &WorkloadOtaService<A>, port: &P) -> JsonResponse {
+    match port.rollback(service).await {
+        Ok(()) => {
+            let state = state_name(service.status().await.state);
+            log::info!("workload ota: rolled back, state={state}");
+            json_ok(format!("{{\"status\":\"rolled_back\",\"state\":\"{state}\"}}"))
+        }
+        Err(error) => error_response(&error),
     }
 }
 
@@ -311,23 +421,29 @@ pub async fn activate_response<A: FlashAccess, P: ActivationPort<A>>(
 /// The complete Workload OTA router, relative to the caller's namespace
 /// (`.nest("/workload/ota", routes(...))`). Authorization and the activation
 /// authority are injected; the service owns the (single) storage.
-pub fn routes<A, Au, P>(service: &'static WorkloadOtaService<A>, auth: Au, activation: P) -> HttpRouter<impl PathRouter>
+pub fn routes<A, Au, P>(service: &'static WorkloadOtaService<A>, auth: Au, control: P) -> HttpRouter<impl PathRouter>
 where
     A: FlashAccess + 'static,
     Au: Authorize + Clone + 'static,
-    P: ActivationPort<A> + Clone + 'static,
+    P: ControlPort<A> + Clone + 'static,
 {
     let status_auth = auth.clone();
     let prepare_auth = auth.clone();
     let activate_auth = auth.clone();
+    let confirm_auth = auth.clone();
+    let rollback_auth = auth.clone();
+    let status_control = control.clone();
+    let activate_control = control.clone();
+    let confirm_control = control.clone();
     HttpRouter::new()
         .route("/status", get(move |Bearer(token): Bearer| {
             let auth = status_auth.clone();
+            let control = status_control.clone();
             async move {
                 if !auth.authorize(token.as_deref().unwrap_or("")).await {
                     return unauthorized();
                 }
-                json_ok(status_json(service.status().await))
+                json_ok(status_json(service.status().await, control.runtime_status().await))
             }
         }))
         .route("/prepare", post(move |Bearer(token): Bearer, body: String| {
@@ -342,12 +458,32 @@ where
         .route("/write", put_service(WorkloadWrite { service, auth }))
         .route("/activate", post(move |Bearer(token): Bearer, body: String| {
             let auth = activate_auth.clone();
-            let activation = activation.clone();
+            let control = activate_control.clone();
             async move {
                 if !auth.authorize(token.as_deref().unwrap_or("")).await {
                     return unauthorized();
                 }
-                activate_response(service, &activation, &body).await
+                activate_response(service, &control, &body).await
+            }
+        }))
+        .route("/confirm", post(move |Bearer(token): Bearer| {
+            let auth = confirm_auth.clone();
+            let control = confirm_control.clone();
+            async move {
+                if !auth.authorize(token.as_deref().unwrap_or("")).await {
+                    return unauthorized();
+                }
+                confirm_response(service, &control).await
+            }
+        }))
+        .route("/rollback", post(move |Bearer(token): Bearer| {
+            let auth = rollback_auth.clone();
+            let control = control.clone();
+            async move {
+                if !auth.authorize(token.as_deref().unwrap_or("")).await {
+                    return unauthorized();
+                }
+                rollback_response(service, &control).await
             }
         }))
 }
