@@ -14,12 +14,24 @@
  *
  *   vectors_seg 0x403cb000..0x403cb400, IRAM 0x403cb400..0x403d4000
  *     <-> DRAM alias 0x3fcdb000..0x3fce4000
- *   DRAM 0x3fcf4000..0x3fcfc000  (data, bss, stack growing down from the end)
+ *   DRAM 0x3fce4000..0x3fcec000  (data, bss, stack growing down from the end)
  *
- * Both windows sit inside the top of SRAM, below `boot_window`'s upper bound
- * (0x3fd00000, the top of ESP32-S3's DRAM range) -- that whole span is what
- * `iobewi_esp_platform::chips::esp32s3::BOOT_MEMORY_MAP.boot_window` reserves,
- * so it must stay consistent with this file if either one moves.
+ * The DRAM window must end at or below 0x3fced710, the start of the ROM's own
+ * data (the same rule as ESP32-C3's "ROM keeps its own data above 0x3fcdc710",
+ * and the stock ESP-IDF bootloader's segments -- 0x3fcd8700..0x3fcde654 and
+ * 0x3fce2820..0x3fce3cf0 -- stay inside it too). Above it:
+ *
+ *   0x3fced710..0x3fcf0000  ROM data (rom_spiflash_legacy_data 0x3fceffe4, ...)
+ *   0x3fcf0000..0x3fd00000  the data cache takes the HIGH end of this range
+ *                           (esp-hal's `esp32_init`, which runs before any
+ *                           Rust code, configures 32 KiB: 0x3fcf8000..0x3fd00000;
+ *                           up to 64 KiB would start at 0x3fcf0000)
+ *
+ * The first ESP32-S3 layout put DRAM at 0x3fcf4000..0x3fcfc000: the whole
+ * stack (it starts at the top, 0x3fcfc000) sat inside the D-cache window, so
+ * `esp32_init` pulled the memory out from under the running stack and the very
+ * next return landed in a DoubleException before anything was printed. Hence
+ * DRAM now sits directly above the IRAM alias window, below the ROM data.
  *
  * The application image is loaded at the bottom of SRAM (0x40370000 /
  * 0x3fc88000 upwards); `main.rs` refuses any segment reaching this window.
@@ -33,7 +45,7 @@ MEMORY
    * stay adjacent. */
   vectors_seg (RX)  : ORIGIN = 0x403cb000, LENGTH = 0x400
   IRAM        (RWX) : ORIGIN = 0x403cb400, LENGTH = 0x9000 - 0x400
-  DRAM        (RW)  : ORIGIN = 0x3fcf4000, LENGTH = 0x8000
+  DRAM        (RW)  : ORIGIN = 0x3fce4000, LENGTH = 0x8000
   RTC_FAST    (RWX) : ORIGIN = 0x600fe000, LENGTH = 0x2000
   /* ESP32-S3's second, larger RTC bank (unlike ESP32-C3, which has only the
    * one above). Declared -- `rtc_slow.x`'s sections need a real region of
@@ -87,3 +99,18 @@ INCLUDE "metadata.x"
 INCLUDE "eh_frame.x"
 
 INCLUDE "hal-defaults.x"
+
+/* A bad layout must fail the link, not the hardware: a stack that the data
+ * cache takes over, or a window that overlaps the ROM's data, crashes before
+ * the first line of output with nothing to diagnose. */
+ROM_DATA_START = 0x3fced710;
+IRAM_ALIAS_OFFSET = 0x6f0000;
+ASSERT(ORIGIN(DRAM) + LENGTH(DRAM) <= ROM_DATA_START,
+  "bootloader DRAM (data + stack) must end below the ROM data at 0x3fced710 (and so below the D-cache window)");
+ASSERT(ORIGIN(DRAM) >= ORIGIN(IRAM) + LENGTH(IRAM) - IRAM_ALIAS_OFFSET,
+  "bootloader DRAM overlaps the physical SRAM behind the IRAM window");
+ASSERT(_stack_start <= ROM_DATA_START, "initial SP is above the ROM data / inside the D-cache window");
+ASSERT(_stack_start % 16 == 0, "initial SP must be 16-byte aligned");
+ASSERT(_stack_start - _stack_end >= 0x2000, "bootloader stack smaller than 8 KiB");
+ASSERT(Reset >= ORIGIN(IRAM) && Reset < ORIGIN(IRAM) + LENGTH(IRAM), "entry point is not in IRAM");
+ASSERT(_bss_end <= _stack_end, "bss runs into the stack");
