@@ -417,10 +417,5 @@ fn pending(otadata: [Raw; SECTOR_COUNT]) -> Option<(u8, u32)> {
     }
     best
 }
-
-pub mod image;
-
-#[cfg(test)]
-mod image_tests;
 #[cfg(test)]
 mod tests;

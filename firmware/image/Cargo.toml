@@ -1,0 +1,16 @@
+[package]
+name = "iobewi-firmware-image"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Firmware image descriptions: SHA-256 digest type/text format, and ESP application image bootability validation"
+
+[features]
+default = []
+# `format_digest` allocates a String; the bootloader (no allocator) leaves it off.
+alloc = []
+
+[dependencies]
+sha2 = { version = "0.10", default-features = false }

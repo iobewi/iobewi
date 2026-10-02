@@ -1,0 +1,8 @@
+[package]
+name = "iobewi-firmware-boot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Logical boot state: EWBT otadata entry format and the power-cut-safe boot/activate/confirm/reject transitions (no hardware, no allocation)"
