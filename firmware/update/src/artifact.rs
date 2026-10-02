@@ -35,21 +35,8 @@ use sha2::{Digest as _, Sha256};
 use crate::error::Error;
 use crate::storage::ArtifactStorage;
 
-/// A SHA-256 digest -- see the crate doc comment for why this crate commits
-/// to one concrete algorithm rather than a generic hasher trait: it is
-/// reused, proven code, not a speculative abstraction.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Digest(pub [u8; 32]);
-
-impl core::fmt::Debug for Digest {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "sha256:")?;
-        for b in self.0 {
-            write!(f, "{b:02x}")?;
-        }
-        Ok(())
-    }
-}
+/// The SHA-256 digest type is owned by `iobewi-firmware-image`.
+pub use iobewi_firmware_image::Digest;
 
 /// [`resume_plan`]'s outcome. Transport-agnostic: the caller derives
 /// `claims_progress`/`claimed_offset` from whatever resume header its own

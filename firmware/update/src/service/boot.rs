@@ -11,19 +11,41 @@ use crate::metadata::{
     finish_validation, load_metadata, pending_check_action,
 };
 
-/// Physical boot status, durable EWBT writes, storage self-check and watchdog
-/// are capabilities of the platform adapter; the service decides when to use
-/// them. The caller decides when its own application is ready to validate.
+/// What the platform can tell and do about the boot chain. `BootOps` has
+/// always bundled three distinct capabilities; they are named separately so
+/// each can be classified and implemented where it belongs, and the bundle
+/// stays a blanket implementation (the service functions keep one bound):
+///
+/// * [`BootState`] -- physical boot status and the durable EWBT writes
+///   (`firmware/boot` logic executed by a platform storage adapter);
+/// * [`BootSelfCheck`] -- the storage self-check at boot;
+/// * [`BootWatchdog`] -- the pending-verify watchdog (primitive in a
+///   watchdog driver; the service decides when to feed or disable it).
+///
+/// The service decides when to use them. The caller decides when its own
+/// application is ready to validate.
 #[allow(async_fn_in_trait)]
-pub trait BootOps {
+pub trait BootState {
     async fn image_outcome(&self) -> BackendOutcome;
     async fn booted_slot(&self) -> String;
     async fn confirm(&self) -> bool;
     async fn reject(&self) -> bool;
+}
+
+#[allow(async_fn_in_trait)]
+pub trait BootSelfCheck {
     async fn self_check(&self) -> bool;
+}
+
+pub trait BootWatchdog {
     fn watchdog_feed(&self);
     fn watchdog_disable(&self);
 }
+
+/// Everything the boot gate needs from a platform: the three capabilities above.
+pub trait BootOps: BootState + BootSelfCheck + BootWatchdog {}
+
+impl<T: BootState + BootSelfCheck + BootWatchdog> BootOps for T {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BootStatus { Stable, PendingVerify, Degraded, Rollback }

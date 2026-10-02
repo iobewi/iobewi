@@ -1,8 +1,19 @@
+#![no_std]
+
+//! The HTTP surface of the OTA workflow: `POST /ota/prepare`, streaming
+//! `PUT /ota/write` and `POST /ota/activate`, mounted on the shared
+//! `iobewi-http-server` router. HTTP handlers call into `iobewi-ota`
+//! (`firmware/update`), never the other way round.
+//!
 //! Streaming `PUT /ota/write`: a route that can't use
 //! picoserve's usual `String`/`Form` body extractors -- those buffer the
 //! *entire* body before a handler ever runs, and an OTA image (hundreds of
 //! KB) doesn't fit this device's heap. Exposes a streaming handler for the
 //! shared `iobewi-http-server` router, writing one `read()` at a time.
+
+extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 use alloc::format;
 use alloc::string::String;
@@ -18,8 +29,8 @@ use iobewi_http_server::stream::{ChunkSink, StreamError, stream_exact};
 use iobewi_http_server::{HttpRouter, ResponseSent};
 use serde::{Deserialize, Serialize};
 
-use crate::metadata::{PrepareRefusal, SessionParams};
-use crate::{ResumePlan, is_complete, resume_plan};
+use iobewi_ota::metadata::{PrepareRefusal, SessionParams};
+use iobewi_ota::{ResumePlan, is_complete, resume_plan};
 
 fn unauthorized() -> JsonResponse {
     json_error(StatusCode::UNAUTHORIZED, "{\"error\":\"unauthorized\"}")
@@ -154,7 +165,7 @@ where
 
 /// Wire-format validation for X-Embewi-Digest.
 fn is_valid_digest(value: &str) -> bool {
-    crate::metadata::parse_digest(value).is_some()
+    iobewi_ota::metadata::parse_digest(value).is_some()
 }
 
 /// The OTA metadata format limits offsets and firmware size to `u32`.

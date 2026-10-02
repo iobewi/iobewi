@@ -1,4 +1,5 @@
-//! IOBEWI transactional, resumable, A/B-safe OTA service.
+//! IOBEWI firmware update (`firmware/update`): the transactional, resumable,
+//! A/B-safe OTA service. The HTTP routes live in `iobewi-ota-http`.
 //!
 //! `no_std`, and independent of the ESP32, `esp-hal`, Embassy, HTTP/TLS,
 //! Kubernetes/any particular deployment control plane, and any one
@@ -27,7 +28,8 @@
 //!   detail, behind [`storage::ArtifactStorage`].
 //! * bootloader execution, partition lookup, flash I/O, MMU/cache,
 //!   watchdogs, or SoC memory geometry -- those belong to the platform layer.
-//!   The EWBT encoding and ESP image validator live in `iobewi-esp-ota-boot`.
+//!   The EWBT encoding is `iobewi-firmware-boot`; the ESP image validator is
+//!   `iobewi-firmware-image`; slot names are `iobewi-firmware-slots`.
 //! * a decision of *what* a "target" is (a flash slot, a container tag, a
 //!   block device, ...) -- opaque to this crate, carried as the `Target`
 //!   type parameter of [`transaction::TransactionRecord`].
@@ -48,8 +50,6 @@ pub mod bootstrap;
 #[cfg(feature = "config-space")]
 pub mod config_space;
 pub mod error;
-#[cfg(feature = "http")]
-pub mod http;
 pub mod metadata;
 pub mod service;
 pub mod state;

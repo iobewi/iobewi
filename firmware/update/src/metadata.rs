@@ -5,7 +5,6 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::Write as _;
 use crate::{Action, ArtifactRecord, BackendOutcome, Digest, TransactionMetadata, TransactionRecord, TransactionState, reconcile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -277,25 +276,8 @@ pub fn firmware_record(deployment_id: String, size: u64, digest: Digest, target:
     )
 }
 
-pub fn parse_digest(value: &str) -> Option<Digest> {
-    let hex = value.strip_prefix("sha256:")?;
-    if hex.len() != 64 {
-        return None;
-    }
-    let mut bytes = [0u8; 32];
-    for (i, b) in bytes.iter_mut().enumerate() {
-        *b = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()?;
-    }
-    Some(Digest(bytes))
-}
-
-pub fn format_digest(digest: &Digest) -> String {
-    let mut s = String::from("sha256:");
-    for b in digest.0 {
-        let _ = write!(s, "{b:02x}");
-    }
-    s
-}
+/// The `sha256:<hex>` text form is owned by `iobewi-firmware-image`.
+pub use iobewi_firmware_image::{format_digest, parse_digest};
 
 pub fn transaction_from_staged(staged: &Staged) -> Option<Transaction> {
     let state = match staged.stage {
