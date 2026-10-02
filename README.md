@@ -55,6 +55,12 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `fs/nvs/esp32` (`iobewi-esp-nvs`) | NVS view over the shared flash (`esp-nvs` platform bridge). No ConfigSpace, no policy. |
 | `fs/nvs/config-esp32` (`iobewi-esp-config-space`) | The ESP NVS implementation of `iobewi-config-space`'s `ConfigBackend` (locking the shared flash, calling `esp-nvs`); formulas and framing come from `fs/nvs/core`. |
 | `firmware/esp32` (`iobewi-esp-ota`) | ESP storage adapter for `firmware/update`: slot -> partition mapping, `otadata` (EWBT) physical access, artifact storage over partitions, and the boot/upload wiring. |
+| `drivers/device/core` (`iobewi-device`) | Device capability contracts (`DeviceIdentity`, `DeviceMetadata`) and the MAC-derived hardware-id convention (`hardware_id_from_mac`, host-tested). |
+| `drivers/device/esp32` (`iobewi-esp-device`) | Reads the eFuse base MAC, chip name and RAM size; identity rule comes from the contract crate. |
+| `drivers/indicator/core` (`iobewi-indicator`) | Logical status contract (`Status`, `StatusIndicator`, `StatusIndicatorCapabilities`); no colours, pins or timing. |
+| `drivers/indicator/esp32` (`iobewi-esp-indicator`) | RMT/WS2812 status LED renderer (maps the abstract status to colour/blink) and its Embassy task. |
+| `drivers/diagnostics/core` (`iobewi-runtime`) | `RuntimeDiagnostics` contract: stack headroom and heap free bytes. |
+| `arch/esp32/runtime` (`iobewi-esp-runtime`) | Stack-painting high-water-mark (reads SP / linker stack symbols) and `esp-alloc` heap figures. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | TLS network contracts: `SecureClientTransport`, `TlsListener` (a `ConnectionListener` yielding only TLS-handshaken connections), `TlsDialer`; no picoserve, config or ESP type. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |

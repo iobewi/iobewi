@@ -28,7 +28,6 @@ jobs:
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-runtime --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-device --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-reboot --features esp32s3
   check-bootloader:
     runs-on: ubuntu-latest
     steps:

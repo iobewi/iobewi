@@ -13,6 +13,7 @@ Chaque composant a son propre `Cargo.toml` :
 | `services/tls` | `iobewi-esp-tls` | Transport TLS ESP : instance MbedTLS globale, dialer Embassy, flux de session (`net/io`) |
 | `../crypto/mbedtls` | `iobewi-crypto-mbedtls` | Implémentation MbedTLS du contrat crypto (PEM/X.509, identité) |
 | `../drivers/net/wifi/esp32` | `iobewi-esp-wifi` | Driver Wi-Fi station ESP (implémente `iobewi-wifi-core::WifiTransport`) |
+| (déplacé en S11) | `iobewi-esp-{device,indicator,runtime}` | `drivers/device/esp32`, `drivers/indicator/esp32`, `arch/esp32/runtime` ; contrats portables dans `drivers/{device,indicator,diagnostics}/core` ; `iobewi-esp-reboot` supprimé (orchestration dans l'agent, primitive dans `arch/esp32/reset`) |
 | `services/http` | `iobewi-esp-http` | Listener TCP/HTTP sans TLS ; exposition explicite par l’application |
 | `services/https` | `iobewi-esp-https` | Listener TLS ESP (`TlsListener`) ; HTTPS = serveur HTTP + ce listener |
 | `bootloader/esp/` | `iobewi-esp-bootloader` | Binaire indépendant, avec son propre workspace et lockfile |

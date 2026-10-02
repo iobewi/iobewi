@@ -1904,19 +1904,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-reboot"
-version = "0.1.0"
-dependencies = [
- "embassy-executor",
- "embassy-sync 0.8.0",
- "embassy-time",
- "esp-hal",
- "iobewi-esp-reset",
- "iobewi-ota-http",
- "static_cell",
-]
-
-[[package]]
 name = "iobewi-esp-reset"
 version = "0.1.0"
 dependencies = [
@@ -2024,16 +2011,6 @@ dependencies = [
  "embassy-time",
  "iobewi-firmware-image",
  "sha2",
-]
-
-[[package]]
-name = "iobewi-ota-http"
-version = "0.1.0"
-dependencies = [
- "iobewi-http-server",
- "iobewi-ota",
- "serde",
- "serde_json",
 ]
 
 [[package]]
