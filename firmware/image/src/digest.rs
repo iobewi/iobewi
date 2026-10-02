@@ -47,7 +47,7 @@ pub fn format_digest(digest: &Digest) -> String {
     s
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "alloc"))]
 mod tests {
     extern crate alloc;
     use super::*;
