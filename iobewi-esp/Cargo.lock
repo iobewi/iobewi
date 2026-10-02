@@ -1783,6 +1783,7 @@ dependencies = [
  "iobewi-config-space",
  "iobewi-esp-flash",
  "iobewi-esp-nvs",
+ "iobewi-nvs-core",
  "log",
 ]
 
@@ -2005,6 +2006,13 @@ name = "iobewi-net-tls-core"
 version = "0.1.0"
 dependencies = [
  "iobewi-net-io",
+]
+
+[[package]]
+name = "iobewi-nvs-core"
+version = "0.1.0"
+dependencies = [
+ "esp-nvs",
 ]
 
 [[package]]

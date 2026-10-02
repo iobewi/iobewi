@@ -49,6 +49,12 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `arch/esp32/reset` (`iobewi-esp-reset`) | Physical SoC reset: digital-core `software_reset` and RTC-watchdog `arm_system_reset`. No executor, no firmware policy. |
 | `arch/esp32/{c3,s3}/linker` | The bootloader memory maps (linker scripts), including the S3 D-cache/ROM-data layout rules and their `ASSERT`s. |
 | `drivers/watchdog/esp32` (`iobewi-esp-watchdog`) | TIMG0 watchdog primitive (arm / feed / disable); the policy (PendingVerify) stays in `firmware/update`. |
+| `drivers/flash/esp32` (`iobewi-esp-flash`) | The one physical ESP flash owner: `FlashStorage` built once, one `SharedFlash` mutex serializing every consumer. No NVS/OTA/ConfigSpace policy. |
+| `drivers/flash/partitions-esp32` (`iobewi-esp-partitions`) | ESP-IDF partition-table lookup and partition-relative erase arithmetic. Policy-free. |
+| `fs/nvs/core` (`iobewi-nvs-core`) | Chip-independent logic of NVS-backed ConfigSpace persistence: `CSM1` record framing, key rules, NVS entry accounting and the capacity formula. Host-tested. |
+| `fs/nvs/esp32` (`iobewi-esp-nvs`) | NVS view over the shared flash (`esp-nvs` platform bridge). No ConfigSpace, no policy. |
+| `fs/nvs/config-esp32` (`iobewi-esp-config-space`) | The ESP NVS implementation of `iobewi-config-space`'s `ConfigBackend` (locking the shared flash, calling `esp-nvs`); formulas and framing come from `fs/nvs/core`. |
+| `firmware/esp32` (`iobewi-esp-ota`) | ESP storage adapter for `firmware/update`: slot -> partition mapping, `otadata` (EWBT) physical access, artifact storage over partitions, and the boot/upload wiring. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | TLS network contracts: `SecureClientTransport`, `TlsListener` (a `ConnectionListener` yielding only TLS-handshaken connections), `TlsDialer`; no picoserve, config or ESP type. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |

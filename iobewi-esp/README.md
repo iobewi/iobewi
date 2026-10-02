@@ -9,8 +9,7 @@ Chaque composant a son propre `Cargo.toml` :
 
 | Répertoire | Crate | Rôle |
 | --- | --- | --- |
-| `hardware/` | `iobewi-esp-{flash,nvs,partitions}` | Accès au matériel (platform/boot -> `arch/esp32`, watchdog -> `drivers/watchdog/esp32`; l'état EWBT et la validation d'image ont migré vers `firmware/boot` et `firmware/image`) |
-| `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des services IOBEWI OTA et ConfigSpace |
+| (déplacé) | `iobewi-esp-{flash,partitions,nvs,config-space,ota}` | `drivers/flash/{esp32,partitions-esp32}`, `fs/nvs/{esp32,config-esp32}`, `firmware/esp32` ; platform/boot -> `arch/esp32`, watchdog -> `drivers/watchdog/esp32` |
 | `services/tls` | `iobewi-esp-tls` | Transport TLS ESP : instance MbedTLS globale, dialer Embassy, flux de session (`net/io`) |
 | `../crypto/mbedtls` | `iobewi-crypto-mbedtls` | Implémentation MbedTLS du contrat crypto (PEM/X.509, identité) |
 | `../drivers/net/wifi/esp32` | `iobewi-esp-wifi` | Driver Wi-Fi station ESP (implémente `iobewi-wifi-core::WifiTransport`) |
