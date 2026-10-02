@@ -50,7 +50,7 @@ have no supervisor: activate/confirm/rollback answer `501 supervisor_unavailable
 | RollingBack | rollback failure (restore fails) | stays **RollingBack**, never an invented Valid |
 | Valid / Empty | upload allowed (supersession invariant of S17 kept) | |
 
-Upload is refused (409 `transition_in_progress`) during Activating, PendingConfirmation, RollingBack.
+Upload is refused (409 `workload_busy`; concurrent supervisor calls get 409 `transition_in_progress`) during Activating, PendingConfirmation, RollingBack.
 
 ## Boot reconciliation (`reconcile_boot`, offline: no Wi-Fi, no Core)
 
@@ -73,8 +73,8 @@ leaves OTM2 and what is running consistent.
 
 | Route | Success | Errors |
 |---|---|---|
-| `POST /activate {"digest"}` | 200 `pending_confirmation` | 409 not staged / incompatible_runtime_api / transition_in_progress, 422 candidate_corrupted, 500 `activation_failed` (`rolled_back:true`), 501 no supervisor |
-| `POST /confirm` | 200 `valid` | 409 wrong state / `workload_not_running` / `workload_unhealthy` (+health) |
+| `POST /activate {"digest"}` | 200 `pending_confirmation` | 409 `not_staged` / incompatible_runtime_api / transition_in_progress, 422 candidate_corrupted, 500 `activation_failed` (`rolled_back:true`), 501 no supervisor |
+| `POST /confirm` | 200 `valid` | 409 wrong state (`not_staged` body with the current state) / `workload_not_running` / `workload_unhealthy` (+health) |
 | `POST /rollback` | 200 `rolled_back` | 409 nothing to roll back, 500 `rollback_failed` |
 | `GET /status` | adds `runtime:{supervised,running,health,artifact}` | |
 
