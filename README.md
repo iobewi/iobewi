@@ -64,6 +64,7 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | TLS network contracts: `SecureClientTransport`, `TlsListener` (a `ConnectionListener` yielding only TLS-handshaken connections), `TlsDialer`; no picoserve, config or ESP type. |
 | `firmware/model` (`iobewi-update-model`) | Dual-OTA model: Agent / Workload update targets, runtime-API compatibility, A/B slot sets and the two separate activation policies (see [docs/dual-ota.md](docs/dual-ota.md)); no storage, platform or transport. |
+| `workload/update` (`iobewi-workload-ota`) | Workload OTA: OTM2 record codec, double-copy metadata store, Workload A/B state machine and recovery (spec: [docs/otm2.md](docs/otm2.md)); no loader, runtime or platform. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |
 | `log/stream` (`iobewi-log-stream`) | WebSocket forwarding of captured logs and reconnect policy over a supplied secure transport. |
 | `time/core` (`iobewi-time`) | Unix epoch clock state (`now`, `is_set`, `wait`, `set_synced`), independent of any network stack. |

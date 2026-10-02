@@ -187,7 +187,7 @@ diagnostic only: active_slot per level
 
 **Decision: Option A.** OTM2 is the persistent record of the *Workload* OTA,
 an independent transaction, **not** an Agent+Workload release. No binary OTM2 is
-implemented in S14; before it is, fix: semantics, versioning, integrity,
+implemented in S14 (S15 implements it as a portable engine + codec, see `docs/otm2.md`); before any binding to a platform, fix: semantics, versioning, integrity,
 supersession, migration/compat. The HTTP surface can gain an optional `target`
 (default `Agent`, so OTM1 clients keep working) or a separate `/workload/ota/*`
 prefix; the existing `/ota/prepare|write|activate` endpoints are not modified.
@@ -203,7 +203,7 @@ prefix; the existing `/ota/prepare|write|activate` endpoints are not modified.
 Recommendation: **Option 2**, taken lazily — keep `firmware/update` (engine and
 Agent policy) and `firmware/model` (shared vocabulary + the two policies as an
 executable specification) as they are; create a `workload/` root only when real
-Workload code (supervisor integration, persistence, loader) exists. No move in S14.
+Workload code (supervisor integration, persistence, loader) exists. No move in S14. (S15 created `workload/update` for the real Workload OTA code: OTM2 codec, double-copy store and state machine — see `docs/otm2.md`.)
 
 ## 11. Portability
 
