@@ -1,0 +1,25 @@
+[package]
+name = "iobewi-workload-ota-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP routes of the Workload OTA (prepare / streaming write / activate / status) over iobewi-http-server and iobewi-workload-ota; no platform type"
+
+[dependencies]
+iobewi-workload-ota = { path = "../update" }
+iobewi-update-model = { path = "../../firmware/model" }
+iobewi-ota = { path = "../../firmware/update" }
+iobewi-http-server = { path = "../../net/http/server" }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+log = { version = "0.4", default-features = false }
+
+[dev-dependencies]
+iobewi-workload-ota = { path = "../update", features = ["test-util"] }
+iobewi-net-io = { path = "../../net/io" }
+embedded-io-async = "0.7.0"
+sha2 = { version = "0.10", default-features = false }
+critical-section = { version = "1.2", features = ["std"] }
+embassy-time = { version = "0.5.0", features = ["std", "generic-queue-8"] }
