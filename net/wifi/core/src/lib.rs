@@ -32,6 +32,10 @@ pub trait WifiTransport {
 
     async fn connect(&mut self, ssid: &str, password: String) -> bool;
     async fn scan(&mut self) -> Vec<Network>;
+    /// Resolves when the link/IP configuration is lost (immediately if it is
+    /// already down). A pure event primitive: it neither retries nor
+    /// reconnects -- that policy belongs to the manager.
+    async fn wait_down(&mut self);
     fn ip(&self) -> Option<Self::Address>;
     fn network_handle(&self) -> Option<Self::NetworkHandle>;
     fn is_online(&self) -> bool;

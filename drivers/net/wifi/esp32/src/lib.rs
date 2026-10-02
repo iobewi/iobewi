@@ -231,6 +231,12 @@ impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
         WifiManager::scan(self).await
     }
 
+    async fn wait_down(&mut self) {
+        if let Some(radio) = self.radio.as_ref() {
+            radio.stack.wait_config_down().await;
+        }
+    }
+
     fn ip(&self) -> Option<Self::Address> {
         WifiManager::ip(self)
     }

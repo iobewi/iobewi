@@ -62,6 +62,39 @@ pub async fn is_provisioned<B: ConfigBackend>(space: &ConfigSpace<B>) -> bool {
     }
 }
 
+/// Reconnect backoff: the wait after the Nth consecutive failed attempt is
+/// `1 s << (N-1)`, bounded at [`BACKOFF_MAX_MS`] (1, 2, 4, 8, 10, 10, ... s).
+/// No jitter (no synchronised-fleet problem is being solved) and no attempt
+/// limit: a lost AP may come back at any time.
+pub const BACKOFF_BASE_MS: u32 = 1_000;
+pub const BACKOFF_MAX_MS: u32 = 10_000;
+
+pub fn backoff_ms(failed_attempts: u32) -> u32 {
+    let shift = failed_attempts.saturating_sub(1).min(16);
+    (BACKOFF_BASE_MS << shift).min(BACKOFF_MAX_MS)
+}
+
+/// Timer port for the backoff (the portable manager carries no executor).
+pub trait Sleep {
+    async fn sleep_ms(&self, ms: u32);
+}
+
+/// What [`WifiManager::maintain`] reports to its owner. Informational only:
+/// the manager stays the single owner of the connection policy.
+pub trait LinkObserver<H> {
+    /// The link/IP configuration was lost; reconnection is under way.
+    fn link_down(&mut self);
+    /// Association and DHCP are up (also called for the first connection).
+    fn ready(&mut self, network: H);
+}
+
+/// The only terminal outcome of [`WifiManager::maintain`].
+#[derive(Debug, PartialEq, Eq)]
+pub enum MaintainError {
+    /// No usable saved credentials: retrying cannot help.
+    NotProvisioned,
+}
+
 pub struct WifiManager<T, B: ConfigBackend> {
     transport: T,
     config: ConfigSpace<B>,
@@ -93,6 +126,51 @@ where
         let Some(config) = self.saved_config().await else { return false; };
         info!("Wi-Fi: reconnecting to saved SSID={}", config.ssid);
         self.transport.connect(&config.ssid, config.password).await
+    }
+
+    /// Keeps the saved network connected, forever: connect (with bounded
+    /// backoff between failed attempts), report `ready`, wait for the
+    /// transport's link-down event, report `link_down`, repeat. Handles both
+    /// the first connection at boot (an absent AP is just a failed attempt)
+    /// and later link loss. Returns only when the saved credentials are
+    /// absent/invalid.
+    ///
+    /// Ownership/cancellation: it borrows the manager exclusively, so it can
+    /// never overlap a reprovisioning; to reprovision, drop this future (it
+    /// holds no state worth keeping, the attempt counter restarts), call
+    /// [`WifiManager::provision`], then call `maintain` again.
+    pub async fn maintain<S: Sleep, O: LinkObserver<T::NetworkHandle>>(
+        &mut self,
+        sleep: &S,
+        observer: &mut O,
+    ) -> MaintainError {
+        loop {
+            let mut failed = 0u32;
+            let network = loop {
+                let Some(config) = self.saved_config().await else {
+                    return MaintainError::NotProvisioned;
+                };
+                if config.ssid.is_empty() {
+                    return MaintainError::NotProvisioned;
+                }
+                info!("wifi: connect attempt {} to SSID={}", failed + 1, config.ssid);
+                if self.transport.connect(&config.ssid, config.password).await {
+                    if let Some(network) = self.transport.network_handle() {
+                        break network;
+                    }
+                    warn!("wifi: connected but no network handle");
+                }
+                failed += 1;
+                let wait = backoff_ms(failed);
+                warn!("wifi: connect failed, backoff {wait} ms");
+                sleep.sleep_ms(wait).await;
+            };
+            info!("wifi: ready after {} failed attempt(s)", failed);
+            observer.ready(network);
+            self.transport.wait_down().await;
+            warn!("wifi: link down");
+            observer.link_down();
+        }
     }
 
     async fn restore_previous(&mut self, previous: Option<WifiConfig>) {
@@ -228,6 +306,7 @@ mod tests {
         outcomes: VecDeque<bool>,
         connects: std::vec::Vec<(String, String)>,
         online: bool,
+        down_events: u32,
     }
 
     #[derive(Clone, Default)]
@@ -245,6 +324,19 @@ mod tests {
         }
         async fn scan(&mut self) -> Vec<Network> {
             alloc::vec![Network { ssid: "lab".to_string(), signal_strength: -40, secured: true }]
+        }
+        async fn wait_down(&mut self) {
+            core::future::poll_fn(|_| {
+                let mut s = self.0.borrow_mut();
+                if s.down_events > 0 {
+                    s.down_events -= 1;
+                    s.online = false;
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            })
+            .await
         }
         fn ip(&self) -> Option<u32> { self.0.borrow().online.then_some(7) }
         fn network_handle(&self) -> Option<u8> { self.0.borrow().online.then_some(1) }
@@ -266,6 +358,107 @@ mod tests {
     fn seed(b: &MemBackend, ssid: &str, pw: &str) {
         let raw = WifiConfig { ssid: ssid.to_string(), password: pw.to_string() }.encode().unwrap();
         b.0.borrow_mut().values.insert("wifi".to_string(), Snapshot { generation: 1, data: raw });
+    }
+
+    #[derive(Default)]
+    struct Sleeps(RefCell<std::vec::Vec<u32>>);
+    impl Sleep for Sleeps {
+        async fn sleep_ms(&self, ms: u32) { self.0.borrow_mut().push(ms); }
+    }
+
+    /// Never wakes: models a backoff still in progress.
+    struct StuckSleep;
+    impl Sleep for StuckSleep {
+        async fn sleep_ms(&self, _ms: u32) { core::future::pending::<()>().await }
+    }
+
+    #[derive(Default)]
+    struct Events(std::vec::Vec<&'static str>);
+    impl LinkObserver<u8> for Events {
+        fn link_down(&mut self) { self.0.push("down"); }
+        fn ready(&mut self, _n: u8) { self.0.push("ready"); }
+    }
+
+    fn poll_once<F: Future>(f: &mut core::pin::Pin<&mut F>) -> Poll<F::Output> {
+        f.as_mut().poll(&mut Context::from_waker(Waker::noop()))
+    }
+
+    #[test]
+    fn backoff_is_bounded_and_progressive() {
+        let seq: std::vec::Vec<u32> = (1..=7).map(backoff_ms).collect();
+        assert_eq!(seq, [1000, 2000, 4000, 8000, 10000, 10000, 10000]);
+        assert_eq!(backoff_ms(0), 1000);
+        assert_eq!(backoff_ms(u32::MAX), 10000);
+    }
+
+    #[test]
+    fn down_then_failures_then_success_returns_online_without_giving_up() {
+        // boot connect ok, link drops, two failures, then success, then drops again.
+        let (mut m, fake, b) = setup(&[true, false, false, true]);
+        seed(&b, "lab", "pw");
+        let sleeps = Sleeps::default();
+        let mut ev = Events::default();
+        {
+            let mut fut = core::pin::pin!(m.maintain(&sleeps, &mut ev));
+            assert!(poll_once(&mut fut).is_pending()); // online, waiting for a down event
+            fake.0.borrow_mut().down_events = 1;
+            assert!(poll_once(&mut fut).is_pending()); // down -> fail, fail -> ok -> waiting
+        }
+        assert_eq!(ev.0, ["ready", "down", "ready"]);
+        assert_eq!(*sleeps.0.borrow(), [1000, 2000]);
+        assert_eq!(fake.0.borrow().connects.len(), 4);
+        assert!(fake.0.borrow().connects.iter().all(|c| c == &("lab".to_string(), "pw".to_string())));
+    }
+
+    #[test]
+    fn ap_absent_at_boot_retries_with_backoff_and_resets_after_success() {
+        let (mut m, fake, b) = setup(&[false, false, false, false, false, false, true, false, true]);
+        seed(&b, "lab", "pw");
+        let sleeps = Sleeps::default();
+        let mut ev = Events::default();
+        {
+            let mut fut = core::pin::pin!(m.maintain(&sleeps, &mut ev));
+            assert!(poll_once(&mut fut).is_pending());
+            assert_eq!(*sleeps.0.borrow(), [1000, 2000, 4000, 8000, 10000, 10000]);
+            fake.0.borrow_mut().down_events = 1;
+            assert!(poll_once(&mut fut).is_pending());
+        }
+        // After the success the counter restarts at 1 s.
+        assert_eq!(sleeps.0.borrow()[6..], [1000]);
+        assert_eq!(ev.0, ["ready", "down", "ready"]);
+    }
+
+    #[test]
+    fn missing_credentials_are_terminal_not_retried() {
+        let (mut m, fake, _b) = setup(&[true]);
+        let sleeps = Sleeps::default();
+        let mut ev = Events::default();
+        assert_eq!(block_on(m.maintain(&sleeps, &mut ev)), MaintainError::NotProvisioned);
+        assert!(fake.0.borrow().connects.is_empty());
+        assert!(sleeps.0.borrow().is_empty());
+        assert!(ev.0.is_empty());
+    }
+
+    #[test]
+    fn reprovision_interrupts_the_reconnect_and_rollback_still_restores_old_credentials() {
+        // maintain: connect(old) fails -> stuck in backoff; dropped for reprovision.
+        // provision(new) fails -> restore(old) succeeds.
+        let (mut m, fake, b) = setup(&[false, false, true]);
+        seed(&b, "old", "oldpw");
+        let mut ev = Events::default();
+        {
+            let mut fut = core::pin::pin!(m.maintain(&StuckSleep, &mut ev));
+            assert!(poll_once(&mut fut).is_pending());
+            assert_eq!(fake.0.borrow().connects.len(), 1);
+        } // dropped: no further connect attempt can run concurrently
+        assert!(!block_on(m.provision("new", "newpw".to_string())));
+        let calls = fake.0.borrow().connects.clone();
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[1].0, "new");
+        assert_eq!(calls[2], ("old".to_string(), "oldpw".to_string()));
+        assert_eq!(stored(&b).unwrap(), b"WFC1\x03\x05oldoldpw");
+        assert!(m.is_online());
+        assert!(ev.0.is_empty());
     }
 
     #[test]
