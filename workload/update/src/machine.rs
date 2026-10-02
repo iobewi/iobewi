@@ -171,6 +171,30 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         Ok(Prepared { slot: active.map_or(Side::A, Side::other), meta })
     }
 
+    /// Must be called before the first byte of a new artifact is written to the
+    /// inactive slot. A `Staged` candidate lives in exactly that slot, so it stops
+    /// existing here (state back to `Valid`/`Empty`): a new upload that is aborted,
+    /// incomplete or has the wrong digest can then never leave a `Staged` record
+    /// pointing at overwritten bytes. In `Activating`/`PendingConfirmation`/
+    /// `RollingBack` the inactive slot is the rollback target: refused.
+    pub fn begin_overwrite(&mut self) -> Result<(), UpdateError<B::Error>> {
+        let Some(record) = self.current()? else { return Ok(()) };
+        match record.state {
+            State::Activating | State::PendingConfirmation | State::RollingBack => Err(UpdateError::Refused(Refusal::Busy)),
+            State::Empty | State::Valid => Ok(()),
+            State::Staged => {
+                let mut cleared = record;
+                if let Some(candidate) = record.candidate {
+                    cleared.meta[slot_index(candidate)] = SlotMeta::EMPTY;
+                }
+                cleared.candidate = None;
+                cleared.previous_valid = None;
+                cleared.state = if cleared.active.is_some() { State::Valid } else { State::Empty };
+                self.put(cleared, record.sequence)
+            }
+        }
+    }
+
     /// Persists `Staged` once the artifact is fully written and its digest
     /// verified (`committed` comes from the shared `WriteSession::finish`).
     pub fn commit_staged(&mut self, prepared: &Prepared, committed: &Committed) -> Result<(), UpdateError<B::Error>> {

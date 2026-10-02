@@ -41,6 +41,16 @@ Core never sends or receives a slot, an offset or a partition name. `status` may
 A reboot loses the RAM session (not the OTM2 state): a client simply re-prepares.
 A wrong digest is never staged and leaves the active Workload untouched.
 
+**Supersession and the inactive slot.** A `Staged` candidate lives in the inactive
+slot, which is also where the next upload goes. `prepare` alone changes nothing (the
+candidate still stands), but from the first byte of the new upload (`begin`) the old
+candidate stops existing: OTM2 goes back to `Valid`/`Empty` *before* the slot is
+erased. An aborted, incomplete or wrong-digest upload therefore never leaves a
+`Staged` record pointing at overwritten bytes (found on hardware, covered by an
+exhaustive power-cut test that includes a supersession). While `Activating`,
+`PendingConfirmation` or `RollingBack` the inactive slot is the rollback target:
+`prepare` and `begin` are refused (`409 workload_busy`).
+
 ## Activation is fail-closed
 
 `NoSupervisor` (the production S17 value) runs every check -- supported, state

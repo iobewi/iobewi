@@ -87,6 +87,11 @@ impl<A: FlashAccess> WorkloadFlash<A> {
         self.with_updater(|u| u.prepare(request, capacity)).await
     }
 
+    /// See [`WorkloadUpdater::begin_overwrite`]: call before writing the first byte.
+    pub async fn begin_overwrite(&self) -> Result<(), UpdateError<StorageError<A>>> {
+        self.with_updater(|u| u.begin_overwrite()).await
+    }
+
     pub async fn commit_staged(&self, prepared: &Prepared, committed: &Committed) -> Result<(), UpdateError<StorageError<A>>> {
         self.with_updater(|u| u.commit_staged(prepared, committed)).await
     }

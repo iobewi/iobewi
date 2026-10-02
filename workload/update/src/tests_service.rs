@@ -319,3 +319,71 @@ fn workload_operations_never_touch_the_agent_regions() {
         }
     }
 }
+
+// ---------- supersession must not leave a Staged record over a destroyed slot ----------
+
+#[test]
+fn starting_a_new_upload_discards_the_old_staged_candidate_before_overwriting_its_slot() {
+    let svc = service(API10);
+    let old = data(1, 30_000);
+    upload(&svc, "old", &old, API10).unwrap();
+    assert_eq!(block_on(svc.status()).state, Some(State::Staged));
+    // A new artifact is prepared: nothing is overwritten yet, the old candidate still stands...
+    let new = data(2, 30_000);
+    let i = input("new", &new, API10);
+    block_on(svc.prepare(&i)).unwrap();
+    assert_eq!(block_on(svc.status()).state, Some(State::Staged));
+    // ...but the first byte written lands in the very slot that holds it: from `begin` on
+    // the old candidate no longer exists, and a wrong/aborted upload can never leave a
+    // Staged record that points at overwritten bytes.
+    block_on(svc.begin(&i.digest, i.size)).unwrap();
+    let status = block_on(svc.status());
+    assert_eq!(status.state, Some(State::Empty));
+    assert!(status.candidate.is_none());
+    assert!(block_on(svc.chunk(&new[..16 * 1024])));
+    // The upload is then abandoned (digest of the wrong bytes, incomplete...): still nothing staged.
+    assert!(matches!(block_on(svc.finish()), Err(ServiceError::Incomplete { .. })));
+    assert_eq!(block_on(svc.status()).state, Some(State::Empty));
+    assert_eq!(
+        block_on(svc.storage().unwrap().recover()).unwrap(),
+        Recovery::NoWorkload
+    );
+}
+
+#[test]
+fn a_new_upload_never_overwrites_the_rollback_target_of_a_pending_candidate() {
+    let svc = service(API10);
+    upload(&svc, "1.0", &data(1, 20_000), API10).unwrap();
+    block_on(svc.activate(None, &mut Sup::default())).unwrap();
+    block_on(svc.storage().unwrap().confirm()).unwrap(); // Valid(A)
+    let two = data(2, 20_000);
+    let i2 = input("2.0", &two, API10);
+    block_on(svc.prepare(&i2)).unwrap(); // reserves B
+    // Meanwhile the candidate is activated by someone else: PendingConfirmation (A is the way back).
+    upload_to_state_pending(&svc);
+    // The stale prepared session must not start writing now.
+    assert!(matches!(block_on(svc.begin(&i2.digest, i2.size)), Err(ServiceError::Busy(State::PendingConfirmation))));
+}
+
+fn upload_to_state_pending(svc: &WorkloadOtaService<FakeAccess>) {
+    // Stage B directly through the storage (bypassing the session) and activate it.
+    let storage = svc.storage().unwrap();
+    let bytes = data(9, 10_000);
+    let req = iobewi_update_model::UpdateRequest::workload(
+        iobewi_update_model::ArtifactDescriptor {
+            id: "pod".into(),
+            version: "other".into(),
+            digest: Sha256::digest(&bytes).into(),
+            size: bytes.len() as u64,
+        },
+        API10,
+    );
+    block_on(async {
+        let prepared = storage.prepare(&req).await.unwrap();
+        let mut writer = storage.writer(&prepared);
+        assert!(writer.append(storage.access(), &bytes).await);
+        let committed = writer.finish(storage.access()).await.unwrap();
+        storage.commit_staged(&prepared, &committed).await.unwrap();
+        storage.activate(&mut Sup::default(), API10).await.unwrap();
+    });
+}

@@ -164,6 +164,10 @@ fn stage(flash: &mut Fake, layout: WorkloadLayout, version: &str, data: &[u8]) -
         let mut u = WorkloadUpdater::new(NorMetadata::new(flash, layout));
         u.prepare(&req, u64::from(layout.max_artifact_size()))?
     };
+    {
+        let mut u = WorkloadUpdater::new(NorMetadata::new(flash, layout));
+        u.begin_overwrite()?;
+    }
     let region = layout.slot(prepared.slot);
     let units = (data.len() as u64).div_ceil(u64::from(ERASE)) * u64::from(ERASE);
     erase_range(flash, region, 0, units).map_err(UpdateError::Backend)?;
@@ -358,6 +362,8 @@ fn scenario(flash: &mut Fake, layout: WorkloadLayout) {
         with_updater(flash, layout, |u| u.activate(&mut Sup, API))?;
         with_updater(flash, layout, |u| u.rollback(&mut Sup))?;
         stage(flash, layout, "3.0", &payload(3, 5_000))?;
+        // Supersede the Staged candidate: its slot is overwritten from the first byte on.
+        stage(flash, layout, "4.0", &payload(4, 7_000))?;
         Ok(())
     })();
 }

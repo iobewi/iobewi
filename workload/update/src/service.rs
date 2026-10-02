@@ -309,6 +309,19 @@ impl<A: FlashAccess> WorkloadOtaService<A> {
                 Some(p) => *p,
             }
         };
+        // The first byte lands in the inactive slot: a Staged candidate stops existing here,
+        // and an in-flight activation/confirmation/rollback forbids writing at all.
+        match flash.begin_overwrite().await {
+            Ok(()) => {}
+            Err(UpdateError::Refused(Refusal::Busy)) => {
+                let state = match flash.record().await {
+                    Ok(Some(record)) => record.state,
+                    _ => State::Activating,
+                };
+                return Err(ServiceError::Busy(state));
+            }
+            Err(other) => return Err(Self::map_update::<()>(&other)),
+        }
         let writer = flash.writer(&prepared);
         let mut session = self.session.borrow_mut();
         session.writer = Some(writer);

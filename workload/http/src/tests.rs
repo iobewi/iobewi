@@ -654,3 +654,28 @@ fn workload_routes_never_touch_the_agent_regions_or_otm1() {
         }
     }
 }
+
+#[test]
+fn a_failed_new_upload_leaves_no_staged_record_over_an_overwritten_slot() {
+    let svc = service(API10);
+    let old = data(1, 20_000);
+    let evil = data(2, 20_000);
+    let other = data(3, 20_000);
+    // Stage `old`, then upload other bytes under another digest: 422, and `old` is gone too --
+    // its slot was overwritten from the first byte, so it must not stay declared Staged.
+    exchange(svc, NoSupervisor, upload_requests(&old, "old", (1, 0), 16 * 1024));
+    let mut reqs = alloc::vec![request("POST", "/prepare", Some(TOKEN), &[], &prepare_body("new", &other, (1, 0)))];
+    let total = evil.len();
+    reqs.push(request(
+        "PUT",
+        "/write",
+        Some(TOKEN),
+        &[("X-Embewi-Digest", digest_of(&other)), ("Content-Range", std::format!("bytes 0-{}/{total}", total - 1))],
+        &evil,
+    ));
+    reqs.push(request("GET", "/status", Some(TOKEN), &[], b""));
+    let rs = exchange(svc, NoSupervisor, reqs);
+    assert_eq!(rs[1].status, 422);
+    assert_eq!(rs[2].json()["state"], "empty");
+    assert!(rs[2].json()["candidate"].is_null(), "a Staged record over overwritten bytes is a lie");
+}
