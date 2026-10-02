@@ -1,5 +1,6 @@
 [package]
 name = "iobewi-esp-device"
+workspace = "../../../iobewi-esp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +14,6 @@ esp32c3 = ["esp-hal/esp32c3"]
 esp32s3 = ["esp-hal/esp32s3"]
 
 [dependencies]
-iobewi-device = { path = "../../../services/device" }
+iobewi-device = { path = "../core" }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 esp-metadata-generated = "0.4.0"

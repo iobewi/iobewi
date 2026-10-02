@@ -1,5 +1,6 @@
 [package]
 name = "iobewi-esp-runtime"
+workspace = "../../../iobewi-esp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,5 +14,5 @@ esp32c3 = ["dep:esp-alloc", "esp-alloc/esp32c3"]
 esp32s3 = ["dep:esp-alloc", "esp-alloc/esp32s3"]
 
 [dependencies]
-iobewi-runtime = { path = "../../../services/runtime" }
+iobewi-runtime = { path = "../../../drivers/diagnostics/core" }
 esp-alloc = { version = "0.10.0", optional = true }

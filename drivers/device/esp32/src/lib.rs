@@ -2,15 +2,13 @@
 
 extern crate alloc;
 
-use alloc::format;
 use alloc::string::String;
-use iobewi_device::{DeviceIdentity, DeviceMetadata};
+use iobewi_device::{hardware_id_from_mac, DeviceIdentity, DeviceMetadata};
 
 /// ESP implementation of IOBEWI's portable device identity capability.
 ///
-/// The stable hardware identifier intentionally preserves the convention
-/// already used by Embewi: the last three bytes of the eFuse-burned base
-/// MAC address, lowercase hexadecimal, with no application prefix.
+/// Reads the eFuse-burned base MAC address; the identifier convention (last
+/// three bytes, lowercase hex, no prefix) is `iobewi_device::hardware_id_from_mac`.
 #[derive(Clone, Copy, Default)]
 pub struct EspDeviceIdentity;
 
@@ -18,7 +16,7 @@ impl DeviceIdentity for EspDeviceIdentity {
     fn hardware_id(&self) -> String {
         let mac = esp_hal::efuse::base_mac_address();
         let bytes = mac.as_bytes();
-        format!("{:02x}{:02x}{:02x}", bytes[3], bytes[4], bytes[5])
+        hardware_id_from_mac([bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]])
     }
 
     fn mac_address(&self) -> Option<[u8; 6]> {
