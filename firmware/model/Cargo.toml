@@ -1,0 +1,10 @@
+[package]
+name = "iobewi-update-model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Dual-OTA model: Agent and Workload update targets, runtime-API compatibility, A/B slot sets and the two separate activation policies (no storage, no platform, no transport)"
+
+[dependencies]
