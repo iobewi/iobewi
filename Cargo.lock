@@ -478,6 +478,17 @@ name = "iobewi-entropy"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-esp-boot"
+version = "0.1.0"
+dependencies = [
+ "iobewi-esp-platform",
+]
+
+[[package]]
+name = "iobewi-esp-platform"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-firmware-boot"
 version = "0.1.0"
 

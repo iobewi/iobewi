@@ -1776,13 +1776,6 @@ name = "iobewi-entropy"
 version = "0.1.0"
 
 [[package]]
-name = "iobewi-esp-boot"
-version = "0.1.0"
-dependencies = [
- "iobewi-esp-platform",
-]
-
-[[package]]
 name = "iobewi-esp-config-space"
 version = "0.1.0"
 dependencies = [
@@ -1892,6 +1885,7 @@ dependencies = [
  "iobewi-esp-config-space",
  "iobewi-esp-flash",
  "iobewi-esp-partitions",
+ "iobewi-esp-reset",
  "iobewi-esp-watchdog",
  "iobewi-firmware-boot",
  "iobewi-firmware-slots",
@@ -1909,10 +1903,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-platform"
-version = "0.1.0"
-
-[[package]]
 name = "iobewi-esp-reboot"
 version = "0.1.0"
 dependencies = [
@@ -1920,8 +1910,16 @@ dependencies = [
  "embassy-sync 0.8.0",
  "embassy-time",
  "esp-hal",
+ "iobewi-esp-reset",
  "iobewi-ota-http",
  "static_cell",
+]
+
+[[package]]
+name = "iobewi-esp-reset"
+version = "0.1.0"
+dependencies = [
+ "esp-hal",
 ]
 
 [[package]]

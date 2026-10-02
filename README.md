@@ -44,6 +44,11 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `net/wifi/core` (`iobewi-wifi-core`) | Wi-Fi contracts: `WifiTransport`, `WifiProvisioning`, `Network`; no config, radio or stack types. |
 | `net/wifi/manager` (`iobewi-wifi-manager`) | Durable credentials (WFC1), reconnection, provisioning/reprovisioning policy over any `WifiTransport`. |
 | `drivers/net/wifi/esp32` (`iobewi-esp-wifi`) | ESP station driver (esp-radio + embassy-net DHCP); implements `WifiTransport`, depends on the core only. |
+| `arch/esp32/platform` (`iobewi-esp-platform`) | ESP SoC descriptors: chip ids and memory maps (`chips::{esp32c3, esp32s3}`). Pure, host-testable. |
+| `arch/esp32/boot` (`iobewi-esp-boot`) | Second-stage boot hardware primitives per SoC (ROM flash/cache, flash-boot watchdog clear). No policy. |
+| `arch/esp32/reset` (`iobewi-esp-reset`) | Physical SoC reset: digital-core `software_reset` and RTC-watchdog `arm_system_reset`. No executor, no firmware policy. |
+| `arch/esp32/{c3,s3}/linker` | The bootloader memory maps (linker scripts), including the S3 D-cache/ROM-data layout rules and their `ASSERT`s. |
+| `drivers/watchdog/esp32` (`iobewi-esp-watchdog`) | TIMG0 watchdog primitive (arm / feed / disable); the policy (PendingVerify) stays in `firmware/update`. |
 | `net/io` (`iobewi-net-io`) | Low-level connection contracts: `Close`, `Connection`, `ConnectionListener`, outbound `Connector`; no protocol, TLS or platform types. |
 | `net/tls/core` (`iobewi-net-tls-core`) | TLS network contracts: `SecureClientTransport`, `TlsListener` (a `ConnectionListener` yielding only TLS-handshaken connections), `TlsDialer`; no picoserve, config or ESP type. |
 | `log/core` (`iobewi-log`) | Local log capture: bounded ring and the single global logger; no network dependency. |
