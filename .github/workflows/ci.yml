@@ -26,7 +26,8 @@ jobs:
       - run: cargo test -p iobewi-ntp
       - run: cargo test -p iobewi-wifi-core
       - run: cargo test -p iobewi-wifi-manager
-      - run: cargo test -p iobewi-tls-service --features http
+      - run: cargo test -p iobewi-tls-service
+      - run: cargo test -p iobewi-tls-http
       - run: cargo test -p iobewi-time
       - run: cargo test -p iobewi-ota
       - run: cargo test -p iobewi-ota-http
@@ -58,8 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           buildtargets: esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-http --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-https --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tcp
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3

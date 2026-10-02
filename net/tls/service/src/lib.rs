@@ -9,8 +9,6 @@ extern crate alloc;
 extern crate std;
 
 pub mod client;
-#[cfg(feature = "http")]
-pub mod http;
 
 use alloc::string::String;
 use alloc::vec::Vec;

@@ -652,17 +652,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-tls-http"
+version = "0.1.0"
+dependencies = [
+ "iobewi-http-server",
+ "iobewi-tls-service",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "iobewi-tls-service"
 version = "0.1.0"
 dependencies = [
  "iobewi-config-space",
  "iobewi-crypto-core",
- "iobewi-http-server",
  "iobewi-net-io",
  "iobewi-net-tls-core",
  "log",
- "serde",
- "serde_json",
 ]
 
 [[package]]
