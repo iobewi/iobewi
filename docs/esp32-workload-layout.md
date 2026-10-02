@@ -188,6 +188,22 @@ each erasing one 4 KiB sector of the two alternating → ≈ 2–3 erases per me
 sector per update; each Workload slot is erased once per two updates. With ≥ 10⁵ NOR
 cycles per sector this is > 30,000 updates; no wear levelling needed.
 
-## 8. Hardware measurements (S3, `workload-selftest` image)
+## 8. Hardware measurements (ESP32-S3-N16R8, `workload-selftest` image, Wi-Fi/services running)
 
-See the S16 report (filled from the serial log of the hardware gate).
+| operation | result |
+|---|---|
+| erase a whole Workload slot (6,160,384 B, maintenance path) | 974 ms (≈ 6.0 MiB/s; ≈ 10 ms per 64 KiB block) |
+| write 1 MiB to slot A (erase-ahead included) | 4,978 ms (≈ 210 KiB/s) |
+| write 4 MiB to slot B (erase-ahead included) | 17,769 ms (≈ 236 KiB/s) |
+| extrapolated full slot (5.875 MiB) | ≈ 26 s |
+| ConfigSpace + OTM2 reads while slot A is written | 64 + 64 completed, worst single operation 9 ms |
+
+* **Concurrency**: no deadlock, no starvation; the longest the flash lock is held is
+  one 64 KiB block erase (≈ 10 ms) or one 16 KiB chunk, so NVS and the Agent OTA
+  metadata keep running during a Workload write.
+* **Watchdog**: nothing close to a limit (the boot watchdog is disabled once the boot
+  check is over, and no single step exceeds ≈ 100 ms); no policy change was needed.
+* **Power-loss gate**: reset after the 4 MiB artifact was complete and before its
+  staging → next boot `Valid(A)`, slot B still holds the complete artifact (digest
+  re-read OK) and nothing is staged; after staging and another reset the state is
+  recovered as `Staged{A, B}` and both artifacts verify by SHA-256.
