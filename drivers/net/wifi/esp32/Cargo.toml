@@ -19,6 +19,7 @@ esp32s3 = ["esp-hal/esp32s3", "esp-hal/rt", "esp-radio/esp32s3"]
 [dependencies]
 iobewi-wifi-core = { path = "../../../../net/wifi/core" }
 embassy-executor = { version = "0.10.0", default-features = false }
+embassy-time = { version = "0.5.0", default-features = false }
 embassy-net = { version = "0.9.1", default-features = false, features = [
   "dhcpv4",
   "medium-ethernet",

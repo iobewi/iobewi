@@ -1944,6 +1944,7 @@ version = "0.1.0"
 dependencies = [
  "embassy-executor",
  "embassy-net",
+ "embassy-time",
  "esp-hal",
  "esp-radio",
  "iobewi-wifi-core",

@@ -21,6 +21,7 @@ use alloc::vec::Vec;
 
 use embassy_executor::Spawner;
 use embassy_net::{Runner, Stack, StackResources};
+use embassy_time::{Duration, with_timeout};
 use esp_hal::peripherals::WIFI;
 use esp_radio::wifi::{
     AuthenticationMethod, Config, Interface, WifiController, scan::ScanConfig, sta::StationConfig,
@@ -47,6 +48,14 @@ pub struct WifiManager<const SOCKETS: usize> {
     radio: Option<Radio>,
     strongest_bssid: Vec<(String, [u8; 6])>,
 }
+
+/// Upper bounds for one connection attempt. Without them a rejected or
+/// unanswered association (or a DHCP that never completes) would block
+/// `connect` forever and the manager could never retry. These are mechanics
+/// of "one attempt in, one result out"; whether and when to retry is the
+/// manager's policy.
+const ASSOCIATE_TIMEOUT: Duration = Duration::from_secs(20);
+const DHCP_TIMEOUT: Duration = Duration::from_secs(20);
 
 impl<const SOCKETS: usize> WifiManager<SOCKETS> {
     pub fn new(
@@ -203,17 +212,26 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             config = config.with_bssid(bssid);
         }
 
-        if radio
-            .controller
-            .set_config(&Config::Station(config))
-            .is_err()
-            || radio.controller.connect_async().await.is_err()
-        {
+        if radio.controller.set_config(&Config::Station(config)).is_err() {
             warn!("Wi-Fi: connection to {ssid} failed");
             return false;
         }
+        match with_timeout(ASSOCIATE_TIMEOUT, radio.controller.connect_async()).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(_)) => {
+                warn!("Wi-Fi: connection to {ssid} failed");
+                return false;
+            }
+            Err(_) => {
+                warn!("Wi-Fi: association with {ssid} timed out");
+                return false;
+            }
+        }
 
-        radio.stack.wait_config_up().await;
+        if with_timeout(DHCP_TIMEOUT, radio.stack.wait_config_up()).await.is_err() {
+            warn!("Wi-Fi: DHCP on {ssid} timed out");
+            return false;
+        }
         info!("Wi-Fi connected, ip = {:?}", radio.stack.config_v4());
         true
     }
