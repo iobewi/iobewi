@@ -1,10 +1,11 @@
 [package]
 name = "iobewi-esp-tls"
+workspace = "../../../../iobewi-esp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "ESP TLS transport glue: global MbedTLS instance, Embassy DNS/TCP/TLS dialer and session stream"
+description = "ESP TLS transport: global MbedTLS instance, Embassy DNS/TCP/TLS dialer, TLS listener and session stream (net/tls/core implementations)"
 repository.workspace = true
 readme = "README.md"
 keywords = ["esp32", "tls", "mbedtls", "embedded", "no-std"]
@@ -26,13 +27,16 @@ esp32c3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp3
 # `xtensa-esp32s3-elf-gcc` cross-compiler directly and never calls
 # `Config::target()` with the problematic triple at all.
 esp32s3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp32s3", "iobewi-esp-entropy/rand-core", "iobewi-crypto-mbedtls/use-gcc"]
-embassy-net = ["dep:embassy-net", "dep:embedded-io-async", "dep:iobewi-net-io", "dep:iobewi-net-tls-core"]
+embassy-net = ["dep:embassy-net", "dep:embassy-time", "dep:embedded-io-async", "dep:iobewi-net-io", "dep:iobewi-net-tls-core", "dep:iobewi-esp-tcp", "dep:log"]
 
 [dependencies]
-iobewi-crypto-mbedtls = { path = "../../../crypto/mbedtls" }
-iobewi-esp-entropy = { path = "../../../drivers/hw_random/esp32", default-features = false, optional = true }
-iobewi-net-io = { path = "../../../net/io", optional = true }
-iobewi-net-tls-core = { path = "../../../net/tls/core", optional = true }
+iobewi-crypto-mbedtls = { path = "../../../../crypto/mbedtls" }
+iobewi-esp-entropy = { path = "../../../hw_random/esp32", default-features = false, optional = true }
+iobewi-esp-tcp = { path = "../../tcp/esp32", optional = true }
+iobewi-net-io = { path = "../../../../net/io", optional = true }
+iobewi-net-tls-core = { path = "../../../../net/tls/core", optional = true }
 embedded-io-async = { version = "0.7.0", optional = true }
 static_cell = { version = "2.1.1", optional = true }
 embassy-net = { version = "0.9.1", default-features = false, features = ["dns", "medium-ethernet", "proto-ipv4", "tcp"], optional = true }
+embassy-time = { version = "0.5.0", default-features = false, optional = true }
+log = { version = "0.4", optional = true }

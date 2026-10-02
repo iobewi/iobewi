@@ -341,12 +341,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b396d1f76d455557e1218ec8066ae14bba60b4b36ecd55577ba979f5db7ecaa"
 
 [[package]]
-name = "const-sha1"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8a42181e0652c2997ae4d217f25b63c5337a52fd2279736e97b832fa0a3cff"
-
-[[package]]
 name = "const_format"
 version = "0.2.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,7 +1637,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25ba4bd83f9415b58b4ed8dc5714c76e626a105be4646c02630ad730ad3b5aa4"
 dependencies = [
  "hash32",
- "serde_core",
  "stable_deref_trait",
 ]
 
@@ -1826,33 +1819,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-http"
-version = "0.1.0"
-dependencies = [
- "embassy-net",
- "embedded-io-async 0.7.0",
- "esp-hal",
- "iobewi-http-server",
- "iobewi-net-io",
- "log",
- "picoserve",
-]
-
-[[package]]
-name = "iobewi-esp-https"
-version = "0.1.0"
-dependencies = [
- "embassy-net",
- "embassy-time",
- "esp-hal",
- "iobewi-esp-http",
- "iobewi-esp-tls",
- "iobewi-net-io",
- "iobewi-net-tls-core",
- "log",
-]
-
-[[package]]
 name = "iobewi-esp-indicator"
 version = "0.1.0"
 dependencies = [
@@ -1919,15 +1885,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-tls"
+name = "iobewi-esp-tcp"
 version = "0.1.0"
 dependencies = [
  "embassy-net",
  "embedded-io-async 0.7.0",
+ "iobewi-net-io",
+ "log",
+]
+
+[[package]]
+name = "iobewi-esp-tls"
+version = "0.1.0"
+dependencies = [
+ "embassy-net",
+ "embassy-time",
+ "embedded-io-async 0.7.0",
  "iobewi-crypto-mbedtls",
  "iobewi-esp-entropy",
+ "iobewi-esp-tcp",
  "iobewi-net-io",
  "iobewi-net-tls-core",
+ "log",
  "static_cell",
 ]
 
@@ -1965,18 +1944,6 @@ dependencies = [
 [[package]]
 name = "iobewi-firmware-slots"
 version = "0.1.0"
-
-[[package]]
-name = "iobewi-http-server"
-version = "0.1.0"
-dependencies = [
- "embassy-sync 0.8.0",
- "embedded-io-async 0.7.0",
- "iobewi-net-io",
- "iobewi-net-tls-core",
- "log",
- "picoserve",
-]
 
 [[package]]
 name = "iobewi-indicator"
@@ -2340,56 +2307,6 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
-name = "picoserve"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59fb416fcd483bf1db5aa8d90506aa6967b9d0128e2646a929538d24d117433e"
-dependencies = [
- "const-sha1",
- "embassy-net",
- "embassy-time",
- "embedded-io-async 0.7.0",
- "futures-util",
- "heapless 0.8.0",
- "heapless 0.9.3",
- "picoserve_derive",
- "pin-project",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "picoserve_derive"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "981b69aa2731710212ac4582c3adc5832e8559d34ec810c318fe73273b05ccfe"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.6",
-]
-
-[[package]]
-name = "pin-project"
-version = "1.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924"
-dependencies = [
- "pin-project-internal",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "1.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
 
 [[package]]
 name = "pin-project-lite"

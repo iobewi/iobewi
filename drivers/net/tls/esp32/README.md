@@ -5,7 +5,7 @@ Reusable `no_std` glue between `esp-hal` and `mbedtls-rs`.
 The crate intentionally separates TLS mechanics from application policy. It
 provides the ESP hardware RNG adapter, MbedTLS time hooks and singleton
 initialization, certificate/key validation, server configuration construction,
-and optional Embassy networking / picoserve adapters.
+and the optional Embassy networking transport (client dialer, TLS listener, session stream).
 
 It does **not** own:
 
@@ -19,8 +19,6 @@ It does **not** own:
 
 - `esp32c3` / `esp32s3`: select the ESP HAL chip.
 - `embassy-net`: enable DNS + TCP + TLS client connection.
-- `picoserve`: additionally expose a connected TLS session as a picoserve
-  Embassy socket.
 
 No chip feature is enabled by default.
 

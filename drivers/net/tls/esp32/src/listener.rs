@@ -1,14 +1,13 @@
-#![no_std]
-
-//! ESP32-S3 TLS listener: a `net/tls` [`TlsListener`] over MbedTLS and the ESP
-//! TCP stack. It yields generic `net/io` connections; the HTTP server adapts
-//! them (this crate names no HTTP framework).
+//! ESP TLS listener: a `net/tls` [`TlsListener`] over MbedTLS and the ESP TCP
+//! transport. It yields generic `net/io` connections; the HTTP server adapts
+//! them (this crate names no HTTP framework). HTTPS is this listener plus the
+//! HTTP server, composed by the application -- there is no "https" driver.
 
 use embassy_net::Stack;
 use embassy_time::{Duration, Timer, with_timeout};
-use iobewi_esp_tls::mbedtls_rs::{Session, SessionConfig, SessionError};
-use iobewi_esp_tls::{TlsReferenceStatic, embassy::TlsStream};
-use iobewi_esp_http::EspTcpListener;
+use crate::mbedtls_rs::{Session, SessionConfig, SessionError};
+use crate::{TlsReferenceStatic, embassy::TlsStream};
+use iobewi_esp_tcp::EspTcpListener;
 use iobewi_net_io::ConnectionListener;
 use iobewi_net_tls_core::TlsListener;
 use log::{debug, warn};

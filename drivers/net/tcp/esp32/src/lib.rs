@@ -1,16 +1,19 @@
 #![no_std]
 
-//! ESP TCP listener. The application decides whether to expose plaintext
-//! HTTP; administrative routes are wired through `iobewi-esp-https` instead.
+//! ESP TCP transport: an `embassy-net` listener and its accepted socket as
+//! `net/io` connections. Knows no HTTP framework and no TLS; the TLS listener
+//! (`iobewi-esp-tls`) and the HTTP server (`iobewi-http-server`) are layered
+//! on top by the composition root. There is deliberately no plaintext HTTP
+//! entry point here: the agent exposes administrative routes over TLS only,
+//! and port 80 stays closed.
 
 use embassy_net::Stack;
 use embassy_net::tcp::TcpSocket;
 use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_net_io::{Close, ConnectionListener};
 use log::warn;
-use picoserve::routing::PathRouter;
 
-/// ESP TCP capability used by both HTTP and the HTTPS handshake adapter.
+/// ESP TCP listener, the base of the TLS listener.
 pub struct EspTcpListener<'a> {
     stack: Stack<'static>,
     port: u16,
@@ -71,17 +74,4 @@ impl ConnectionListener for EspTcpListener<'_> {
     async fn accept(&mut self) -> Result<Self::Connection<'_>, ()> {
         self.accept_connection().await.map(EspTcpStream)
     }
-}
-
-/// Serve HTTP on an explicitly selected TCP port. Only applications that
-/// opt into this function open a plaintext listener.
-pub async fn serve<R: PathRouter>(
-    stack: Stack<'static>,
-    port: u16,
-    router: &picoserve::Router<R>,
-) -> ! {
-    let mut rx = [0u8; 1024];
-    let mut tx = [0u8; 1024];
-    let mut listener = EspTcpListener::new(stack, port, &mut rx, &mut tx);
-    iobewi_http_server::serve_forever_io(&mut listener, router).await
 }

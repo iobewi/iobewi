@@ -7,6 +7,8 @@
 //! - the single global `mbedtls_rs::Tls` instance and its hook installation;
 //! - an Embassy DNS/TCP/TLS client dialer ([`embassy::EspTlsDialer`], the
 //!   `iobewi_net_tls_core::TlsDialer` implementation);
+//! - the TLS server listener ([`listener::EspTlsListener`], the
+//!   `iobewi_net_tls_core::TlsListener` implementation) over `iobewi-esp-tcp`;
 //! - a connected TLS session as a `net/io` connection
 //!   ([`embassy::TlsStream`]).
 //!
@@ -27,6 +29,10 @@ use static_cell::StaticCell;
 
 #[cfg(feature = "embassy-net")]
 pub mod embassy;
+#[cfg(feature = "embassy-net")]
+pub mod listener;
+#[cfg(feature = "embassy-net")]
+pub use listener::EspTlsListener;
 
 /// Named alias convenient for long-lived application structs.
 pub type TlsReferenceStatic = TlsReference<'static>;
