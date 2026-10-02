@@ -20,7 +20,7 @@ The intended dependency direction is:
 embewi-agent (application)
     -> iobewi (service contracts and composition)
         -> services (OTA, HTTP, HTTPS, ConfigSpace, ...)
-        -> platform adapter (iobewi-esp, future RP2350/Teensy adapters)
+        -> platform implementations (arch/esp32, drivers/*/esp32, fs/nvs/esp32, firmware/esp32, bootloader/esp; future RP2350/Teensy)
             -> HAL, network and execution runtime
 ```
 
@@ -68,7 +68,8 @@ The application should not need an ESP-specific type to use OTA, HTTP, storage, 
 | `time/core` (`iobewi-time`) | Unix epoch clock state (`now`, `is_set`, `wait`, `set_synced`), independent of any network stack. |
 | `time/ntp` (`iobewi-ntp`) | SNTP synchronization over Embassy networking, feeding `iobewi-time`; server and timing policy are supplied at startup. |
 | `fs/config` (`iobewi-config-space`) | Logical persistent configuration spaces, quotas and generations independent of the physical backend. |
-| [iobewi-esp](https://github.com/iobewi/iobewi-esp) | ESP implementation workspace: HTTP over TCP, HTTPS over MbedTLS, flash, NVS, OTA, Wi-Fi and bootloader. |
+| `bootloader/esp` (`iobewi-esp-bootloader`) | ESP second-stage bootloader: a platform executable composing `arch/esp32`, `firmware/boot` and `firmware/image` (own workspace and lockfile). |
+| `targets/esp32` | Build/toolchain configuration of the ESP workspace only (members live in their subsystems; no code). |
 | [embewi-agent](https://github.com/iobewi/embewi-agent) | Application behavior and its own HTTP endpoints; consumes framework services. |
 
 The first execution target uses Embassy with the existing ESP runtime. `iobewi` is a service framework, not a replacement RTOS kernel. Scheduling and timing constraints remain the responsibility of the runtime and platform integration.

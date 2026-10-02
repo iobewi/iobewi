@@ -41,7 +41,7 @@ pub mod chips {
         /// loader RAM window.
         ///
         /// The concrete bootloader linker script must stay consistent with
-        /// `boot_window`; iobewi-esp owns both hardware descriptions as the boot
+        /// `boot_window`; the ESP implementation owns both hardware descriptions as the boot
         /// platform is extracted.
         ///
         /// Sources: `drom`/`irom`/`iram`/`dram`/`rtc` and `chip_id` are

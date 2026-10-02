@@ -4,7 +4,7 @@
 //!
 //! `iobewi-esp-ota` adapts IOBEWI OTA firmware semantics to ESP storage. Generic ESP
 //! partition-table access and raw erase mechanics are delegated to
-//! `iobewi-esp`; this module keeps IOBEWI OTA-specific slot mapping and
+//! the ESP implementation crates; this module keeps IOBEWI OTA-specific slot mapping and
 //! the [`iobewi_ota::ArtifactStorage`] erase-block buffering contract.
 //!
 //! It deliberately does **not** own:
@@ -136,7 +136,7 @@ where
 /// partition.
 ///
 /// The caller owns the flash object. The common ESP hardware layer is
-/// `iobewi-esp`; IOBEWI OTA only layers artifact semantics over the
+/// the ESP implementation crates; IOBEWI OTA only layers artifact semantics over the
 /// already-selected partition.
 pub struct EspArtifactStorage<'a, F> {
     flash: &'a mut F,

@@ -17,4 +17,4 @@ storage and a deferred reboot port.
 The EWBT `otadata` codec is `iobewi-firmware-boot`, the ESP image validator
 `iobewi-firmware-image`, the slot model `iobewi-firmware-slots`; the ESP
 adapter (partition lookup, flash execution) and bootloader are in the
-provisional `iobewi-esp/` workspace.
+`targets/esp32` workspace.

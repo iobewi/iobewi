@@ -3,7 +3,7 @@
 //! ESP NVS backend for IOBEWI ConfigSpace.
 //!
 //! ConfigSpace persistence semantics live here. Physical flash ownership and
-//! the ESP NVS platform bridge are supplied by iobewi-esp, allowing
+//! the ESP NVS platform bridge are supplied by the ESP implementation crates, allowing
 //! this backend to coexist with other storage consumers such as IOBEWI OTA.
 
 extern crate alloc;
