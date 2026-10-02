@@ -690,6 +690,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-workload-ota"
+version = "0.1.0"
+dependencies = [
+ "iobewi-ota",
+ "iobewi-update-model",
+ "sha2",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

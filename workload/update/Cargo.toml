@@ -1,0 +1,15 @@
+[package]
+name = "iobewi-workload-ota"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Workload OTA: OTM2 persistent record, double-copy metadata store, Workload A/B state machine and recovery (no loader, no runtime, no platform)"
+
+[dependencies]
+iobewi-update-model = { path = "../../firmware/model" }
+iobewi-ota = { path = "../../firmware/update" }
+
+[dev-dependencies]
+sha2 = { version = "0.10", default-features = false }
