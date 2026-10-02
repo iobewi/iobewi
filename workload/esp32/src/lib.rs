@@ -34,6 +34,8 @@ use iobewi_workload_ota::machine::{Prepared, Recovery, UpdateError, WorkloadActi
 use iobewi_workload_ota::nor::{NorError, NorMetadata, NorSlot, digest_region, erase_range};
 use sha2::{Digest as _, Sha256};
 
+pub use iobewi_update_model as model;
+pub use iobewi_workload_ota as engine;
 pub use iobewi_workload_ota::layout::{MIN_WORKLOAD_SLOT_SIZE, WorkloadLayout as Layout};
 
 /// ESP-IDF partition type "data" and subtype "undefined": the only data
