@@ -161,4 +161,4 @@ image change; existing devices keep their old table until reflashed, so
 Workload OTA is unavailable on them until then (the web flasher always erases);
 the Agent `partition_layout` identifier (`embewi-ab-v1`) must not change, so a
 Workload layout identifier would be separate. Slot sizes depend on the real
-Workload size, which is unknown yet. S15 wires no ESP storage.
+Workload size, which is unknown yet. S15 wired no ESP storage. **S16 applies the S3 layout and wires the ESP backend**: see `docs/esp32-workload-layout.md` (the final sizes differ from the placeholder above).
