@@ -219,6 +219,42 @@ pub fn slot_of(seq: u32, slot_count: u8) -> u8 {
     ((seq - 1) % u32::from(slot_count)) as u8
 }
 
+/// The slot (0-based) an update may be written to: the one **opposite** the
+/// newest *trusted* entry -- `Valid` or `Pending`. A `New` entry never ran, so
+/// it is not trusted: with the image that is actually running still `New`
+/// (what happens under a bootloader that never promotes `New`), the newest
+/// trusted entry is an older one in the other slot, and the "opposite" slot is
+/// the one that is running. The custom bootloader promotes `New` -> `Pending`
+/// -> (confirmed) `Valid`, which is what makes this target safe. `None` when
+/// no entry is trusted.
+pub fn update_target(otadata: [Raw; SECTOR_COUNT], slot_count: u8) -> Option<u8> {
+    let seq = otadata
+        .iter()
+        .filter_map(|raw| match decode(raw) {
+            Decoded::Ok(e) if e.state == state::VALID || e.state == state::PENDING_VERIFY => Some(e.seq),
+            _ => None,
+        })
+        .max()?;
+    Some((slot_of(seq, slot_count) + 1) % slot_count)
+}
+
+/// The entry with the highest sequence number among the decodable ones,
+/// whatever its state (so after a rollback it is the aborted candidate).
+pub fn newest_entry(otadata: [Raw; SECTOR_COUNT]) -> Option<Entry> {
+    otadata
+        .iter()
+        .filter_map(|raw| match decode(raw) {
+            Decoded::Ok(e) => Some(e),
+            _ => None,
+        })
+        .max_by_key(|e| e.seq)
+}
+
+/// Whether any decodable entry is in `wanted` state.
+pub fn has_entry_in_state(otadata: [Raw; SECTOR_COUNT], wanted: u32) -> bool {
+    otadata.iter().any(|raw| matches!(decode(raw), Decoded::Ok(e) if e.state == wanted))
+}
+
 /// One entry update: the sector is erased, the body programmed, then -- in a
 /// separate command -- the commit word. Three flash commands, any of which a
 /// power cut can interrupt; only the last one makes the entry acceptable.

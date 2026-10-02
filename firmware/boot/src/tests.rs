@@ -741,3 +741,57 @@ fn the_entry_format_is_frozen_by_golden_vectors() {
     assert_eq!(hex(e(1, state::VALID).encode()), "010000004557425401000000484e1c0dffffffff3ca5c35a020000009a984347");
     assert_eq!(hex(e(2, state::NEW).encode()), "0200000045574254010000002564efc8ffffffff3ca5c35a000000007437f655");
 }
+
+// ---- update target / newest entry / outcome helpers (used by the ESP adapter) ----
+
+mod update_target_tests {
+    use super::*;
+
+    fn e(seq: u32, st: u32) -> Raw {
+        Entry::new(seq, st).encode()
+    }
+
+    #[test]
+    fn the_target_is_the_slot_opposite_the_newest_trusted_entry() {
+        // seq 1 (slot 0) valid -> write slot 1.
+        assert_eq!(update_target([e(1, state::VALID), BLANK], 2), Some(1));
+        // seq 2 (slot 1) valid -> write slot 0.
+        assert_eq!(update_target([e(1, state::VALID), e(2, state::VALID)], 2), Some(0));
+        // A pending entry is trusted too.
+        assert_eq!(update_target([e(3, state::PENDING_VERIFY), e(2, state::VALID)], 2), Some(1));
+        // Nothing trusted: no target.
+        assert_eq!(update_target([BLANK, BLANK], 2), None);
+        assert_eq!(update_target([e(1, state::INVALID), e(2, state::ABORTED)], 2), None);
+    }
+
+    #[test]
+    fn an_unconfirmed_new_entry_is_not_trusted_so_the_target_can_be_the_running_slot() {
+        // The stock-bootloader hazard (it never promotes New): running image is
+        // seq 2 (slot 1) still `New`; the newest trusted entry is seq 1 (slot 0),
+        // so the "other" slot is slot 1 -- the one that is running.
+        let otadata = [e(1, state::VALID), e(2, state::NEW)];
+        assert_eq!(update_target(otadata, 2), Some(1));
+        assert_eq!(newest_entry(otadata).map(|x| (x.seq, slot_of(x.seq, 2))), Some((2, 1)));
+        // Once the custom bootloader has promoted and the agent confirmed it (Valid),
+        // the same layout targets the other slot.
+        assert_eq!(update_target([e(1, state::VALID), e(2, state::VALID)], 2), Some(0));
+    }
+
+    #[test]
+    fn rollback_leaves_a_valid_base_and_an_aborted_newest_entry() {
+        let otadata = [e(3, state::VALID), e(4, state::ABORTED)];
+        assert_eq!(update_target(otadata, 2), Some(1), "the next candidate goes opposite the valid base");
+        assert_eq!(newest_entry(otadata).map(|x| (x.seq, x.state)), Some((4, state::ABORTED)));
+    }
+
+    #[test]
+    fn newest_entry_and_state_queries_ignore_blank_and_corrupt_sectors() {
+        let mut corrupt = e(9, state::VALID);
+        corrupt[24] ^= 0xFF; // state word no longer matches its CRC
+        let otadata = [corrupt, e(2, state::PENDING_VERIFY)];
+        assert_eq!(newest_entry(otadata).map(|x| x.seq), Some(2));
+        assert!(has_entry_in_state(otadata, state::PENDING_VERIFY));
+        assert!(!has_entry_in_state(otadata, state::VALID), "a corrupt entry is not a Valid one");
+        assert_eq!(newest_entry([BLANK, BLANK]), None);
+    }
+}

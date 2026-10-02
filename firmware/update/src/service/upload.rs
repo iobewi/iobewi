@@ -316,4 +316,73 @@ mod tests {
         assert!(matches!(block_on(manager.finish(&store)), Err(FinishError::Incomplete { durable: 300 })));
         assert!(block_on(load_metadata(&store)).unwrap().staged.stage.as_str() == "none");
     }
+
+    // ---- deadlock regression -------------------------------------------------
+    //
+    // The historical deadlock: `prepare` held the shared flash lock while it read
+    // `otadata`, then asked ConfigSpace (which locks the *same* physical flash)
+    // for the staged transaction -> a non-reentrant lock taken twice. The rule
+    // that prevents it is in the contract: the platform releases its lock before
+    // `write_target` returns, and the service only then reads metadata. Here the
+    // platform and the metadata store share one lock; the store *try-locks* so a
+    // recursive acquisition fails the test instead of hanging it.
+
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::mutex::Mutex as AsyncMutex;
+
+    struct SharedLock(AsyncMutex<CriticalSectionRawMutex, ()>);
+
+    struct LockedTarget<'a>(&'a SharedLock);
+
+    impl TargetSelection for LockedTarget<'_> {
+        async fn write_target(&self) -> Result<(&'static str, u64), ()> {
+            let guard = self.0 .0.lock().await; // "read otadata under the flash lock"
+            drop(guard); // released before returning, as the contract requires
+            Ok(("ota_1", 1024))
+        }
+    }
+
+    struct LockedStore<'a> {
+        lock: &'a SharedLock,
+        inner: MemoryStore,
+    }
+
+    impl MetadataStore for LockedStore<'_> {
+        type Error = ();
+        async fn load_raw(&self) -> Result<Option<Vec<u8>>, ()> {
+            let _g = self
+                .lock
+                .0
+                .try_lock()
+                .expect("flash lock still held by the platform: a nested acquisition would deadlock");
+            self.inner.load_raw().await
+        }
+        async fn commit_raw(&self, bytes: &[u8]) -> Result<(), ()> {
+            let _g = self.lock.0.try_lock().expect("flash lock still held: nested acquisition");
+            self.inner.commit_raw(bytes).await
+        }
+    }
+
+    #[test]
+    fn prepare_never_holds_the_shared_flash_lock_while_it_reads_metadata() {
+        let lock = SharedLock(AsyncMutex::new(()));
+        let store = LockedStore { lock: &lock, inner: MemoryStore(RefCell::new(None)) };
+        let target = block_on(prepare(&store, &LockedTarget(&lock), "esp32s3", "embewi-ab-v1", "esp32s3", "embewi-ab-v1", 100)).unwrap();
+        assert_eq!(target, "ota_1");
+    }
+
+    #[test]
+    fn upload_begin_and_finish_take_the_shared_lock_only_one_operation_at_a_time() {
+        let lock = SharedLock(AsyncMutex::new(()));
+        let store = LockedStore { lock: &lock, inner: MemoryStore(RefCell::new(None)) };
+        let manager = UploadManager::<Writer>::new();
+        let data = image(300, 5);
+        block_on(manager.begin(&store, params("dep", &data), 1024, Writer::new("ota_1"))).unwrap();
+        for chunk in data.chunks(100) {
+            assert!(block_on(manager.chunk(chunk)));
+        }
+        block_on(manager.finish(&store)).unwrap();
+        // The platform's lock is free again between operations.
+        assert!(lock.0.try_lock().is_ok());
+    }
 }
