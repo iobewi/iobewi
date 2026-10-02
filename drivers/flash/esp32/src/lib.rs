@@ -5,6 +5,19 @@
 //! This crate owns exactly one `esp_storage::FlashStorage` instance and
 //! serializes access to it. Higher layers may build NVS, partition or firmware
 //! semantics on top, but none of those policies live here.
+//!
+//! # Ownership and locking (the single source of truth)
+//!
+//! * [`init`] is the **only** place `FlashStorage::new` is called, once per
+//!   firmware image, from the composition root; it returns `&'static SharedFlash`.
+//! * [`SharedFlash`] is the **only** mutex around the physical flash. NVS
+//!   (`iobewi-esp-nvs` / the ConfigSpace backend), the OTA artifact writer and the
+//!   `otadata` (EWBT) accessors all lock *this* mutex; none of them has its own.
+//! * The mutex is not reentrant. Every consumer locks it for exactly one
+//!   operation and releases it before returning (so, for example, `prepare` reads
+//!   `otadata` under the lock, drops it, and only then asks ConfigSpace -- which
+//!   locks the same flash -- for the staged transaction). That ordering is the
+//!   contract `iobewi_ota::service::prepare` documents and tests.
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
