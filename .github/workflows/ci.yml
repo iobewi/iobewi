@@ -33,7 +33,7 @@ jobs:
       - run: cargo test -p iobewi-firmware-slots
       - run: cargo test -p iobewi-firmware-image --features alloc
       - run: cargo test -p iobewi-firmware-boot
-      - run: cargo test -p iobewi-ota --features config-space
+      - run: cargo test -p iobewi-ota --features runtime,config-space
   # --- iobewi-esp/ provisional subtree (S1): same checks as the former iobewi-esp CI ---
   esp-host:
     runs-on: ubuntu-latest
