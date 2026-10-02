@@ -23,8 +23,8 @@ Supported bootloader targets:
 
 | Feature | Rust target | Linker profile |
 | --- | --- | --- |
-| `esp32c3` | `riscv32imc-unknown-none-elf` | `linker/iobewi-esp-boot-esp32c3.x` |
-| `esp32s3` | `xtensa-esp32s3-none-elf` | `linker/iobewi-esp-boot-esp32s3.x` |
+| `esp32c3` | `riscv32imc-unknown-none-elf` | `arch/esp32/c3/linker/iobewi-esp-boot-esp32c3.x` |
+| `esp32s3` | `xtensa-esp32s3-none-elf` | `arch/esp32/s3/linker/iobewi-esp-boot-esp32s3.x` |
 
 ## Build
 
