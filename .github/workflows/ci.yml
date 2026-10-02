@@ -14,6 +14,7 @@ jobs:
       - run: cargo test -p iobewi-net-io
       - run: cargo test -p iobewi-net-tls-core
       - run: cargo test -p iobewi-indicator
+      - run: cargo test -p iobewi-update-model
       - run: cargo test -p iobewi-runtime
       - run: cargo test -p iobewi-device
       - run: cargo test -p iobewi-entropy
