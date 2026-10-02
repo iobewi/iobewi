@@ -9,6 +9,10 @@
 //! * [`otm2`] -- the OTM2 binary record (codec only: layout, CRC, integrity).
 //! * [`store`] -- portable double-copy metadata store (newest valid copy wins).
 //! * [`machine`] -- the Workload A/B state machine, upload glue and recovery.
+//! * [`layout`] -- the physical Workload regions (meta + two slots), capability
+//!   (supported / unsupported) and partition-table sanity checks; pure.
+//! * [`nor`] -- a generic NOR-flash backend (`embedded-storage`) for the metadata
+//!   copies and the slots, with bounds checking; no platform type.
 //!
 //! OTM2 is **independent** of OTM1 (the Agent's record, `iobewi-ota`): other
 //! magic, other storage, no shared transaction, no migration. Nothing here
@@ -24,9 +28,13 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+pub mod layout;
 pub mod machine;
+pub mod nor;
 pub mod otm2;
 pub mod store;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_nor;

@@ -693,6 +693,7 @@ dependencies = [
 name = "iobewi-workload-ota"
 version = "0.1.0"
 dependencies = [
+ "embedded-storage",
  "iobewi-ota",
  "iobewi-update-model",
  "sha2",

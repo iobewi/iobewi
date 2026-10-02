@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-  "../../drivers/net/tcp/esp32", "../../drivers/net/tls/esp32", "../../drivers/hw_random/esp32", "../../drivers/console/esp32", "../../drivers/net/wifi/esp32", "../../crypto/mbedtls", "../../drivers/device/esp32", "../../drivers/indicator/esp32", "../../arch/esp32/runtime", "../../drivers/flash/esp32", "../../drivers/flash/partitions-esp32", "../../fs/nvs/esp32", "../../fs/nvs/config-esp32", "../../firmware/esp32", "../../drivers/watchdog/esp32", "../../arch/esp32/reset",
+  "../../drivers/net/tcp/esp32", "../../workload/esp32", "../../drivers/net/tls/esp32", "../../drivers/hw_random/esp32", "../../drivers/console/esp32", "../../drivers/net/wifi/esp32", "../../crypto/mbedtls", "../../drivers/device/esp32", "../../drivers/indicator/esp32", "../../arch/esp32/runtime", "../../drivers/flash/esp32", "../../drivers/flash/partitions-esp32", "../../fs/nvs/esp32", "../../fs/nvs/config-esp32", "../../firmware/esp32", "../../drivers/watchdog/esp32", "../../arch/esp32/reset",
 ]
 default-members = ["../../drivers/net/tcp/esp32"]
 

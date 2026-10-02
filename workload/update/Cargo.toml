@@ -10,6 +10,5 @@ description = "Workload OTA: OTM2 persistent record, double-copy metadata store,
 [dependencies]
 iobewi-update-model = { path = "../../firmware/model" }
 iobewi-ota = { path = "../../firmware/update" }
-
-[dev-dependencies]
+embedded-storage = "0.3.1"
 sha2 = { version = "0.10", default-features = false }

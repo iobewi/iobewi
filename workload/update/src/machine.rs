@@ -117,6 +117,17 @@ impl<B: MetadataBackend> WorkloadUpdater<B> {
         self.current()
     }
 
+    /// Explicit recovery from [`Recovery::CorruptedMetadata`] (or an OTM2 factory
+    /// reset): commits an `Empty` record with a fresh sequence. The Agent chooses
+    /// to call it; nothing does so silently.
+    pub fn format(&mut self) -> Result<(), B::Error> {
+        let sequence = match self.store.load()? {
+            Loaded::Record { record, .. } => record.sequence.wrapping_add(1),
+            _ => 1,
+        };
+        self.store.commit(&Record::empty(sequence))
+    }
+
     /// What the Agent must do after a restart.
     pub fn recover(&mut self) -> Result<Recovery, B::Error> {
         Ok(match self.store.load()? {

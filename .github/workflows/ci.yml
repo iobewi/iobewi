@@ -62,6 +62,8 @@ jobs:
         with:
           buildtargets: esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tcp
+      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-workload --features esp32s3
+      - run: cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-workload --features esp32c3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
       - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3

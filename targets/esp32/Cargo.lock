@@ -1931,6 +1931,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-esp-workload"
+version = "0.1.0"
+dependencies = [
+ "embedded-storage",
+ "esp-bootloader-esp-idf",
+ "iobewi-esp-flash",
+ "iobewi-ota",
+ "iobewi-update-model",
+ "iobewi-workload-ota",
+ "sha2",
+]
+
+[[package]]
 name = "iobewi-firmware-boot"
 version = "0.1.0"
 
@@ -1994,8 +2007,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-update-model"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-wifi-core"
 version = "0.1.0"
+
+[[package]]
+name = "iobewi-workload-ota"
+version = "0.1.0"
+dependencies = [
+ "embedded-storage",
+ "iobewi-ota",
+ "iobewi-update-model",
+ "sha2",
+]
 
 [[package]]
 name = "is_terminal_polyfill"
