@@ -11,7 +11,7 @@ use iobewi_esp_config_space::NvsConfigBackend;
 use iobewi_esp_flash::SharedFlash;
 use iobewi_ota::service::{BootActivation, TargetSelection};
 use iobewi_ota::service::upload::{UploadStats, UploadWriter};
-use iobewi_ota::service::boot::BootOps;
+use iobewi_ota::service::boot::{BootSelfCheck, BootState, BootWatchdog};
 use iobewi_ota::{Committed, Error, WriteSession};
 use iobewi_ota::BackendOutcome;
 
@@ -42,7 +42,7 @@ pub struct EspBootRuntime<'a> {
     pub nvs: &'a NvsConfigBackend,
 }
 
-impl BootOps for EspBootRuntime<'_> {
+impl BootState for EspBootRuntime<'_> {
     async fn image_outcome(&self) -> BackendOutcome {
         shared_flash::image_outcome(self.flash).await
     }
@@ -53,7 +53,13 @@ impl BootOps for EspBootRuntime<'_> {
 
     async fn confirm(&self) -> bool { shared_flash::confirm(self.flash).await.is_ok() }
     async fn reject(&self) -> bool { shared_flash::reject(self.flash).await.is_ok() }
+}
+
+impl BootSelfCheck for EspBootRuntime<'_> {
     async fn self_check(&self) -> bool { self.nvs.self_check().await }
+}
+
+impl BootWatchdog for EspBootRuntime<'_> {
     fn watchdog_feed(&self) { iobewi_esp_watchdog::feed(); }
     fn watchdog_disable(&self) { iobewi_esp_watchdog::disable(); }
 }

@@ -13,11 +13,10 @@ esp32c3 = ["esp-hal/esp32c3"]
 esp32s3 = ["esp-hal/esp32s3"]
 
 [dependencies]
-# Same rev embewi-agent pins for the main iobewi-ota engine: RebootPort is a
-# real trait defined in iobewi_ota::http, not a re-exported alias, so this
-# must be the exact instance the router's `R: RebootPort` bound resolves
-# against wherever iobewi_ota::http::routes() gets called.
-iobewi-ota = { path = "../../../services/ota", features = ["http"] }
+# `RebootPort` is a real trait defined in iobewi_ota_http (the OTA routes), not a
+# re-exported alias, so this must be the exact instance the router's
+# `R: RebootPort` bound resolves against.
+iobewi-ota-http = { path = "../../../net/http/ota" }
 esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
 embassy-executor = "0.10.0"
 embassy-time = { version = "0.5.0", default-features = false }

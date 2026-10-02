@@ -10,7 +10,7 @@ use esp_bootloader_esp_idf::partitions::{
     DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
 };
 use iobewi_ota::BackendOutcome;
-use iobewi_esp_ota_boot::{self as boot, Decoded};
+use iobewi_firmware_boot::{self as boot, Decoded};
 
 use crate::{AppPartition, AppSlot, find_app_partition};
 

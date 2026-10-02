@@ -9,7 +9,7 @@ Chaque composant a son propre `Cargo.toml` :
 
 | Répertoire | Crate | Rôle |
 | --- | --- | --- |
-| `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,ota-boot,watchdog}` | Accès au matériel, état EWBT et validation d'image ESP |
+| `hardware/` | `iobewi-esp-{flash,nvs,partitions,platform,boot,watchdog}` | Accès au matériel (l'état EWBT et la validation d'image ont migré vers `firmware/boot` et `firmware/image`) |
 | `adapters/` | `iobewi-esp-{ota,config-space}` | Adaptation des services IOBEWI OTA et ConfigSpace |
 | `services/tls` | `iobewi-esp-tls` | Transport TLS ESP : instance MbedTLS globale, dialer Embassy, flux de session (`net/io`) |
 | `../crypto/mbedtls` | `iobewi-crypto-mbedtls` | Implémentation MbedTLS du contrat crypto (PEM/X.509, identité) |
@@ -26,7 +26,7 @@ sans identité valide, il n’ouvre aucun port HTTP de repli.
 Le backend NVS `iobewi-esp-config-space` implémente le contrat portable
 `iobewi-config-space` depuis le workspace IOBEWI.
 Le service portable `iobewi-ota` possède les transactions et leurs métadonnées ;
-`iobewi-esp-ota-boot` possède le format EWBT et la validation des images ESP.
+`iobewi-firmware-boot` (EWBT) et `iobewi-firmware-image` (validation des images ESP) vivent dans l'arbre racine `firmware/`.
 L’adaptateur `iobewi-esp-ota` fournit aussi au service la persistance
 ConfigSpace, le writer flash, la sélection des slots et les effets boot et
 watchdog. Le service portable garde les décisions de reprise et de confirmation.

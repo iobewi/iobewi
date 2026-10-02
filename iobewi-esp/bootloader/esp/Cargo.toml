@@ -34,7 +34,8 @@ esp-hal = { version = "~1.1.0", default-features = false }
 esp-println = { version = "0.17.0", default-features = false }
 iobewi-esp-boot = { path = "../../hardware/boot", default-features = false }
 iobewi-esp-platform = { path = "../../hardware/platform" }
-iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
+iobewi-firmware-boot = { path = "../../../firmware/boot" }
+iobewi-firmware-image = { path = "../../../firmware/image", default-features = false }
 
 [profile.dev]
 opt-level = "s"

@@ -564,35 +564,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-boot"
-version = "0.1.0"
-dependencies = [
- "iobewi-esp-platform",
-]
-
-[[package]]
-name = "iobewi-esp-bootloader"
-version = "0.1.0"
-dependencies = [
- "esp-hal",
- "esp-println",
- "iobewi-esp-boot",
- "iobewi-esp-ota-boot",
- "iobewi-esp-platform",
-]
-
-[[package]]
-name = "iobewi-esp-platform"
-version = "0.1.0"
-
-[[package]]
-name = "iobewi-esp-ota-boot"
-version = "0.1.0"
-dependencies = [
- "sha2",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -729,6 +700,40 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "iobewi-esp-boot"
+version = "0.1.0"
+dependencies = [
+ "iobewi-esp-platform",
+]
+
+[[package]]
+name = "iobewi-esp-bootloader"
+version = "0.1.0"
+dependencies = [
+ "esp-hal",
+ "esp-println",
+ "iobewi-esp-boot",
+ "iobewi-esp-platform",
+ "iobewi-firmware-boot",
+ "iobewi-firmware-image",
+]
+
+[[package]]
+name = "iobewi-esp-platform"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-firmware-boot"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-firmware-image"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

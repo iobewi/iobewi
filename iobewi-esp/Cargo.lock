@@ -1891,17 +1891,11 @@ dependencies = [
  "esp-hal",
  "iobewi-esp-config-space",
  "iobewi-esp-flash",
- "iobewi-esp-ota-boot",
  "iobewi-esp-partitions",
  "iobewi-esp-watchdog",
+ "iobewi-firmware-boot",
+ "iobewi-firmware-slots",
  "iobewi-ota",
- "sha2",
-]
-
-[[package]]
-name = "iobewi-esp-ota-boot"
-version = "0.1.0"
-dependencies = [
  "sha2",
 ]
 
@@ -1926,7 +1920,7 @@ dependencies = [
  "embassy-sync 0.8.0",
  "embassy-time",
  "esp-hal",
- "iobewi-ota",
+ "iobewi-ota-http",
  "static_cell",
 ]
 
@@ -1971,6 +1965,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-firmware-boot"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-firmware-image"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "iobewi-firmware-slots"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-http-server"
 version = "0.1.0"
 dependencies = [
@@ -2007,10 +2016,18 @@ dependencies = [
  "embassy-futures",
  "embassy-sync 0.8.0",
  "embassy-time",
+ "iobewi-firmware-image",
+ "sha2",
+]
+
+[[package]]
+name = "iobewi-ota-http"
+version = "0.1.0"
+dependencies = [
  "iobewi-http-server",
+ "iobewi-ota",
  "serde",
  "serde_json",
- "sha2",
 ]
 
 [[package]]

@@ -34,9 +34,6 @@ pub mod shared_flash;
 /// Scratch size required by the ESP-IDF partition table parser.
 pub const PARTITION_TABLE_BUFFER_SIZE: usize = PARTITION_TABLE_MAX_LEN;
 
-/// Partition layout identifier exposed to OTA clients for this ESP image.
-pub const PARTITION_LAYOUT: &str = "embewi-ab-v1";
-
 /// ESP implementation of IOBEWI's portable OTA platform metadata.
 #[derive(Clone, Copy, Default)]
 pub struct EspOtaPlatformMetadata;
@@ -47,41 +44,13 @@ impl iobewi_ota::OtaPlatformMetadata for EspOtaPlatformMetadata {
     }
 }
 
-/// OTA-capable application slots this backend can locate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppSlot {
-    Ota0,
-    Ota1,
-}
+pub use iobewi_firmware_slots::{AppSlot, PARTITION_LAYOUT};
 
-impl AppSlot {
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "ota_0" => Some(Self::Ota0),
-            "ota_1" => Some(Self::Ota1),
-            _ => None,
-        }
-    }
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Ota0 => "ota_0",
-            Self::Ota1 => "ota_1",
-        }
-    }
-
-    pub const fn other(self) -> Self {
-        match self {
-            Self::Ota0 => Self::Ota1,
-            Self::Ota1 => Self::Ota0,
-        }
-    }
-
-    fn subtype(self) -> AppPartitionSubType {
-        match self {
-            Self::Ota0 => AppPartitionSubType::Ota0,
-            Self::Ota1 => AppPartitionSubType::Ota1,
-        }
+/// ESP-IDF partition subtype of an OTA application slot.
+fn subtype(slot: AppSlot) -> AppPartitionSubType {
+    match slot {
+        AppSlot::Ota0 => AppPartitionSubType::Ota0,
+        AppSlot::Ota1 => AppPartitionSubType::Ota1,
     }
 }
 
@@ -111,7 +80,7 @@ pub fn find_app_partition<F>(
 where
     F: Storage,
 {
-    let range = find_partition(flash, table_buffer, PartitionType::App(slot.subtype()))
+    let range = find_partition(flash, table_buffer, PartitionType::App(subtype(slot)))
         .map_err(|e| match e {
             iobewi_esp_partitions::PartitionError::NotFound => PartitionError::NotFound,
             _ => PartitionError::TableUnreadable,

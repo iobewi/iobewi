@@ -30,8 +30,9 @@ esp32s3 = [
 shared-flash = ["dep:iobewi-esp-flash", "dep:iobewi-esp-config-space", "dep:iobewi-esp-watchdog", "dep:esp-hal", "dep:embassy-time", "dep:sha2", "iobewi-ota/runtime"]
 
 [dependencies]
-iobewi-ota = { path = "../../../services/ota" }
-iobewi-esp-ota-boot = { path = "../../hardware/ota-boot" }
+iobewi-ota = { path = "../../../firmware/update" }
+iobewi-firmware-boot = { path = "../../../firmware/boot" }
+iobewi-firmware-slots = { path = "../../../firmware/slots" }
 embedded-storage = "0.3.1"
 esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
 iobewi-esp-partitions = { path = "../../hardware/partitions", default-features = false }

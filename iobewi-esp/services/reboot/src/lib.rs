@@ -1,7 +1,7 @@
 #![no_std]
 
 //! One-shot ESP reboot adapter for the portable IOBEWI OTA reboot
-//! capability (`iobewi_ota::http::RebootPort`).
+//! capability (`iobewi_ota_http::RebootPort`).
 //!
 //! Owns exactly one thing: turning "schedule a reboot" into a real RTC
 //! watchdog reset, deferred long enough for an in-flight HTTP response to
@@ -15,7 +15,7 @@ use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use esp_hal::peripherals::LPWR;
 use esp_hal::rtc_cntl::{Rtc, RwdtStage, RwdtStageAction};
-use iobewi_ota::http::RebootPort;
+use iobewi_ota_http::RebootPort;
 use static_cell::StaticCell;
 
 type LpwrCell = Mutex<CriticalSectionRawMutex, Option<LPWR<'static>>>;
