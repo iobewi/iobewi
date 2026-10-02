@@ -128,3 +128,192 @@ impl<W: UploadWriter> UploadManager<W> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metadata::{MetadataStore, PrepareRefusal, load_metadata};
+    use crate::service::{ActivateError, BootActivation, TargetSelection, activate_staged, prepare};
+    use alloc::vec::Vec;
+    use core::cell::RefCell;
+    use core::future::Future;
+    use core::task::{Context, Poll, Waker};
+    use sha2::{Digest as _, Sha256};
+
+    fn block_on<F: Future>(future: F) -> F::Output {
+        let mut future = core::pin::pin!(future);
+        let mut cx = Context::from_waker(Waker::noop());
+        loop {
+            if let Poll::Ready(v) = future.as_mut().poll(&mut cx) {
+                return v;
+            }
+            std::thread::yield_now();
+        }
+    }
+
+    struct MemoryStore(RefCell<Option<Vec<u8>>>);
+
+    impl MetadataStore for MemoryStore {
+        type Error = ();
+        async fn load_raw(&self) -> Result<Option<Vec<u8>>, ()> { Ok(self.0.borrow().clone()) }
+        async fn commit_raw(&self, bytes: &[u8]) -> Result<(), ()> {
+            *self.0.borrow_mut() = Some(bytes.to_vec());
+            Ok(())
+        }
+    }
+
+    /// Byte store standing in for a flash slot: durable immediately.
+    #[derive(Default)]
+    struct Slot(Vec<u8>);
+
+    impl crate::ArtifactStorage for Slot {
+        type Error = ();
+        fn write(&mut self, _offset: u64, pending: &[u8]) -> Result<u64, ()> {
+            self.0.extend_from_slice(pending);
+            Ok(self.0.len() as u64)
+        }
+        fn finish(&mut self, _offset: u64, pending: &[u8]) -> Result<u64, ()> {
+            self.0.extend_from_slice(pending);
+            Ok(self.0.len() as u64)
+        }
+    }
+
+    struct Writer {
+        slot: &'static str,
+        storage: Slot,
+    }
+
+    impl Writer {
+        fn new(slot: &'static str) -> Self { Self { slot, storage: Slot::default() } }
+    }
+
+    impl UploadWriter for Writer {
+        type Error = ();
+        fn slot(&self) -> &'static str { self.slot }
+        async fn append(&mut self, session: &mut WriteSession, data: &[u8]) -> bool {
+            session.append(&mut self.storage, data).is_ok()
+        }
+        async fn finish(&mut self, session: WriteSession) -> Result<Committed, Error<()>> {
+            session.finish(&mut self.storage)
+        }
+    }
+
+    fn image(len: usize, seed: u8) -> Vec<u8> {
+        (0..len).map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed)).collect()
+    }
+
+    fn params(id: &str, data: &[u8]) -> SessionParams {
+        let digest: [u8; 32] = Sha256::digest(data).into();
+        SessionParams { deployment_id: String::from(id), digest: format_digest(&Digest(digest)), total: data.len() as u32 }
+    }
+
+    struct Platform;
+
+    impl TargetSelection for Platform {
+        async fn write_target(&self) -> Result<(&'static str, u64), ()> { Ok(("ota_1", 1024)) }
+    }
+
+    struct Boot;
+
+    impl BootActivation for Boot {
+        fn valid_target(&self, target: &str) -> bool { target == "ota_0" || target == "ota_1" }
+        async fn activate(&self, _target: &str) -> Result<(), ()> { Ok(()) }
+    }
+
+    fn upload_all(manager: &UploadManager<Writer>, store: &MemoryStore, id: &str, data: &[u8]) -> UploadResult {
+        block_on(manager.begin(store, params(id, data), 1024, Writer::new("ota_1"))).unwrap();
+        for chunk in data.chunks(100) {
+            assert!(block_on(manager.chunk(chunk)));
+        }
+        block_on(manager.finish(store)).unwrap()
+    }
+
+    #[test]
+    fn prepare_write_activate_publishes_in_order_and_activation_is_by_deployment_id() {
+        let store = MemoryStore(RefCell::new(None));
+        let manager = UploadManager::<Writer>::new();
+        let data = image(700, 1);
+
+        let target = block_on(prepare(&store, &Platform, "esp32s3", "embewi-ab-v1", "esp32s3", "embewi-ab-v1", data.len() as u64)).unwrap();
+        assert_eq!(target, "ota_1");
+
+        let result = upload_all(&manager, &store, "dep-a", &data);
+        assert_eq!((result.written, result.slot), (700, "ota_1"));
+        assert_eq!(result.digest, format_digest(&Digest(Sha256::digest(&data).into())));
+        let staged = block_on(load_metadata(&store)).unwrap().staged;
+        assert_eq!((staged.stage.as_str(), staged.slot.as_str(), staged.deployment_id.as_str()), ("written", "ota_1", "dep-a"));
+
+        // Activation names the deployment that was written, nothing else.
+        assert_eq!(block_on(activate_staged(&store, &Boot, "other")), Err(ActivateError::DeploymentMismatch));
+        assert_eq!(block_on(activate_staged(&store, &Boot, "dep-a")).unwrap(), "ota_1");
+        assert_eq!(block_on(load_metadata(&store)).unwrap().staged.stage.as_str(), "activating");
+    }
+
+    #[test]
+    fn a_new_upload_supersedes_a_staged_one_but_never_an_activating_one() {
+        let store = MemoryStore(RefCell::new(None));
+        let manager = UploadManager::<Writer>::new();
+        upload_all(&manager, &store, "dep-a", &image(300, 1));
+
+        // Staged A -> begin B: A is superseded.
+        let b = image(400, 2);
+        upload_all(&manager, &store, "dep-b", &b);
+        let staged = block_on(load_metadata(&store)).unwrap().staged;
+        assert_eq!((staged.deployment_id.as_str(), staged.size), ("dep-b", 400));
+
+        // Activating B: a further begin is a conflict, and prepare is refused as busy.
+        block_on(activate_staged(&store, &Boot, "dep-b")).unwrap();
+        let c = image(100, 3);
+        assert_eq!(block_on(manager.begin(&store, params("dep-c", &c), 1024, Writer::new("ota_1"))), Err(StartError::Conflict));
+        assert!(!block_on(manager.in_progress()));
+        assert_eq!(
+            block_on(prepare(&store, &Platform, "esp32s3", "embewi-ab-v1", "esp32s3", "embewi-ab-v1", 100)),
+            Err(PrepareRefusal::Busy)
+        );
+        assert_eq!(block_on(load_metadata(&store)).unwrap().staged.deployment_id, "dep-b", "the activating record is intact");
+    }
+
+    #[test]
+    fn prepare_refuses_foreign_chip_layout_and_oversized_images_before_touching_state() {
+        let store = MemoryStore(RefCell::new(None));
+        let prep = |chip, layout, size| block_on(prepare(&store, &Platform, chip, layout, "esp32s3", "embewi-ab-v1", size));
+        assert_eq!(prep("esp32", "embewi-ab-v1", 10), Err(PrepareRefusal::ChipMismatch));
+        assert_eq!(prep("esp32s3", "other", 10), Err(PrepareRefusal::LayoutMismatch));
+        assert_eq!(prep("esp32s3", "embewi-ab-v1", 1025), Err(PrepareRefusal::SizeTooLarge));
+        assert_eq!(prep("esp32s3", "embewi-ab-v1", 1024), Ok("ota_1"));
+        assert!(store.0.borrow().is_none(), "prepare never writes");
+    }
+
+    #[test]
+    fn write_sequencing_oversize_bad_digest_and_digest_mismatch() {
+        let store = MemoryStore(RefCell::new(None));
+        let manager = UploadManager::<Writer>::new();
+        let data = image(500, 4);
+
+        // No session: chunks and finish are refused.
+        assert!(!block_on(manager.chunk(&[1, 2, 3])));
+        assert!(matches!(block_on(manager.finish(&store)), Err(FinishError::NotWriting)));
+
+        // Larger than the slot capacity / malformed digest.
+        assert_eq!(block_on(manager.begin(&store, params("d", &data), 100, Writer::new("ota_1"))), Err(StartError::TooLarge));
+        let mut bad = params("d", &data);
+        bad.digest = String::from("sha256:zz");
+        assert_eq!(block_on(manager.begin(&store, bad, 1024, Writer::new("ota_1"))), Err(StartError::Busy));
+
+        // Declared digest of different bytes: finish reports the mismatch and publishes nothing.
+        let declared = params("d", &image(500, 9));
+        block_on(manager.begin(&store, declared, 1024, Writer::new("ota_1"))).unwrap();
+        assert!(block_on(manager.params_match(&params("d", &image(500, 9)))));
+        for chunk in data.chunks(128) {
+            assert!(block_on(manager.chunk(chunk)));
+        }
+        assert!(matches!(block_on(manager.finish(&store)), Err(FinishError::DigestMismatch(_))));
+        assert!(block_on(load_metadata(&store)).unwrap().staged.stage.as_str() == "none");
+
+        // Short of the declared size: incomplete, nothing published.
+        block_on(manager.begin(&store, params("e", &data), 1024, Writer::new("ota_1"))).unwrap();
+        assert!(block_on(manager.chunk(&data[..300])));
+        assert!(matches!(block_on(manager.finish(&store)), Err(FinishError::Incomplete { durable: 300 })));
+        assert!(block_on(load_metadata(&store)).unwrap().staged.stage.as_str() == "none");
+    }
+}
