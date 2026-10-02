@@ -82,17 +82,20 @@ static STATE: AtomicU8 = AtomicU8::new(0);
 #[derive(Clone, Copy, Default)]
 pub struct EspStatusIndicator;
 
-/// GPIOs this ESP32-S3 firmware accepts for the status LED. A board/firmware
-/// choice (avoids pins reserved for octal flash/PSRAM on this chip), not a
-/// enumeration of every physical pin the SoC exposes -- callers must not
-/// treat it as chip-universal. Feature-gated because it does not hold for
-/// every chip this crate's `esp32c3`/`esp32s3` features can target: a C3
-/// build needs its own list before `EspStatusIndicator` can support it.
+/// GPIOs this ESP32-S3 firmware accepts for the status LED: every GPIO the
+/// SoC exposes except the ones a board cannot use freely -- GPIO22..25 do not
+/// exist on the S3, GPIO26..32 are the SPI flash, and GPIO33..37 are taken by
+/// octal flash/PSRAM on modules that have it. That leaves 0..=21 and 38..=48
+/// (GPIO47 is the onboard LED of several S3 boards). A board/firmware choice,
+/// not chip-universal: a C3 build needs its own list before
+/// `EspStatusIndicator` can support it (feature-gated for that reason).
 #[cfg(feature = "esp32s3")]
 pub const STATUS_LED_GPIO_NUMBERS: &[u8] = &[
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 9, 10, 11, 12, 13, 14, 15,
     16, 17, 18, 19, 20, 21,
+    38, 39, 40, 41, 42, 43, 44, 45,
+    46, 47, 48,
 ];
 
 #[cfg(feature = "esp32s3")]
