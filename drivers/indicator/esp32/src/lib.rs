@@ -21,7 +21,7 @@ use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
 use esp_hal_smartled::{RmtSmartLeds, Timing, buffer_size, color_order};
 use iobewi_indicator::{Status, StatusIndicator, StatusIndicatorCapabilities};
-use log::warn;
+use log::{info, warn};
 use smart_leds::{RGB8, SmartLedsWrite};
 
 /// `esp-hal-smartled2` 0.29.0 multiplies its pulse widths by an extra `* 2`,
@@ -144,6 +144,7 @@ pub async fn led_task(rmt: RMT<'static>, pin: AnyPin<'static>) -> ! {
         }
     };
 
+    info!("Status LED: RMT + WS2812 driver ready");
     let mut shown: Option<RGB8> = None;
     let mut lit = true;
     loop {
