@@ -1,4 +1,4 @@
-//! iobewi-esp second-stage bootloader for supported ESP targets.
+//! ESP second-stage bootloader for supported ESP targets.
 //!
 //!   ROM -> iobewi-esp-bootloader -> the slot IOBEWI OTA selects -> application
 //!

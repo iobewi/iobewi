@@ -1,6 +1,6 @@
 [package]
 name = "iobewi-crypto-mbedtls"
-workspace = "../../iobewi-esp"
+workspace = "../../targets/esp32"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

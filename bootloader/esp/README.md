@@ -1,6 +1,9 @@
-# iobewi-esp ESP bootloader
+# ESP bootloader (`bootloader/esp`)
 
-Feature-driven Rust `no_std` second-stage bootloader owned by `iobewi-esp`.
+Feature-driven Rust `no_std` second-stage bootloader. This directory is a **platform
+executable** (it composes `arch/esp32`, `firmware/boot` and `firmware/image`), not a
+framework layer, a driver or a service. It keeps its own autonomous workspace and
+`Cargo.lock` (panic=abort, fat LTO); package name `iobewi-esp-bootloader` is unchanged.
 
 ```text
 ESP ROM
