@@ -3,6 +3,10 @@
 //! ESP RMT/WS2812 renderer for the portable IOBEWI status indicator
 //! capability.
 //!
+//! The WS2812 on the S3 board expects its bytes in GRB order (hardware-checked:
+//! with `Rgb` orange showed green and green showed red), so the renderer
+//! sends GRB and the table below is what the eye sees.
+//!
 //! | Status       | Colour | Pattern              |
 //! |--------------|--------|----------------------|
 //! | `Booting`    | white  | steady               |
@@ -165,7 +169,7 @@ pub async fn led_task(rmt: RMT<'static>, pin: AnyPin<'static>) -> ! {
         { buffer_size::<RGB8>(1) },
         _,
         RGB8,
-        color_order::Rgb,
+        color_order::Grb,
     >::new_with_memsize(WS2812_TIMING_HALVED, rmt.channel0, pin, 2)
     {
         Ok(led) => led,
