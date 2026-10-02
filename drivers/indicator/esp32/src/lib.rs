@@ -82,15 +82,13 @@ static STATE: AtomicU8 = AtomicU8::new(0);
 #[derive(Clone, Copy, Default)]
 pub struct EspStatusIndicator;
 
-/// GPIOs this ESP32-S3 firmware accepts for the status LED: every GPIO the
-/// SoC exposes except the ones a board cannot use freely -- GPIO22..25 do not
+/// GPIOs accepted for the status LED on the ESP32-S3: every GPIO the SoC
+/// exposes except the ones a board cannot use freely -- GPIO22..25 do not
 /// exist on the S3, GPIO26..32 are the SPI flash, and GPIO33..37 are taken by
-/// octal flash/PSRAM on modules that have it. That leaves 0..=21 and 38..=48
-/// (GPIO47 is the onboard LED of several S3 boards). A board/firmware choice,
-/// not chip-universal: a C3 build needs its own list before
-/// `EspStatusIndicator` can support it (feature-gated for that reason).
-#[cfg(feature = "esp32s3")]
-pub const STATUS_LED_GPIO_NUMBERS: &[u8] = &[
+/// octal flash/PSRAM on modules that have it. That leaves 0..=21 and 38..=48.
+/// This is SoC capability only; which of them carries the LED on a given
+/// board (GPIO48 on the current S3 board) is product configuration.
+pub const ESP32S3_STATUS_LED_GPIOS: &[u8] = &[
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 9, 10, 11, 12, 13, 14, 15,
     16, 17, 18, 19, 20, 21,
@@ -98,7 +96,40 @@ pub const STATUS_LED_GPIO_NUMBERS: &[u8] = &[
     46, 47, 48,
 ];
 
+/// GPIOs accepted for the status LED on the ESP32-C3 (GPIO0..=21; the S3
+/// range above must never leak into it).
+pub const ESP32C3_STATUS_LED_GPIOS: &[u8] = &[
+    0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9, 10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21,
+];
+
+const fn contains(list: &[u8], gpio: u8) -> bool {
+    let mut i = 0;
+    while i < list.len() {
+        if list[i] == gpio {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+// ESP crates cannot run host tests (esp-rom-sys), so the per-SoC capability
+// is pinned by build-time assertions instead.
+const _: () = assert!(contains(ESP32S3_STATUS_LED_GPIOS, 48));
+const _: () = assert!(!contains(ESP32C3_STATUS_LED_GPIOS, 48));
+const _: () = assert!(!contains(ESP32S3_STATUS_LED_GPIOS, 22));
+const _: () = assert!(!contains(ESP32S3_STATUS_LED_GPIOS, 33));
+const _: () = assert!(contains(ESP32C3_STATUS_LED_GPIOS, 21));
+
+/// The list for the SoC this build targets.
 #[cfg(feature = "esp32s3")]
+pub const STATUS_LED_GPIO_NUMBERS: &[u8] = ESP32S3_STATUS_LED_GPIOS;
+#[cfg(all(feature = "esp32c3", not(feature = "esp32s3")))]
+pub const STATUS_LED_GPIO_NUMBERS: &[u8] = ESP32C3_STATUS_LED_GPIOS;
+
+#[cfg(any(feature = "esp32s3", feature = "esp32c3"))]
 impl StatusIndicatorCapabilities for EspStatusIndicator {
     fn configurable_pins(&self) -> &'static [u8] {
         STATUS_LED_GPIO_NUMBERS
