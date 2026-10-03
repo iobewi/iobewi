@@ -31,6 +31,9 @@ use iobewi_workload_ota::layout::{
 use iobewi_workload_ota::nor::NorError;
 use iobewi_workload_ota::service::Availability;
 
+#[cfg(feature = "native")]
+pub mod native;
+
 pub use iobewi_update_model as model;
 pub use iobewi_workload_ota as engine;
 pub use iobewi_workload_ota::layout::{MIN_WORKLOAD_SLOT_SIZE, WorkloadLayout as Layout};

@@ -1934,11 +1934,16 @@ dependencies = [
 name = "iobewi-esp-workload"
 version = "0.1.0"
 dependencies = [
+ "embassy-time",
  "embedded-storage",
+ "esp-hal",
  "iobewi-esp-flash",
  "iobewi-esp-partitions",
  "iobewi-ota",
  "iobewi-update-model",
+ "iobewi-workload-abi",
+ "iobewi-workload-image",
+ "iobewi-workload-native",
  "iobewi-workload-ota",
  "sha2",
 ]
@@ -2013,6 +2018,27 @@ version = "0.1.0"
 [[package]]
 name = "iobewi-wifi-core"
 version = "0.1.0"
+
+[[package]]
+name = "iobewi-workload-abi"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-workload-image"
+version = "0.1.0"
+dependencies = [
+ "iobewi-update-model",
+]
+
+[[package]]
+name = "iobewi-workload-native"
+version = "0.1.0"
+dependencies = [
+ "iobewi-update-model",
+ "iobewi-workload-abi",
+ "iobewi-workload-image",
+ "iobewi-workload-ota",
+]
 
 [[package]]
 name = "iobewi-workload-ota"

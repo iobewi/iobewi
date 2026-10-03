@@ -20,6 +20,8 @@ esp32s3 = [
   "iobewi-esp-partitions/esp32s3",
   "iobewi-esp-flash/esp32s3",
 ]
+# Native Workload execution (S19): ESP32-S3 only (second core + fixed RAM region).
+native = ["esp32s3", "dep:esp-hal", "dep:embassy-time", "dep:iobewi-workload-native", "dep:iobewi-workload-abi", "dep:iobewi-workload-image", "esp-hal/esp32s3"]
 
 [dependencies]
 iobewi-workload-ota = { path = "../update" }
@@ -27,5 +29,10 @@ iobewi-update-model = { path = "../../firmware/model" }
 iobewi-ota = { path = "../../firmware/update" }
 iobewi-esp-flash = { path = "../../drivers/flash/esp32", default-features = false }
 iobewi-esp-partitions = { path = "../../drivers/flash/partitions-esp32", default-features = false }
+iobewi-workload-native = { path = "../native", optional = true }
+iobewi-workload-abi = { path = "../abi", optional = true }
+iobewi-workload-image = { path = "../image", optional = true }
+esp-hal = { version = "=1.1.2", default-features = false, features = ["unstable"], optional = true }
+embassy-time = { version = "0.5.0", optional = true }
 embedded-storage = "0.3.1"
 sha2 = { version = "0.10", default-features = false }
