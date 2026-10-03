@@ -97,7 +97,10 @@ def rel(path: Path):
 def known_ids(path: Path, prefix: str):
     if not path.exists():
         return set()
-    return set(re.findall(rf"\b{re.escape(prefix)}-\d{{3}}\b", path.read_text(encoding="utf-8")))
+    text = path.read_text(encoding="utf-8")
+    if prefix == "BG":
+        return set(re.findall(r"\bBG-[A-Z0-9]+(?:-[A-Z0-9]+)*\b", text))
+    return set(re.findall(rf"\b{re.escape(prefix)}-\d{{3}}\b", text))
 
 def agent_text(crate_dir: Path, package: dict, meta: dict, title: str, sec: dict):
     def part(name):
