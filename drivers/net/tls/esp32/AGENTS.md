@@ -56,4 +56,5 @@ ESP32-S3 MbedTLS uses the GCC path because the CMake/clang path mishandles the X
 
 Canonical local documentation: `README.md`.
 Package/features/dependencies: `Cargo.toml`.
-Repository-wide rules: root `AGENTS.md`, `ARCHITECTURE.md`, `INVARIANTS.md`, and referenced contracts/ADRs/gates.
+Repository-wide rules: nearest parent/root `AGENTS.md`, `ARCHITECTURE.md`,
+`INVARIANTS.md`, and referenced contracts/ADRs/gates.
