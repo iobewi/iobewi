@@ -20,7 +20,7 @@ REQUIRED_SECTIONS = [
     "Related components",
 ]
 GLOBAL_MD = [
-    "README.md", "ARCHITECTURE.md", "INVARIANTS.md", "DOCUMENTATION.md",
+    "README.md", "AGENTS.md", "ARCHITECTURE.md", "INVARIANTS.md", "DOCUMENTATION.md",
     "CONTRIBUTING.md",
 ]
 

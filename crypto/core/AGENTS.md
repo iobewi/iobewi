@@ -47,7 +47,7 @@ No additional crate-specific limitation is recorded here beyond the repository c
 
 ## Related components
 
-- [Repository architecture](../../../ARCHITECTURE.md)
+- [Repository architecture](../../ARCHITECTURE.md)
 - [Repository invariants](../../INVARIANTS.md)
 - `Cargo.toml` for package features and dependency facts.
 
