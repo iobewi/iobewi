@@ -1,0 +1,10 @@
+[package]
+name = "iobewi-workload-abi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Binary contract between the Agent and a native Workload: WorkloadContextV1, the control block and the service tables (repr(C), fixed-size types, extern C only; no Rust ABI crosses it)"
+
+[dependencies]

@@ -22,3 +22,5 @@ settings.local.json
 # ESP target workspace build output
 /targets/esp32/target/
 /bootloader/esp/target/
+/examples/workloads/*/target/
+/examples/workloads/*/Cargo.lock

@@ -690,6 +690,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-workload"
+version = "0.1.0"
+dependencies = [
+ "iobewi-workload-abi",
+]
+
+[[package]]
+name = "iobewi-workload-abi"
+version = "0.1.0"
+
+[[package]]
+name = "iobewi-workload-image"
+version = "0.1.0"
+dependencies = [
+ "iobewi-update-model",
+]
+
+[[package]]
+name = "iobewi-workload-native"
+version = "0.1.0"
+dependencies = [
+ "iobewi-update-model",
+ "iobewi-workload-abi",
+ "iobewi-workload-image",
+ "iobewi-workload-ota",
+ "sha2",
+]
+
+[[package]]
 name = "iobewi-workload-ota"
 version = "0.1.0"
 dependencies = [
@@ -714,6 +743,16 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "iobewi-workload-pack"
+version = "0.1.0"
+dependencies = [
+ "iobewi-update-model",
+ "iobewi-workload-abi",
+ "iobewi-workload-image",
  "sha2",
 ]
 

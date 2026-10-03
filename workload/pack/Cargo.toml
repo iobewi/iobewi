@@ -1,0 +1,14 @@
+[package]
+name = "iobewi-workload-pack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Host tool: converts the intermediate ELF of a native Workload into a compact IWNI image (deterministic), validates it with the same gate the loader uses, prints its sizes and SHA-256"
+
+[dependencies]
+iobewi-workload-image = { path = "../image" }
+iobewi-workload-abi = { path = "../abi" }
+iobewi-update-model = { path = "../../firmware/model" }
+sha2 = "0.10"

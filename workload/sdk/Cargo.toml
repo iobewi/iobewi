@@ -1,0 +1,17 @@
+[package]
+name = "iobewi-workload"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe Rust API for native Workloads: wraps the binary WorkloadContextV1 (log, time, control) so application code never touches raw pointers or function tables (no_std, no alloc, no platform)"
+
+[features]
+default = []
+# Provides the #[panic_handler] of a Workload binary: records the fault in the control
+# block (state = FAILED, fault = 1) and parks. Enable it in the Workload crate only.
+panic-handler = []
+
+[dependencies]
+iobewi-workload-abi = { path = "../abi" }

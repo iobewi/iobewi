@@ -1,0 +1,29 @@
+[package]
+name = "iobewi-example-workload-hello"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Native Workload example (ESP32-S3): logs its identity, reads the monotonic clock, reports progress, honours stop. Built separately from the Agent; variants and faults are cargo features."
+
+[features]
+default = []
+# Identity: A is the default, B changes the identity string and the period.
+variant-b = []
+# Faults (validation only).
+fault-ignore-stop = []   # never looks at stop_requested
+fault-panic = []         # panics after a few ticks
+fault-null-jump = []     # jumps to address 0 after a few ticks (hardware exception)
+
+[dependencies]
+iobewi-workload = { path = "../../../workload/sdk", features = ["panic-handler"] }
+
+# Standalone workspace: this crate targets the Workload, not the host workspace.
+[workspace]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false

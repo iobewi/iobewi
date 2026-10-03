@@ -1,0 +1,11 @@
+[package]
+name = "iobewi-workload-image"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native Workload image format (IWNI v1): header encode/decode, target classes and the structural + compatibility gate evaluated before any code is loaded or jumped to (no platform, no loader, no ELF)"
+
+[dependencies]
+iobewi-update-model = { path = "../../firmware/model" }
