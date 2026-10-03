@@ -32,7 +32,7 @@ The Rust items exported by this crate are the code-level API authority. Consumer
 
 ## Invariants
 
-- [INV-001](../../../INVARIANTS.md)
+- [INV-001](../../INVARIANTS.md)
 
 ## Validation
 
@@ -45,5 +45,5 @@ No additional crate-specific limitation is recorded here beyond the repository c
 ## Related components
 
 - [Repository architecture](../../../ARCHITECTURE.md)
-- [Repository invariants](../../../INVARIANTS.md)
+- [Repository invariants](../../INVARIANTS.md)
 - `Cargo.toml` for package features and dependency facts.
