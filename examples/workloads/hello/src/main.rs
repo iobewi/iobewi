@@ -42,9 +42,15 @@ fn main(ctx: &Context) -> i32 {
     let t0 = time.now_us();
     let mut tick = 0u32;
     loop {
-        #[cfg(not(feature = "fault-ignore-stop"))]
+        #[cfg(not(any(feature = "fault-ignore-stop", feature = "fault-log-flood")))]
         if control.stop_requested() {
             break;
+        }
+        #[cfg(feature = "fault-log-flood")]
+        {
+            log.info("flood");
+            control.progress();
+            continue;
         }
         control.progress();
         tick += 1;
@@ -74,8 +80,15 @@ fn main(ctx: &Context) -> i32 {
             unsafe { core::mem::transmute::<usize, extern "C" fn()>(core::hint::black_box(0usize))() };
         }
 
+        // A Workload that ignores stop keeps its own pace (the sleep service would return at
+        // once after a stop request).
+        #[cfg(feature = "fault-ignore-stop")]
+        {
+            let until = time.now_us() + u64::from(PERIOD_MS) * 1000;
+            while time.now_us() < until {}
+        }
+        #[cfg(not(feature = "fault-ignore-stop"))]
         if !time.sleep_ms(PERIOD_MS) {
-            #[cfg(not(feature = "fault-ignore-stop"))]
             break;
         }
     }

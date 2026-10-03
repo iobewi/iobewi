@@ -96,11 +96,14 @@ extern "C" fn svc_log(level: u32, msg: *const u8, len: u32) -> i32 {
     status::OK
 }
 
-/// Drain the Workload's log lines into `sink(level, text)`. Call it periodically from the
-/// Agent (a task every ~100 ms); it never blocks. Also reports dropped lines.
-pub fn drain_logs(mut sink: impl FnMut(u32, &[u8])) {
+/// Drain at most `max_lines` of the Workload's log lines into `sink(level, text)`. Call it
+/// periodically from the Agent (a task every ~100 ms). It is **bounded**: a Workload that logs
+/// in a tight loop can neither starve the Agent's executor (the ring is finite and the drain
+/// stops after `max_lines`) nor flood the Agent's log (excess lines are dropped by the ring and
+/// reported once as a count).
+pub fn drain_logs(max_lines: usize, mut sink: impl FnMut(u32, &[u8])) {
     let ring = RING.0.get().cast::<u8>();
-    loop {
+    for _ in 0..max_lines {
         let tail = RING_TAIL.load(Ordering::Relaxed);
         let head = RING_HEAD.load(Ordering::Acquire);
         if head == tail {
@@ -121,7 +124,7 @@ pub fn drain_logs(mut sink: impl FnMut(u32, &[u8])) {
     }
     let dropped = RING_DROPPED.swap(0, Ordering::Relaxed);
     if dropped > 0 {
-        sink(2, b"workload log: lines dropped (ring full)");
+        sink(2, b"workload log: lines dropped (ring full or rate-limited)");
     }
 }
 

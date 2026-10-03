@@ -12,6 +12,7 @@ default = []
 variant-b = []
 # Faults (validation only).
 fault-ignore-stop = []   # never looks at stop_requested
+fault-log-flood = []     # logs in a tight loop and ignores stop (Agent must stay alive)
 fault-panic = []         # panics after a few ticks
 fault-null-jump = []     # jumps to address 0 after a few ticks (hardware exception)
 

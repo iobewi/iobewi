@@ -42,6 +42,7 @@ build native-a ""
 build native-b "variant-b"
 # Valid image, bad behaviour (fault tests).
 build native-a-ignore-stop "fault-ignore-stop"
+build native-a-log-flood "fault-log-flood"
 build native-a-panic "fault-panic"
 build native-a-null-jump "fault-null-jump"
 # Hostile images: the gate must refuse them before any byte is loaded or executed.
