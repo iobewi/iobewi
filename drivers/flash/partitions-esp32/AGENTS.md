@@ -1,0 +1,60 @@
+# Agent Context — iobewi-esp-partitions
+
+<!-- GENERATED FILE — DO NOT EDIT. Source: README.md -->
+
+- Package: `iobewi-esp-partitions`
+- Path: `drivers/flash/partitions-esp32`
+- Layer: `portable-service`
+- Status: `implemented`
+
+## Role
+
+Policy-free ESP-IDF partition table and raw partition helpers
+
+## Owns
+
+- Own the capability, policy or platform mechanism described in the summary.
+- Keep that responsibility inside the `portable-service` layer.
+
+## Does not own
+
+- Does not access a platform HAL directly.
+- Does not own product/application composition beyond this crate's stated contract.
+
+## Architecture position
+
+This crate lives at `drivers/flash/partitions-esp32` and is classified as **portable-service**. It must preserve the portable-to-platform dependency direction.
+
+## Public contracts
+
+The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+
+## Invariants
+
+- [INV-001](../../../INVARIANTS.md)
+- [INV-020](../../../INVARIANTS.md)
+
+## Modification context
+
+See the canonical README and implementation.
+
+## Required validation
+
+- `BG-STORAGE`
+- `BG-ESP-S3`
+
+## Known limitations
+
+No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+
+## Related components
+
+- [Repository architecture](../../../ARCHITECTURE.md)
+- [Repository invariants](../../../INVARIANTS.md)
+- `Cargo.toml` for package features and dependency facts.
+
+---
+
+Canonical local documentation: `README.md`.
+Package/features/dependencies: `Cargo.toml`.
+Repository-wide rules: nearest parent/root `AGENTS.md`, `ARCHITECTURE.md`, `INVARIANTS.md`, and referenced contracts/ADRs/gates.
