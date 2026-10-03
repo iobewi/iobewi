@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""IOBEWI documentation validator/generator.
-
-No third-party Python package is required for audit/generate/check/site-source generation.
-MkDocs itself is only required to render the generated site.
-"""
+"""IOBEWI single-source documentation validator/generator."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +11,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-GENERATED_INDEX = ROOT / "docs/generated/agent-index.json"
+GENERATED = ROOT / ".generated"
+GENERATED_INDEX = GENERATED / "agent-index.json"
 GEN_MARKER = "<!-- GENERATED FILE — DO NOT EDIT. Source: README.md -->"
 REQUIRED_SECTIONS = [
     "Summary", "Responsibilities", "Non-responsibilities", "Architecture",
@@ -39,9 +36,8 @@ def crates():
     for cargo in cargo_files():
         doc = load_toml(cargo)
         package = doc.get("package")
-        if not package:
-            continue
-        out.append((cargo.parent, package))
+        if package:
+            out.append((cargo.parent, package))
     return out
 
 def parse_front_matter(text: str):
@@ -50,10 +46,8 @@ def parse_front_matter(text: str):
     end = text.find("\n---\n", 4)
     if end < 0:
         raise ValueError("unterminated front matter")
-    raw = text[4:end]
-    data = {}
-    current = None
-    for line in raw.splitlines():
+    data, current = {}, None
+    for line in text[4:end].splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         m = re.match(r"^([A-Za-z0-9_-]+):(?:\s*(.*))?$", line)
@@ -77,10 +71,7 @@ def parse_front_matter(text: str):
     return data, text[end + 5:]
 
 def sections(body: str):
-    result = {}
-    title = None
-    current = None
-    buf = []
+    result, title, current, buf = {}, None, None, []
     for line in body.splitlines():
         if line.startswith("# ") and title is None:
             title = line[2:].strip()
@@ -88,8 +79,7 @@ def sections(body: str):
         if line.startswith("## "):
             if current is not None:
                 result[current] = "\n".join(buf).strip()
-            current = line[3:].strip()
-            buf = []
+            current, buf = line[3:].strip(), []
         elif current is not None:
             buf.append(line)
     if current is not None:
@@ -97,8 +87,7 @@ def sections(body: str):
     return title, result
 
 def parse_readme(path: Path):
-    text = path.read_text(encoding="utf-8")
-    meta, body = parse_front_matter(text)
+    meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
     title, sec = sections(body)
     return meta, title, sec
 
@@ -111,8 +100,8 @@ def known_ids(path: Path, prefix: str):
     return set(re.findall(rf"\b{re.escape(prefix)}-\d{{3}}\b", path.read_text(encoding="utf-8")))
 
 def agent_text(crate_dir: Path, package: dict, meta: dict, title: str, sec: dict):
-    def part(name, fallback=""):
-        return sec.get(name, fallback).strip()
+    def part(name):
+        return sec.get(name, "").strip()
     context = []
     for name in ("Data flow", "Lifecycle"):
         if part(name):
@@ -175,16 +164,23 @@ Repository-wide rules: nearest parent/root `AGENTS.md`, `ARCHITECTURE.md`,
 `INVARIANTS.md`, and referenced contracts/ADRs/gates.
 """
 
-def build_outputs():
+def build_agent_outputs():
     outputs = {}
-    index = []
     for crate_dir, package in crates():
         readme = crate_dir / "README.md"
         if not readme.exists():
             continue
         meta, title, sec = parse_readme(readme)
-        agent = agent_text(crate_dir, package, meta, title, sec)
-        outputs[crate_dir / "AGENTS.md"] = agent
+        outputs[crate_dir / "AGENTS.md"] = agent_text(crate_dir, package, meta, title, sec)
+    return outputs
+
+def build_index():
+    index = []
+    for crate_dir, package in crates():
+        readme = crate_dir / "README.md"
+        if not readme.exists():
+            continue
+        meta, title, _ = parse_readme(readme)
         index.append({
             "path": rel(crate_dir),
             "package": package["name"],
@@ -196,13 +192,12 @@ def build_outputs():
             "readme": rel(readme),
             "agents": rel(crate_dir / "AGENTS.md"),
         })
-    outputs[GENERATED_INDEX] = json.dumps({"schema": 1, "crates": index}, indent=2, sort_keys=False) + "\n"
-    return outputs
+    return json.dumps({"schema": 1, "crates": index}, indent=2) + "\n"
 
 def validate():
     errors = []
     inv = known_ids(ROOT / "INVARIANTS.md", "INV")
-    gate = known_ids(ROOT / "docs/validation/baseline-gates.md", "BG")
+    gates = known_ids(ROOT / "docs/validation/baseline-gates.md", "BG")
     found = crates()
     for crate_dir, package in found:
         readme = crate_dir / "README.md"
@@ -226,7 +221,7 @@ def validate():
             if item not in inv:
                 errors.append(f"{rel(readme)}: unknown invariant {item}")
         for item in meta.get("gates", []):
-            if item not in gate:
+            if item not in gates:
                 errors.append(f"{rel(readme)}: unknown gate {item}")
     return errors, found
 
@@ -236,28 +231,30 @@ def cmd_audit(_):
     for crate_dir, package in found:
         state = "README" if (crate_dir / "README.md").exists() else "MISSING"
         print(f"{rel(crate_dir):45} {package['name']:34} {state}")
-    if errors:
-        print(f"validation_errors={len(errors)}")
+    print(f"validation_errors={len(errors)}")
 
 def cmd_generate(_):
     errors, _ = validate()
-    # Allow generation when only generated files are stale, but not malformed/missing README.
     fatal = [e for e in errors if "missing README.md" in e or "front-matter" in e or "missing section" in e]
     if fatal:
         print("\n".join(fatal), file=sys.stderr)
         raise SystemExit(1)
-    for path, content in build_outputs().items():
-        path.parent.mkdir(parents=True, exist_ok=True)
+    for path, content in build_agent_outputs().items():
         path.write_text(content, encoding="utf-8")
+    GENERATED.mkdir(parents=True, exist_ok=True)
+    GENERATED_INDEX.write_text(build_index(), encoding="utf-8")
 
 def cmd_check(_):
     errors, found = validate()
-    expected = build_outputs() if not any("missing README.md" in e for e in errors) else {}
-    for path, content in expected.items():
-        if not path.exists():
-            errors.append(f"{rel(path)}: generated file missing")
-        elif path.read_text(encoding="utf-8") != content:
-            errors.append(f"{rel(path)}: generated file stale; run docs_tool.py generate")
+    if not any("missing README.md" in e for e in errors):
+        for path, content in build_agent_outputs().items():
+            if not path.exists():
+                errors.append(f"{rel(path)}: generated file missing")
+            elif path.read_text(encoding="utf-8") != content:
+                errors.append(f"{rel(path)}: generated file stale; run docs_tool.py generate")
+    # Building the index is part of validation: failures here expose malformed metadata.
+    if not errors:
+        json.loads(build_index())
     if errors:
         for e in errors:
             print(e, file=sys.stderr)
@@ -266,39 +263,32 @@ def cmd_check(_):
 
 def copy_page(src: Path, dst: Path):
     dst.parent.mkdir(parents=True, exist_ok=True)
-    text = src.read_text(encoding="utf-8")
-    # MkDocs should render the canonical Markdown content, including its metadata.
-    dst.write_text(text, encoding="utf-8")
+    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
 
 def cmd_site(_):
-    out = ROOT / ".generated/docs-site"
+    out = GENERATED / "docs-site"
     if out.exists():
         shutil.rmtree(out)
     content = out / "content"
     content.mkdir(parents=True)
-    nav = []
     for name in GLOBAL_MD:
         src = ROOT / name
         if src.exists():
             copy_page(src, content / name)
-            nav.append({src.stem.replace("-", " ").title(): name})
-    # Global docs retain their repository layout.
     docs_root = ROOT / "docs"
     if docs_root.exists():
         for src in sorted(docs_root.rglob("*.md")):
-            if "generated" in src.parts or "templates" in src.parts:
+            if "templates" in src.parts:
                 continue
-            target = content / src.relative_to(ROOT)
-            copy_page(src, target)
-    # Crate docs mirror the repository tree.
+            copy_page(src, content / src.relative_to(ROOT))
     for crate_dir, package in crates():
         readme = crate_dir / "README.md"
-        if not readme.exists():
-            continue
-        target = content / crate_dir.relative_to(ROOT) / "index.md"
-        copy_page(readme, target)
+        if readme.exists():
+            copy_page(readme, content / crate_dir.relative_to(ROOT) / "index.md")
+    GENERATED.mkdir(parents=True, exist_ok=True)
+    GENERATED_INDEX.write_text(build_index(), encoding="utf-8")
     cfg = """site_name: IOBEWI
-site_description: IOBEWI framework documentation generated from canonical repository Markdown
+site_description: IOBEWI documentation generated from canonical repository Markdown
 docs_dir: content
 site_dir: site
 use_directory_urls: true
@@ -311,12 +301,12 @@ plugins:
     print(out / "mkdocs.yml")
 
 def main():
-    p = argparse.ArgumentParser()
-    sub = p.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
     for name, fn in (("audit", cmd_audit), ("generate", cmd_generate), ("check", cmd_check), ("site", cmd_site)):
-        sp = sub.add_parser(name)
-        sp.set_defaults(func=fn)
-    args = p.parse_args()
+        cmd = sub.add_parser(name)
+        cmd.set_defaults(func=fn)
+    args = parser.parse_args()
     args.func(args)
 
 if __name__ == "__main__":

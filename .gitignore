@@ -1,6 +1,9 @@
 # Build output
 /target/
 
+# Generated documentation/index/site
+/.generated/
+
 # Rust
 **/*.rs.bk
 *.pdb
