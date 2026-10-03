@@ -7,20 +7,98 @@ hardware.
 
 The current validated hardware baseline is **ESP32-S3**.
 
-## Architecture
+## Architecture at a glance
 
-IOBEWI separates portable contracts and services from platform implementations. The
-portable layers define capabilities, policies and reusable services; platform adapters
-and drivers bind those abstractions to a concrete target such as ESP32-S3.
+```text
+IOBEWI
+│
+├── portable contracts and services
+│   ├── net/
+│   │   ├── io
+│   │   ├── http
+│   │   ├── tls
+│   │   └── wifi
+│   ├── fs/
+│   │   └── config
+│   ├── crypto/
+│   ├── log/
+│   ├── time/
+│   └── firmware/
+│       ├── model
+│       ├── image
+│       ├── slots
+│       ├── boot
+│       └── update
+│
+├── native Workload model
+│   └── workload/
+│       ├── sdk
+│       ├── abi
+│       ├── image
+│       ├── native
+│       ├── update
+│       ├── http
+│       └── pack
+│
+├── platform implementations
+│   ├── arch/
+│   ├── drivers/
+│   ├── fs/nvs/
+│   ├── firmware/esp32
+│   └── workload/esp32
+│
+└── platform composition
+    ├── targets/
+    └── bootloader/
+```
 
-Applications consume IOBEWI through portable APIs and should not require a platform HAL
-type to use framework services.
+The dependency direction is deliberate:
+
+```text
+application / resident supervisor
+            │
+            v
+      IOBEWI portable API
+            │
+            v
+      services / policies
+            │
+            v
+      platform adapters
+            │
+            v
+          hardware
+```
+
+Portable crates define capabilities and policy. Platform crates implement those
+capabilities. Application code should not require a platform HAL type to consume an
+IOBEWI service.
 
 ## Native Workloads
 
-An IOBEWI Workload is a **native Rust binary compiled for its hardware target**. It is
-built against the IOBEWI Workload SDK, packaged as an IWNI image, then validated and
-executed by NativeRuntime through the platform Workload backend.
+An IOBEWI Workload is a **native Rust binary compiled for its hardware target**.
+
+```text
+Workload source
+      │
+      v
+iobewi-workload SDK
+      │
+      v
+target-specific native binary
+      │
+      v
+IWNI image
+      │
+      v
+NativeRuntime
+      │
+      v
+platform Workload backend
+      │
+      v
+hardware
+```
 
 The Workload uses the services and capabilities exposed through the IOBEWI Workload
 contract instead of depending directly on the platform HAL.
