@@ -85,6 +85,9 @@ pub enum ServiceError {
     RollbackFailed,
     /// The slot no longer matches the staged digest; the candidate was discarded.
     CandidateCorrupted,
+    /// The runtime refuses this artifact (wrong target, unknown format, out of budget...).
+    /// Nothing was persisted or stopped: the candidate stays `Staged`.
+    ImageRejected(&'static str),
     /// The confirmed candidate is not what the supervisor is running.
     NotRunning,
     /// The running candidate does not report `Healthy`.

@@ -317,6 +317,10 @@ pub fn error_response(error: &ServiceError) -> JsonResponse {
             StatusCode::NOT_IMPLEMENTED,
             "{\"error\":\"supervisor_unavailable\"}",
         ),
+        ImageRejected(reason) => json_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            &format!("{{\"error\":\"image_rejected\",\"reason\":\"{reason}\"}}"),
+        ),
         TransitionInProgress => json_error(StatusCode::CONFLICT, "{\"error\":\"transition_in_progress\"}"),
         ActivationFailed => json_error(
             StatusCode::INTERNAL_SERVER_ERROR,

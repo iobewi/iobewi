@@ -1,0 +1,23 @@
+[package]
+name = "iobewi-workload-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "NativeRuntime: the portable policy that validates, loads, starts, stops and observes a native Workload image through a platform NativeBackend (no HTTP, no OTM1/OTM2 writes, no platform)"
+
+[features]
+default = []
+# Exposes the in-memory backend used by this crate's tests and by dependants' host tests.
+test-util = []
+
+[dependencies]
+iobewi-workload-ota = { path = "../update" }
+iobewi-workload-image = { path = "../image" }
+iobewi-workload-abi = { path = "../abi" }
+iobewi-update-model = { path = "../../firmware/model" }
+
+[dev-dependencies]
+iobewi-workload-ota = { path = "../update", features = ["test-util"] }
+sha2 = { version = "0.10", default-features = false }

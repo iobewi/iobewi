@@ -82,6 +82,13 @@ pub trait ArtifactReader {
 /// zombie task), and both are idempotent.
 #[allow(async_fn_in_trait)]
 pub trait WorkloadRuntime {
+    /// Can this runtime run `artifact`? Called by `activate` *before* anything is persisted
+    /// or stopped, so a refusal leaves the candidate `Staged` and the active Workload
+    /// untouched. Must have no side effect (no load, no execution). The default accepts
+    /// everything (the S18 probe).
+    async fn preflight<R: ArtifactReader>(&self, _artifact: &Identity, _reader: &R) -> Result<(), RuntimeError> {
+        Ok(())
+    }
     async fn start<R: ArtifactReader>(&self, artifact: &Identity, reader: &R) -> Result<(), RuntimeError>;
     async fn stop(&self);
     async fn health(&self) -> Health;
@@ -240,9 +247,15 @@ impl<A: FlashAccess, R: WorkloadRuntime> WorkloadSupervisor<A, R> {
             Err(_) => return Err(ServiceError::Storage),
         }
 
+        let identity = identity_of(&record, candidate);
+        // The runtime may refuse this artifact (wrong target, unknown format...): nothing
+        // has been persisted or stopped yet, so the candidate simply stays Staged.
+        if let Err(e) = self.runtime.preflight(&identity, &SlotReader { flash, slot: candidate }).await {
+            return Err(ServiceError::ImageRejected(e.reason));
+        }
+
         flash.begin_activation(self.service.provided_runtime_api()).await.map_err(storage_error)?;
         self.runtime.stop().await; // one Workload at a time: stop the old one first
-        let identity = identity_of(&record, candidate);
         match self.runtime.start(&identity, &SlotReader { flash, slot: candidate }).await {
             Ok(()) => flash.complete_activation().await.map_err(storage_error),
             Err(_) => match self.rollback_inner(flash).await {
