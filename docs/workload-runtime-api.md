@@ -91,6 +91,55 @@ but it gets no cleanup. A panic (SDK `panic-handler`) sets `fault=1`, `state=FAI
 itself; the Agent halts the core on its next sample and the Supervisor sees `Unhealthy`/`NotRunning`
 (confirmation refused, rollback possible).
 
+## Failure semantics (S20)
+
+*Invariant: Agent bootability > Workload availability.* A Workload failure never rewrites OTM2 and
+never needs physical access to recover from.
+
+| failure | what happens | Agent | Workload state |
+|---|---|---|---|
+| panic (SDK handler) | `FAILED`, runtime halts its core on the next sample | up | `Unhealthy`, not running |
+| entry point returns | `STOPPED`, core halted | up | `Unhealthy`, not running |
+| hardware fault on the Workload core (e.g. jump to 0) | the core stops, `state` stays `RUNNING`, `progress` freezes → `Unhealthy` after 3 s, **quarantined** (core halted) after 10 s more | up (measured) | `Unhealthy`, then not running |
+| wedged loop | same as above | up | `Unhealthy`, then quarantined |
+| ignores a stop request | forced halt after 1.5 s, `StopTimeout` logged | up | stopped |
+| takes the whole chip down (reset, corrupted Agent memory) | **crash-loop guard**, below | boots every time | auto-start suppressed after 3 unclean starts |
+
+`confirm` is refused for any of these (`workload_not_running` / `workload_unhealthy`); a running
+Workload is only ever called `Valid` after it was really healthy. Recovery is an ordinary
+`upload → activate → confirm` of a replacement: stopping a quarantined Workload is a no-op
+(`AlreadyHalted`, not a `StopTimeout`).
+
+### Crash-loop guard (boot)
+
+Only a *whole-chip* reset can loop: a fault on the Workload core does not reset the Agent (measured
+on hardware). The guard counts unclean auto-starts in RTC fast RAM (`iobewi-workload-native::boot_guard`):
+
+1. deliberate reboots (`/reboot`, Agent OTA) set a "clean" flag first → the next boot starts with a
+   fresh counter;
+2. every other boot increments the counter before auto-starting the Workload;
+3. after **3** consecutive unclean starts the Workload is **not auto-started**: the Agent boots,
+   serves HTTP, the Workload stays `Valid` in OTM2 but does not run (log: `auto-start SUPPRESSED`);
+4. a Workload that stays Healthy for **30 s** clears the counter.
+
+The state survives resets, not a power cycle (a power cycle forgets and gives one more try). It is
+**not** in OTM2 (formats unchanged). Limit: it protects availability of the Agent, not the Workload
+(a defective Workload stays suppressed until replaced, or the device is power-cycled/rebooted on
+purpose).
+
+## Runtime roles
+
+| runtime | role | selected by |
+|---|---|---|
+| `NativeRuntime` | **the** production runtime: native IWNI images | default feature `workload-native` |
+| `ProbeRuntime` | test backend only: lifecycle/fault tests with `S18PROBE` artefacts (a validation artefact, not a Workload format) | `--no-default-features --features test-probe-runtime` |
+| none | an Agent with no Workload runtime (activate/confirm/rollback answer 501) | `--no-default-features` |
+
+`workload-native` and `test-probe-runtime` cannot coexist (explicit `compile_error!`;
+`scripts/check-feature-matrix.sh` checks every combination). The route
+`POST /v1alpha1/workload/ota/test/corrupt-candidate` (post-staging corruption for hardware tests)
+exists only in an image built with `test-fault-injection`; a production build answers 404.
+
 ## Ownership (ESP32-S3)
 
 | thing | owner | placement |

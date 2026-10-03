@@ -14,7 +14,7 @@ WorkloadSupervisor<A, R>          execution state + orchestration     (iobewi-wo
    │  persists via                    │  drives
    ▼                                  ▼
 WorkloadOtaService / OTM2         WorkloadRuntime (trait)  ◄── stable boundary
-(persistent state, flash)            ├─ ProbeRuntime  (S18, feature `workload-supervisor-probe`, validation only)
+(persistent state, flash)            ├─ ProbeRuntime  (S18, feature `test-probe-runtime`, test backend only)
                                      └─ future real runtime (not decided here)
 ```
 
@@ -30,14 +30,16 @@ WorkloadOtaService / OTM2         WorkloadRuntime (trait)  ◄── stable boun
 
 | Stable (survives the real runtime) | Temporary (S18 only) |
 |---|---|
-| OTM2 states and transitions | `ProbeRuntime` and its `S18PROBE` header |
+| OTM2 states and transitions | `ProbeRuntime` and its `S18PROBE` header (kept as the **test backend**; the production runtime is `NativeRuntime`, see `workload-runtime-api.md`) |
 | `WorkloadRuntime` trait: `start/stop/health/running` | Fault injection (feature-gated, off by default) |
 | `Health { Healthy, Unhealthy, Unknown }` | Counter-based health |
 | Boot reconciliation rules | |
 | `RUNTIME_API` single source (`src/workload.rs` in the Agent) | |
 
-The probe header is **not an ABI**. Production images (no `workload-supervisor-probe`)
-have no supervisor: activate/confirm/rollback answer `501 supervisor_unavailable`.
+The probe header is **not an ABI**, and since S20 the probe is built only with
+`--no-default-features --features test-probe-runtime`. The default Agent runs `NativeRuntime`; an
+Agent built with `--no-default-features` has no supervisor (activate/confirm/rollback answer
+`501 supervisor_unavailable`).
 
 ## State machine (OTM2 × Supervisor)
 
@@ -88,3 +90,20 @@ cannot satisfy the active Workload's required API. It is checked in `main.rs` be
 
 `none, fail-start, freeze, health-fail, reset-on-start, reset-on-stop`, selected by the artifact
 header (`scripts/test-workload-ota.sh mkprobe`).
+
+## Open debt: duplicated NOR region helpers (audited in S20)
+
+Three near-identical pieces exist, in three crates:
+
+| piece | crate |
+|---|---|
+| `nor::erase_range` + `NorSlot` (Workload slot writer, `NorError<E>`, `Region`) | `iobewi-workload-ota` (portable) |
+| `iobewi_esp_partitions::erase_range` (`PartitionError`, `PartitionRange`) | `iobewi-esp-partitions` (ESP) |
+| `erase_partition_range` + `EspArtifactStorage` (Agent OTA slot writer, `FlashWriteError`, `AppPartition`) | `iobewi-esp-firmware` (ESP) |
+
+They have the same arithmetic and the same erase semantics but different error types and region
+types. Removing the duplication mechanically needs a new *portable* crate (generic erase range +
+sector writer over `embedded-storage`, error generic over the flash error) that both ESP crates
+and the Workload engine would depend on; `EspArtifactStorage` is the Agent OTM1 write path,
+qualified on hardware since S0. That is not a local, risk-free change (it crosses three crates and
+re-qualifies the Agent OTA path), so it is deliberately left open; no behaviour differs today.
