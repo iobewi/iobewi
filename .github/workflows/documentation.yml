@@ -1,0 +1,30 @@
+name: documentation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  knowledge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check canonical and generated documentation
+        run: python3 tools/docs/docs_tool.py check
+
+      - name: Generate site source
+        run: python3 tools/docs/docs_tool.py site
+
+      - name: Install MkDocs
+        run: python3 -m pip install --disable-pip-version-check "mkdocs==1.6.1"
+
+      - name: Build static documentation site
+        run: mkdocs build --strict -f .generated/docs-site/mkdocs.yml
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iobewi-documentation-site
+          path: .generated/docs-site/site
