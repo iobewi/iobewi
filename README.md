@@ -122,30 +122,6 @@ IOBEWI defines two independent update domains:
 The two lifecycles share reusable transaction concepts but remain independent. A remote
 control plane selects a logical artifact, not a physical A/B slot.
 
-## Repository layout
-
-```text
-arch/        CPU/SoC and architecture-specific primitives
-bootloader/  platform boot executables
-crypto/      crypto contracts and implementations
-drivers/     hardware capability implementations
-firmware/    firmware model, image, boot and update logic
-fs/          configuration and persistence
-log/         local capture and outbound streaming
-net/         IO, HTTP, TLS and Wi-Fi
-time/        clock state and synchronization
-workload/    native Workload ABI, SDK, image, runtime and OTA
-targets/     platform workspaces and build composition
-examples/    validation/example Workloads
-docs/        contracts, decisions, validation and project knowledge
-```
-
-Each crate owns its local `README.md`, which is the canonical semantic documentation
-for that crate. Its `AGENTS.md` and the human documentation site are generated from the
-same source.
-
-See [DOCUMENTATION.md](DOCUMENTATION.md) for the documentation model.
-
 ## Architectural constraints
 
 - Portable code must not depend on platform HAL implementations.
