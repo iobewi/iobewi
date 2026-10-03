@@ -27,6 +27,8 @@ FLAGS="$FLAGS --remap-path-prefix=$SYSROOT/lib/rustlib/src/rust=/build/rust-src"
 [ -n "${CARGO_HOME:-}" ] && FLAGS="$FLAGS --remap-path-prefix=$CARGO_HOME=/build/cargo"
 export CARGO_TARGET_XTENSA_ESP32S3_NONE_ELF_RUSTFLAGS="$FLAGS"
 export SOURCE_DATE_EPOCH=1767225600
+# The ELF is read from here: do not inherit a CARGO_TARGET_DIR from the environment.
+export CARGO_TARGET_DIR="$HERE/hello/target"
 
 PACK="cargo run -q --manifest-path $ROOT/Cargo.toml -p iobewi-workload-pack --"
 ELF="$HERE/hello/target/xtensa-esp32s3-none-elf/release/iobewi-example-workload-hello"
