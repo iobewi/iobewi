@@ -1,0 +1,128 @@
+# Workload runtime API and ABI (v1)
+
+What a native Workload may rely on, and what the Agent guarantees. Crates:
+`iobewi-workload-abi` (the binary contract), `iobewi-workload` (the safe Rust API over it),
+`iobewi-workload-native` (the runtime policy), `iobewi-esp-workload::native` (ESP32-S3 backend).
+
+```text
+workload application (Rust, no_std)
+        |  safe API: Context, Logger, Time, Control            iobewi-workload
+        v
+binary contract: WorkloadContextV1 + service tables, repr(C)    iobewi-workload-abi
+        v
+Agent-provided services (log ring, monotonic clock, control block)
+
+Agent side:  WorkloadSupervisor -> NativeRuntime -> image gate/loader -> native entry
+```
+
+## No Rust ABI crosses the boundary
+
+Forbidden between the Agent and a Workload binary: `dyn Trait`, references, `Box`, `String`,
+`Vec`, Rust enums, `Future`, Rust-ABI functions, Embassy types. Allowed: `repr(C)` structs of
+fixed-size integers and `AtomicU32`, explicit pointers (32-bit on every defined target), `extern
+"C"` function pointers with integer/pointer arguments, `i32` status codes. Agent and Workload
+may be built with different toolchains.
+
+## Entry point
+
+```c
+int32_t workload_entry(const WorkloadContextV1 *ctx);   // extern "C", 4-aligned
+```
+Returns `0` for a clean stop. The Workload discovers services only through `ctx`; there are no
+global Agent symbols, no dynamic linking, no magic addresses. `ctx` is valid for the whole
+execution and must not be modified or freed.
+
+## `WorkloadContextV1` (32-bit pointers, 40 bytes, align 4)
+
+| offset | size | field | |
+|---:|---:|---|---|
+| 0 | 4 | `size` | `sizeof(WorkloadContextV1)`, lets a newer Workload detect an older Agent |
+| 4 | 4 | `abi_version` | `1` |
+| 8 | 2 | `runtime_api_major` | what the Agent provides |
+| 10 | 2 | `runtime_api_minor` | |
+| 12 | 4 | `flags` | reserved, 0 |
+| 16 | 4 | `control` | `*const ControlBlockV1` |
+| 20 | 8 | `log` | `LogServiceV1 { u32 size; write }` |
+| 28 | 12 | `time` | `TimeServiceV1 { u32 size; monotonic_us; sleep_us }` |
+
+Offsets are asserted at compile time on 32-bit targets and by host tests (`iobewi-workload-abi`).
+
+## `ControlBlockV1` (32 bytes, align 4, all `AtomicU32`)
+
+| offset | field | written by | meaning |
+|---:|---|---|---|
+| 0 | `size` | Agent | 32 |
+| 4 | `abi_version` | Agent | 1 |
+| 8 | `state` | both | `1` STARTING (Agent) → `2` RUNNING (Workload, on entry) → `3` STOPPED (entry returned) / `4` FAILED (panic) |
+| 12 | `stop_requested` | Agent | non-zero: please return from the entry point |
+| 16 | `progress` | Workload | proof-of-life counter; health = it advances |
+| 20 | `exit_code` | Workload | the entry point's return value |
+| 24 | `fault` | Workload | `0` none, `1` panic |
+| 28 | `reserved` | | |
+
+## Services (calling convention: C ABI, integer/pointer arguments, `i32` status)
+
+| service | signature | cost (ESP32-S3 backend) |
+|---|---|---|
+| `log.write` | `i32 (u32 level, const u8 *msg, u32 len)` | copy ≤ 120 B into a 2 KiB SPSC ring (≈ 100 ns); the Agent drains it every 100 ms into its logger |
+| `time.monotonic_us` | `i32 (u64 *out)` | one SYSTIMER read |
+| `time.sleep_us` | `i32 (u32 us)` | busy-wait on the Workload core; returns `STOP_REQUESTED` as soon as a stop is requested |
+| control | direct atomic access to `ControlBlockV1` | one atomic op |
+
+Status codes: `0` OK, `-1` INVALID, `-2` STOP_REQUESTED, `-3` UNSUPPORTED. Levels: 1 error, 2 warn,
+3 info, 4 debug. Time is a monotonic microsecond counter since boot, independent of NTP. Strings
+are `pointer + length`, UTF-8, not NUL-terminated; the Rust façade takes `&str`.
+No service allocates; the contract needs no `alloc`.
+
+## Lifecycle and supervision
+
+```text
+activate : preflight (gate)  -> persist Activating -> stop old -> start new -> PendingConfirmation
+start    : gate -> halt previous -> clear region -> copy code/data -> control = STARTING
+           -> launch on the second core -> wait for RUNNING (1 s) -> Ok
+health   : RUNNING and `progress` moved within 3 s => Healthy; FAILED/STOPPED/frozen => Unhealthy
+stop     : stop_requested=1 -> wait up to 1.5 s for the entry point to return (cooperative)
+           -> otherwise the Workload core is parked (forced, "StopTimeout" is logged) -> no
+              Workload instruction runs afterwards
+running  : the identity (digest) of what was loaded, only while STARTING/RUNNING
+```
+The stop is **cooperative first, forced second**; a Workload that ignores it cannot keep running,
+but it gets no cleanup. A panic (SDK `panic-handler`) sets `fault=1`, `state=FAILED` and parks
+itself; the Agent halts the core on its next sample and the Supervisor sees `Unhealthy`/`NotRunning`
+(confirmation refused, rollback possible).
+
+## Ownership (ESP32-S3)
+
+| thing | owner | placement |
+|---|---|---|
+| code, rodata, data, bss | the Workload image, loaded by the Agent | the 32 KiB Workload region (fixed address) |
+| stack | the Agent allocates it for the Workload core | 8 KiB static |
+| `WorkloadContextV1`, service tables | Agent, immutable while running | Agent static |
+| `ControlBlockV1` | Agent memory, shared atomics | Agent static |
+| log ring | Agent memory, producer = Workload core | Agent static, 2 KiB |
+| heap | none: the Workload has no allocator | |
+
+Budget of the POC: 20 KiB code, 12 KiB data+bss, 8 KiB stack. The Workload cannot use "all the RAM
+of the Agent" *by contract*; see Isolation for what is not enforced.
+
+## Isolation — what is and is not protected
+
+**Protected:** integrity of the stored image (SHA-256 re-checked before every start); a wrong
+target/ABI/API/format/bounds/entry never reaches executable memory; the Agent's executor is never
+blocked (the Workload runs on the other core); a Workload can always be stopped (cooperative, then
+parked); flash writes park the Workload core so it never fetches from a switched-off flash cache.
+
+**Not protected:** this is the **trusted native Workload model**. Nothing (no MPU/PMS configuration)
+prevents a Workload from reading or writing any Agent memory, peripheral or flash register. The
+SHA-256 guarantees integrity, **not harmlessness**. A hardware fault on the Workload core (illegal
+instruction, bad pointer) is handled by the Agent's exception handler, whose policy is to reset the
+chip. Do not call this process isolation. A future step may add memory-protection capabilities.
+Signatures are not part of S19.
+
+## Evolution
+
+Add services as new `*ServiceV1`-style tables and grow `WorkloadContextV1` (bump the `size`; a
+Workload checks `ctx.size`); raise `RuntimeApi.minor`. Hardware capabilities (GPIO, I²C, SPI, I²S,
+network) will be new handles in the context, possibly backed by a fast dedicated path rather than a
+call into the Agent; none exist in S19. Preemption, a dedicated core and hard-real-time IRQs are not
+precluded by this contract and not implemented.
