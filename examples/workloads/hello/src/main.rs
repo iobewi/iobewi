@@ -71,7 +71,7 @@ fn main(ctx: &Context) -> i32 {
         if tick == 8 {
             // SAFETY (deliberately violated): a jump to address 0 raises an
             // instruction-fetch exception, to observe how the Agent copes.
-            unsafe { core::mem::transmute::<usize, extern "C" fn()>(0)() };
+            unsafe { core::mem::transmute::<usize, extern "C" fn()>(core::hint::black_box(0usize))() };
         }
 
         if !time.sleep_ms(PERIOD_MS) {

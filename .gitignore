@@ -23,4 +23,3 @@ settings.local.json
 /targets/esp32/target/
 /bootloader/esp/target/
 /examples/workloads/*/target/
-/examples/workloads/*/Cargo.lock

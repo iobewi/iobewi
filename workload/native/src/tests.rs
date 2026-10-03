@@ -124,6 +124,7 @@ fn a_workload_that_ignores_stop_is_halted_after_the_grace_period() {
     let before = s.runtime().backend().now_ms();
     block_on(iobewi_workload_ota::supervisor::WorkloadRuntime::stop(s.runtime()));
     assert_eq!(s.runtime().last_stop(), StopOutcome::Forced, "StopTimeout is reported");
+    assert_eq!(s.runtime().forced_stops(), 1);
     assert!(!s.runtime().backend().executing(), "no Workload code runs after stop");
     assert!(s.runtime().backend().now_ms() - before >= 1_500, "the grace period was honoured");
     assert!(s.runtime().backend().halts.get() >= 1);

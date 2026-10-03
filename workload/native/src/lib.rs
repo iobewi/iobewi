@@ -100,6 +100,7 @@ pub struct NativeRuntime<B: NativeBackend> {
     /// (last progress value seen, time it last changed)
     progress: Cell<(u32, u64)>,
     last_stop: Cell<StopOutcome>,
+    forced_stops: Cell<u32>,
 }
 
 impl<B: NativeBackend> NativeRuntime<B> {
@@ -114,6 +115,7 @@ impl<B: NativeBackend> NativeRuntime<B> {
             current: RefCell::new(None),
             progress: Cell::new((0, 0)),
             last_stop: Cell::new(StopOutcome::NothingRunning),
+            forced_stops: Cell::new(0),
         }
     }
 
@@ -123,6 +125,11 @@ impl<B: NativeBackend> NativeRuntime<B> {
 
     pub fn last_stop(&self) -> StopOutcome {
         self.last_stop.get()
+    }
+
+    /// How many stops had to be forced (`StopTimeout`) since boot, for the Agent to report.
+    pub fn forced_stops(&self) -> u32 {
+        self.forced_stops.get()
     }
 
     /// Observe the progress counter now. Call it periodically (a monitor task every few
@@ -199,6 +206,9 @@ impl<B: NativeBackend> NativeRuntime<B> {
         }
         self.backend.halt();
         control.state.store(0, Ordering::Release);
+        if outcome == StopOutcome::Forced {
+            self.forced_stops.set(self.forced_stops.get() + 1);
+        }
         self.last_stop.set(outcome);
     }
 

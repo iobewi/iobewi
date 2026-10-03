@@ -1,16 +1,8 @@
+# Linking flags live in ../build.sh (single source) so that the reproducible build can add
+# its path remapping; running plain `cargo build` here is not supported.
 [build]
 target = "xtensa-esp32s3-none-elf"
 
 [unstable]
 build-std = ["core", "compiler_builtins"]
 build-std-features = ["compiler-builtins-mem"]
-
-[target.xtensa-esp32s3-none-elf]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  "-C", "link-arg=-nodefaultlibs",
-  "-C", "link-arg=-Wl,--gc-sections",
-  "-C", "link-arg=-Wl,--build-id=none",
-  "-C", "link-arg=-Tworkload.ld",
-  "-C", "relocation-model=static",
-]
