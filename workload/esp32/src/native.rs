@@ -32,7 +32,8 @@ use iobewi_workload_image::{
 };
 use iobewi_workload_native::{LaunchError, NativeBackend};
 
-pub use iobewi_workload_image::ESP32S3_REGION_DBUS;
+/// Data-bus address where the Agent must place the Workload region.
+pub const REGION_DBUS: u32 = ESP32S3_REGION_DBUS;
 pub use iobewi_workload_native::{NativeConfig, NativeRuntime, StopOutcome};
 
 /// Stack of the Workload core (Agent-owned memory; this is the Workload's whole stack budget).
