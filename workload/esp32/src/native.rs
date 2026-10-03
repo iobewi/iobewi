@@ -122,10 +122,11 @@ pub fn drain_logs(max_lines: usize, mut sink: impl FnMut(u32, &[u8])) {
         RING_TAIL.store(tail.wrapping_add(len as u32 + 2), Ordering::Release);
         sink(level, &line[..len]);
     }
-    let dropped = RING_DROPPED.swap(0, Ordering::Relaxed);
-    if dropped > 0 {
-        sink(2, b"workload log: lines dropped (ring full or rate-limited)");
-    }
+}
+
+/// Number of log lines the ring had to drop (ring full) since the last call.
+pub fn take_dropped_logs() -> u32 {
+    RING_DROPPED.swap(0, Ordering::Relaxed)
 }
 
 // ---- time ------------------------------------------------------------------------------
