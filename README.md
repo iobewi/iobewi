@@ -9,49 +9,6 @@ The current validated hardware baseline is **ESP32-S3**.
 
 ## Architecture at a glance
 
-```text
-IOBEWI
-│
-├── portable contracts and services
-│   ├── net/
-│   │   ├── io
-│   │   ├── http
-│   │   ├── tls
-│   │   └── wifi
-│   ├── fs/
-│   │   └── config
-│   ├── crypto/
-│   ├── log/
-│   ├── time/
-│   └── firmware/
-│       ├── model
-│       ├── image
-│       ├── slots
-│       ├── boot
-│       └── update
-│
-├── native Workload model
-│   └── workload/
-│       ├── sdk
-│       ├── abi
-│       ├── image
-│       ├── native
-│       ├── update
-│       ├── http
-│       └── pack
-│
-├── platform implementations
-│   ├── arch/
-│   ├── drivers/
-│   ├── fs/nvs/
-│   ├── firmware/esp32
-│   └── workload/esp32
-│
-└── platform composition
-    ├── targets/
-    └── bootloader/
-```
-
 The dependency direction is deliberate:
 
 ```text
