@@ -439,7 +439,9 @@ where
     let status_control = control.clone();
     let activate_control = control.clone();
     let confirm_control = control.clone();
-    HttpRouter::new()
+    #[cfg(feature = "test-fault-injection")]
+    let corrupt_auth = auth.clone();
+    let router = HttpRouter::new()
         .route("/status", get(move |Bearer(token): Bearer| {
             let auth = status_auth.clone();
             let control = status_control.clone();
@@ -489,7 +491,24 @@ where
                 }
                 rollback_response(service, &control).await
             }
-        }))
+        }));
+    // TEST ONLY: never compiled into a production image.
+    #[cfg(feature = "test-fault-injection")]
+    let router = router.route("/test/corrupt-candidate", post(move |Bearer(token): Bearer, body: String| {
+        let auth = corrupt_auth.clone();
+        async move {
+            if !auth.authorize(token.as_deref().unwrap_or("")).await {
+                return unauthorized();
+            }
+            let offset = body.trim().parse::<u64>().unwrap_or(0);
+            if service.corrupt_candidate_for_test(offset).await {
+                json_ok(alloc::format!("{{\"corrupted\":true,\"offset\":{offset}}}"))
+            } else {
+                bad_request("corruption_failed")
+            }
+        }
+    }));
+    router
 }
 
 /// Streaming `PUT /write`. Like the Agent's: one chunk per request, `Content-Range`

@@ -47,6 +47,7 @@ build native-a-ignore-stop "fault-ignore-stop"
 build native-a-log-flood "fault-log-flood"
 build native-a-panic "fault-panic"
 build native-a-null-jump "fault-null-jump"
+build native-a-reset-chip "fault-reset-chip"
 # Hostile images: the gate must refuse them before any byte is loaded or executed.
 build bad-magic ""         --force-magic XXXX
 build bad-format ""        --force-format 9

@@ -30,6 +30,7 @@ use iobewi_workload_abi::{ABI_VERSION, ControlBlockV1, state};
 use iobewi_workload_image::{HEADER_LEN, ImageError, ImageHeader, TargetLayout};
 use iobewi_workload_ota::supervisor::{ArtifactReader, Health, Identity, RuntimeError, WorkloadRuntime};
 
+pub mod boot_guard;
 #[cfg(any(test, feature = "test-util"))]
 pub mod testing;
 #[cfg(test)]
@@ -74,11 +75,14 @@ pub struct NativeConfig {
     pub stop_grace_ms: u32,
     /// A RUNNING Workload whose progress counter did not move for this long is Unhealthy.
     pub health_window_ms: u32,
+    /// A Workload that stays Unhealthy this much longer is quarantined: its core is halted
+    /// (it is dead or wedged; it only burns power) while the Agent keeps running.
+    pub quarantine_after_ms: u32,
 }
 
 impl Default for NativeConfig {
     fn default() -> Self {
-        Self { start_timeout_ms: 1_000, stop_grace_ms: 1_500, health_window_ms: 3_000 }
+        Self { start_timeout_ms: 1_000, stop_grace_ms: 1_500, health_window_ms: 3_000, quarantine_after_ms: 10_000 }
     }
 }
 
@@ -91,6 +95,8 @@ pub enum StopOutcome {
     Cooperative,
     /// It ignored the stop request (`StopTimeout`) or had failed; execution was halted.
     Forced,
+    /// It had already been halted (quarantined or exited): nothing left to stop.
+    AlreadyHalted,
 }
 
 pub struct NativeRuntime<B: NativeBackend> {
@@ -101,6 +107,9 @@ pub struct NativeRuntime<B: NativeBackend> {
     progress: Cell<(u32, u64)>,
     last_stop: Cell<StopOutcome>,
     forced_stops: Cell<u32>,
+    /// The Workload was halted by the runtime because it died, wedged or exited.
+    halted: Cell<bool>,
+    quarantines: Cell<u32>,
 }
 
 impl<B: NativeBackend> NativeRuntime<B> {
@@ -116,6 +125,8 @@ impl<B: NativeBackend> NativeRuntime<B> {
             progress: Cell::new((0, 0)),
             last_stop: Cell::new(StopOutcome::NothingRunning),
             forced_stops: Cell::new(0),
+            halted: Cell::new(false),
+            quarantines: Cell::new(0),
         }
     }
 
@@ -125,6 +136,11 @@ impl<B: NativeBackend> NativeRuntime<B> {
 
     pub fn last_stop(&self) -> StopOutcome {
         self.last_stop.get()
+    }
+
+    /// How many Workloads were quarantined (halted because dead/wedged/exited) since boot.
+    pub fn quarantines(&self) -> u32 {
+        self.quarantines.get()
     }
 
     /// How many stops had to be forced (`StopTimeout`) since boot, for the Agent to report.
@@ -142,10 +158,31 @@ impl<B: NativeBackend> NativeRuntime<B> {
         if value != seen {
             self.progress.set((value, now));
         }
-        // A Workload that reported a fault must stop burning its core.
-        if control.state.load(Ordering::Acquire) == state::FAILED {
-            self.backend.halt();
+        if self.current.borrow().is_none() || self.halted.get() {
+            return;
         }
+        match control.state.load(Ordering::Acquire) {
+            // A Workload that reported a fault, or whose entry point returned, only burns
+            // its core: halt it. The Agent is unaffected.
+            state::FAILED | state::STOPPED => self.quarantine(),
+            // Wedged or faulted in hardware (the core stops, the state stays RUNNING): after
+            // the health window plus the quarantine delay without progress, halt it too.
+            state::RUNNING => {
+                let (_, changed) = self.progress.get();
+                let stalled = now.saturating_sub(changed);
+                let limit = u64::from(self.config.health_window_ms) + u64::from(self.config.quarantine_after_ms);
+                if stalled > limit {
+                    self.quarantine();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn quarantine(&self) {
+        self.backend.halt();
+        self.halted.set(true);
+        self.quarantines.set(self.quarantines.get() + 1);
     }
 
     async fn read_header<R: ArtifactReader>(&self, artifact: &Identity, reader: &R) -> Result<ImageHeader, RuntimeError> {
@@ -175,7 +212,15 @@ impl<B: NativeBackend> NativeRuntime<B> {
         let control = self.backend.control();
         let had = self.current.borrow_mut().take();
         let st = control.state.load(Ordering::Acquire);
-        let alive = st == state::STARTING || st == state::RUNNING;
+        let alive = (st == state::STARTING || st == state::RUNNING) && !self.halted.get();
+        if had.is_some() && !alive {
+            // Quarantined / exited / failed earlier: the core is already halted.
+            self.backend.halt();
+            control.state.store(0, Ordering::Release);
+            self.halted.set(false);
+            self.last_stop.set(StopOutcome::AlreadyHalted);
+            return;
+        }
         if had.is_none() && !alive {
             // Nothing to stop (a repeated stop is a no-op); `last_stop` keeps describing the
             // last stop that really ended an execution.
@@ -265,6 +310,7 @@ impl<B: NativeBackend> WorkloadRuntime for NativeRuntime<B> {
         control.exit_code.store(0, Ordering::Relaxed);
         control.fault.store(0, Ordering::Relaxed);
         control.state.store(state::STARTING, Ordering::Release);
+        self.halted.set(false);
         self.backend.launch(header.entry).map_err(|e| RuntimeError { reason: e.0 })?;
 
         // 5. Running means the Workload itself said so.
@@ -296,6 +342,9 @@ impl<B: NativeBackend> WorkloadRuntime for NativeRuntime<B> {
             return Health::Unknown;
         }
         self.sample();
+        if self.halted.get() {
+            return Health::Unhealthy;
+        }
         match self.backend.control().state.load(Ordering::Acquire) {
             state::RUNNING => {
                 let (_, changed) = self.progress.get();
@@ -312,7 +361,7 @@ impl<B: NativeBackend> WorkloadRuntime for NativeRuntime<B> {
 
     async fn running(&self) -> Option<Identity> {
         let st = self.backend.control().state.load(Ordering::Acquire);
-        if st == state::STARTING || st == state::RUNNING {
+        if (st == state::STARTING || st == state::RUNNING) && !self.halted.get() {
             self.current.borrow().clone()
         } else {
             None

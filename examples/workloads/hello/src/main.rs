@@ -73,8 +73,17 @@ fn main(ctx: &Context) -> i32 {
         if tick == 8 {
             panic!("native-workload fault: panic");
         }
+        #[cfg(feature = "fault-reset-chip")]
+        if tick == 24 {
+            // A trusted native Workload can do anything: here, a system reset through the
+            // RTC control block (OPTIONS0.SW_SYS_RST, bit 31) -- not through any iobewi
+            // service. It exists to prove the Agent's crash-loop guard.
+            const OPTIONS0: *mut u32 = 0x6000_8000 as *mut u32;
+            // SAFETY (deliberately violated): raw peripheral access from the Workload.
+            unsafe { OPTIONS0.write_volatile(OPTIONS0.read_volatile() | (1 << 31)) };
+        }
         #[cfg(feature = "fault-null-jump")]
-        if tick == 8 {
+        if tick == 24 {
             // SAFETY (deliberately violated): a jump to address 0 raises an
             // instruction-fetch exception, to observe how the Agent copes.
             unsafe { core::mem::transmute::<usize, extern "C" fn()>(core::hint::black_box(0usize))() };

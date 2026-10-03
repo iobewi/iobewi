@@ -194,7 +194,9 @@ impl<A: FlashAccess, R: WorkloadRuntime> WorkloadSupervisor<A, R> {
 
     pub async fn runtime_status(&self) -> RuntimeStatus {
         let running = self.runtime.running().await;
-        let health = if running.is_some() { self.runtime.health().await } else { Health::Unknown };
+        // Ask even when nothing "runs": a Workload that died or was quarantined is `Unhealthy`,
+        // not "unknown" (a runtime with nothing loaded answers `Unknown` itself).
+        let health = self.runtime.health().await;
         RuntimeStatus { running, health }
     }
 

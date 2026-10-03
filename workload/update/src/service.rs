@@ -199,6 +199,16 @@ impl<A: FlashAccess> WorkloadOtaService<A> {
         }
     }
 
+    /// TEST ONLY (`test-fault-injection`): damage one byte of the staged candidate's slot.
+    #[cfg(feature = "test-fault-injection")]
+    pub async fn corrupt_candidate_for_test(&self, offset: u64) -> bool {
+        let Ok(flash) = self.storage() else { return false };
+        match self.status().await.candidate_slot {
+            Some(side) => flash.corrupt_slot_byte_for_test(side, offset).await,
+            None => false,
+        }
+    }
+
     // ----- status ---------------------------------------------------------
 
     pub async fn status(&self) -> Status {

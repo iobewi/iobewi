@@ -11,6 +11,9 @@ description = "Workload OTA: OTM2 persistent record, double-copy metadata store,
 default = []
 # Exposes the fake NOR flash used by this crate's tests and by dependants' host tests.
 test-util = []
+# TEST ONLY: lets a hardware test flip one bit of the staged candidate's slot (post-staging
+# corruption). Never enabled in a production image.
+test-fault-injection = []
 
 [dependencies]
 iobewi-update-model = { path = "../../firmware/model" }

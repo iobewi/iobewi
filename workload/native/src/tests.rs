@@ -342,3 +342,65 @@ fn a_slot_corrupted_after_staging_is_never_loaded() {
     assert_eq!(s.runtime().backend().launches.get(), launches, "no jump into corrupted code");
     assert_eq!(running(&s).as_deref(), Some("A"));
 }
+
+#[test]
+fn a_workload_that_dies_in_hardware_is_quarantined_and_the_agent_can_replace_it() {
+    // `Freezes` = no more progress while the state stays RUNNING, which is what a hardware
+    // fault on the Workload core looks like from outside.
+    let svc = service();
+    let broken = image(Behaviour::Freezes, 4, API10);
+    let good = image(Behaviour::Cooperative, 9, API10);
+    let s = sup(svc);
+    activate_and_confirm(&s, svc, "valid-but-faulty", &broken);
+    assert_eq!(s.runtime().quarantines(), 0);
+    // Well past the health window plus the quarantine delay.
+    for _ in 0..40 {
+        block_on(s.runtime().backend().delay_ms(500));
+        s.runtime().sample();
+    }
+    assert_eq!(s.runtime().quarantines(), 1, "dead/wedged: its core is halted");
+    assert!(!s.runtime().backend().executing(), "no Workload instruction runs any more");
+    assert_eq!(block_on(s.runtime_status()).health, Health::Unhealthy);
+    assert_eq!(running(&s), None);
+    assert_eq!(state(svc), Some(State::Valid), "OTM2 is not rewritten by a runtime failure");
+    // Recovery by replacement, with no physical access.
+    upload(svc, "good", &good, API10);
+    block_on(s.activate(&digest(&good))).unwrap();
+    assert_eq!(running(&s).as_deref(), Some("good"));
+    assert_eq!(s.runtime().last_stop(), StopOutcome::AlreadyHalted, "nothing was stopped twice");
+    assert_eq!(s.runtime().forced_stops(), 0, "a quarantined Workload is not a StopTimeout");
+    block_on(s.confirm()).unwrap();
+    assert_eq!(state(svc), Some(State::Valid));
+}
+
+#[test]
+fn a_valid_workload_that_fails_at_boot_leaves_the_agent_able_to_reconcile_again() {
+    let svc = service();
+    let panics = image(Behaviour::Panics, 6, API10);
+    {
+        let s = sup(svc);
+        // Confirm while it still looks fine (it only fails a few steps after starting).
+        upload(svc, "bad", &panics, API10);
+        block_on(s.activate(&digest(&panics))).unwrap();
+        block_on(s.confirm()).unwrap();
+    }
+    // Boot 1, 2, 3: the Workload fails every time; each boot ends quarantined, none loops.
+    for boot in 0..3 {
+        let rebooted = sup(svc);
+        assert_eq!(block_on(rebooted.reconcile_boot()), BootOutcome::Started(Side::A), "boot {boot}");
+        for _ in 0..8 {
+            block_on(rebooted.runtime().backend().delay_ms(10));
+            rebooted.runtime().sample();
+        }
+        assert_eq!(running(&rebooted), None, "boot {boot}: the failed Workload is not reported running");
+        assert!(!rebooted.runtime().backend().executing(), "boot {boot}: its core is halted");
+        assert_eq!(state(svc), Some(State::Valid), "boot {boot}: persistent state untouched");
+    }
+    // And a replacement can always be deployed over the same API.
+    let s = sup(svc);
+    let good = image(Behaviour::Cooperative, 9, API10);
+    upload(svc, "good", &good, API10);
+    block_on(s.activate(&digest(&good))).unwrap();
+    block_on(s.confirm()).unwrap();
+    assert_eq!(running(&s).as_deref(), Some("good"));
+}

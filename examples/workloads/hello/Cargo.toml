@@ -14,7 +14,8 @@ variant-b = []
 fault-ignore-stop = []   # never looks at stop_requested
 fault-log-flood = []     # logs in a tight loop and ignores stop (Agent must stay alive)
 fault-panic = []         # panics after a few ticks
-fault-null-jump = []     # jumps to address 0 after a few ticks (hardware exception)
+fault-null-jump = []     # jumps to address 0 after ~6 s (hardware exception on the Workload core)
+fault-reset-chip = []    # resets the whole chip after ~6 s (a Workload that takes the Agent down)
 
 [dependencies]
 iobewi-workload = { path = "../../../workload/sdk", features = ["panic-handler"] }

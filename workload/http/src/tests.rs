@@ -765,3 +765,42 @@ fn a_failed_new_upload_leaves_no_staged_record_over_an_overwritten_slot() {
     assert_eq!(rs[2].json()["state"], "empty");
     assert!(rs[2].json()["candidate"].is_null(), "a Staged record over overwritten bytes is a lie");
 }
+
+#[cfg(feature = "test-fault-injection")]
+#[test]
+fn post_staging_corruption_is_refused_at_activation_and_the_previous_workload_keeps_running() {
+    let svc = service(RuntimeApi::new(1, 4));
+    let port = supervisor(svc);
+    let a = data(1, 9_000);
+    exchange(svc, port, upload_requests(&a, "A", (1, 3), 16 * 1024));
+    let activate = |bytes: &[u8]| request("POST", "/activate", Some(TOKEN), &[], std::format!("{{\"digest\":\"{}\"}}", digest_of(bytes)).as_bytes());
+    let rs = exchange(svc, port, alloc::vec![activate(&a), request("POST", "/confirm", Some(TOKEN), &[], b"")]);
+    assert_eq!(rs[1].status, 200);
+    let b = data(2, 12_000);
+    exchange(svc, port, upload_requests(&b, "B", (1, 3), 16 * 1024));
+    let rs = exchange(
+        svc,
+        port,
+        alloc::vec![
+            request("POST", "/test/corrupt-candidate", Some(TOKEN), &[], b"5000"),
+            activate(&b),
+            request("GET", "/status", Some(TOKEN), &[], b""),
+        ],
+    );
+    assert_eq!(rs[0].status, 200, "{}", rs[0].body);
+    assert_eq!(rs[1].status, 422, "{}", rs[1].body);
+    assert_eq!(rs[1].json()["error"], "candidate_corrupted");
+    assert_eq!(rs[2].json()["state"], "valid", "the corrupted candidate stopped existing");
+    assert_eq!(rs[2].json()["runtime"]["artifact"]["version"], "A", "A was never stopped");
+    // The route itself is authenticated.
+    let rs = exchange(svc, port, alloc::vec![request("POST", "/test/corrupt-candidate", None, &[], b"1")]);
+    assert_eq!(rs[0].status, 401);
+}
+
+#[cfg(not(feature = "test-fault-injection"))]
+#[test]
+fn the_fault_injection_route_does_not_exist_in_a_production_build() {
+    let svc = service(RuntimeApi::new(1, 4));
+    let rs = exchange(svc, supervisor(svc), alloc::vec![request("POST", "/test/corrupt-candidate", Some(TOKEN), &[], b"1")]);
+    assert_eq!(rs[0].status, 404);
+}

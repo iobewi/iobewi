@@ -87,6 +87,30 @@ impl<A: FlashAccess> WorkloadFlash<A> {
         self.with_updater(|u| u.prepare(request, capacity)).await
     }
 
+    /// TEST ONLY (`test-fault-injection`): clears one bit of the byte at `offset` in `side`'s
+    /// slot, i.e. damages the stored artifact *after* it was staged and verified. NOR flash
+    /// can clear a bit without an erase, so this needs no erase and touches nothing else.
+    #[cfg(feature = "test-fault-injection")]
+    pub async fn corrupt_slot_byte_for_test(&self, side: Side, offset: u64) -> bool {
+        use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
+        let slot = self.layout().slot(side);
+        if offset >= u64::from(slot.size) {
+            return false;
+        }
+        let abs = slot.offset + (offset as u32 & !3);
+        let lane = (offset & 3) as usize;
+        self.access
+            .with(|flash| {
+                let mut word = [0u8; 4];
+                if flash.read(abs, &mut word).is_err() || word[lane] == 0 {
+                    return false;
+                }
+                word[lane] &= word[lane] - 1; // clear the lowest set bit
+                flash.write(abs, &word).is_ok()
+            })
+            .await
+    }
+
     /// See [`WorkloadUpdater::begin_overwrite`]: call before writing the first byte.
     pub async fn begin_overwrite(&self) -> Result<(), UpdateError<StorageError<A>>> {
         self.with_updater(|u| u.begin_overwrite()).await
