@@ -64,7 +64,7 @@ Offsets are asserted at compile time on 32-bit targets and by host tests (`iobew
 
 | service | signature | cost (ESP32-S3 backend) |
 |---|---|---|
-| `log.write` | `i32 (u32 level, const u8 *msg, u32 len)` | copy ≤ 120 B into a 2 KiB SPSC ring (≈ 100 ns); the Agent drains it every 100 ms into its logger |
+| `log.write` | `i32 (u32 level, const u8 *msg, u32 len)` | copy ≤ 120 B into a 2 KiB SPSC ring (never blocks, drops when full); the Agent forwards **2 lines per 100 ms** (20/s) to its synchronous logger and reports drops once a second. The limit exists because the logger blocks on the serial port: unthrottled forwarding starved the Agent's executor on hardware |
 | `time.monotonic_us` | `i32 (u64 *out)` | one SYSTIMER read |
 | `time.sleep_us` | `i32 (u32 us)` | busy-wait on the Workload core; returns `STOP_REQUESTED` as soon as a stop is requested |
 | control | direct atomic access to `ControlBlockV1` | one atomic op |
@@ -115,8 +115,13 @@ parked); flash writes park the Workload core so it never fetches from a switched
 **Not protected:** this is the **trusted native Workload model**. Nothing (no MPU/PMS configuration)
 prevents a Workload from reading or writing any Agent memory, peripheral or flash register. The
 SHA-256 guarantees integrity, **not harmlessness**. A hardware fault on the Workload core (illegal
-instruction, bad pointer) is handled by the Agent's exception handler, whose policy is to reset the
-chip. Do not call this process isolation. A future step may add memory-protection capabilities.
+instruction, jump to 0, bad pointer) raises an exception handled by the Agent's `esp-hal` handler:
+it **prints the panic and backtrace and stops that core; it does not reset the chip**. Measured on
+hardware with the `fault-null-jump` image (`InstrProhibited` on AppCpu): the Agent kept serving
+HTTP, the Workload became `Unhealthy` once its progress counter stopped (3 s window), `confirm` was
+refused (409 `workload_unhealthy`) and `rollback` stopped the dead core and reloaded the previous
+Workload on it. This is *fault containment by core*, not memory isolation: a Workload that corrupts
+Agent memory can still take the Agent down. Do not call this process isolation. A future step may add memory-protection capabilities.
 Signatures are not part of S19.
 
 ## Evolution
