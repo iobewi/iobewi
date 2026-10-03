@@ -8,83 +8,92 @@ carry the native Workload runtime validated on S3.
 ## System model
 
 ```text
-embewi-core
-    |
-    | logical desired state / artifacts
-    v
-embewi-agent
-    |
-    +-- Agent OTA --------------------------> Agent A/B
-    |      boot authority: bootloader
-    |
-    +-- WorkloadSupervisor ----------------> Workload OTA / OTM2
-              |
-              v
-         NativeRuntime
-              |
-              v
-       native Workload
-              |
-              v
-        iobewi-workload
-        + ABI/service tables
-              |
-              v
-        portable services
-              |
-              v
-        platform drivers
-              |
-              v
-           hardware
+portable contracts / services
+            |
+            +-----------------------------+
+            |                             |
+            v                             v
+   firmware update model          Workload model / SDK
+            |                             |
+            v                             v
+   firmware update runtime        WorkloadSupervisor
+                                          |
+                                          v
+                                     NativeRuntime
+                                          |
+                                          v
+                                   native Workload
+            |                             |
+            +--------------+--------------+
+                           |
+                           v
+                  platform adapters
+                           |
+                           v
+                        drivers
+                           |
+                           v
+                       hardware
 ```
 
-The Agent is a resident runner/supervisor, not a kernel in the classical OS sense.
-A Workload is the application supervised by the Agent.
+IOBEWI separates reusable policy from platform execution. Portable crates define the
+contracts, lifecycle models and services. Platform crates bind those abstractions to a
+specific target and its HAL.
+
+A product may compose these building blocks into a resident supervisor and may connect
+that supervisor to an external control plane, but those product-level components are
+consumers of IOBEWI rather than part of the framework architecture.
 
 ## Portability boundary
 
 Portable crates define contracts, policy and reusable services. Hardware-specific crates
-implement those contracts. Business Workload code consumes the Workload SDK/capabilities
+implement those contracts. Workload business code consumes the Workload SDK/capabilities
 and must not depend directly on `esp-hal` or another platform HAL.
 
 Portability is source/API portability. Native Workload binaries are target-specific.
 
-## Dual OTA
+## Update domains
 
-Agent OTA and Workload OTA are independent:
+IOBEWI defines two independent update domains:
 
-- Agent OTA uses OTM1 and physical Agent A/B slots. The bootloader owns Agent slot
-  selection at boot.
-- Workload OTA uses OTM2 and physical Workload A/B slots. The Agent's
-  `WorkloadSupervisor` owns Workload activation and rollback.
-- Core selects a logical artifact/target; it never selects the physical A/B slot.
-- Agent and Workload are not an atomic release pair.
+- **Resident firmware OTA** uses OTM1 and physical firmware A/B slots. Platform boot
+  authority selects the resident firmware slot at boot.
+- **Workload OTA** uses OTM2 and physical Workload A/B slots. The Workload supervisor
+  owns Workload activation, health confirmation and rollback.
+
+A remote control plane may select a logical artifact/target, but physical A/B selection
+remains local to the corresponding IOBEWI lifecycle.
+
+Resident firmware and Workload are not an atomic release pair.
 
 ## Native Workload execution
 
-The selected execution model is a target-specific native binary packaged as IWNI v1.
-ELF is a build intermediate, not the public Workload image contract. The Agent/Workload
-boundary uses an explicit C-compatible ABI (`repr(C)`, fixed-size fields and
-`extern "C"` calls); the Rust ABI never crosses the binary boundary.
+A Workload is a target-specific native Rust binary packaged as IWNI v1. ELF is a build
+intermediate, not the public Workload image contract.
+
+The runtime/Workload boundary uses an explicit C-compatible ABI (`repr(C)`, fixed-size
+fields and `extern "C"` calls); the Rust ABI never crosses the independently built
+binary boundary.
 
 On the validated ESP32-S3 implementation, native Workload code executes on the second
-core from a fixed executable RAM region. The model is currently trusted native code:
+core from a fixed executable RAM region. The current model is trusted native code:
 integrity is checked, but there is no MPU/process memory isolation.
 
 ## Storage
 
 ESP physical flash has a single owner and is shared through `SharedFlash`. Native
 multicore execution uses `multicore_auto_park` so flash operations can safely pause the
-Workload core when required. Partition discovery is by named partition plus bounds
-validation; missing capability is reported rather than inferred from apparently free
-flash.
+Workload core when required.
+
+Partition discovery is by named partition plus bounds validation. Missing capability is
+reported rather than inferred from apparently free flash.
 
 ## Recovery
 
-Persistent OTA state is restart-safe. The Workload supervisor reconciles OTM2 after
-reset. A Valid Workload can start offline. A native Workload fault is distinct from Agent
-health, and the S20 boot guard prevents repeated unclean boots from making the Agent
-unrecoverable.
+Persistent update state is restart-safe. The Workload supervisor reconciles OTM2 after a
+reset. A Valid Workload can start offline.
+
+A Workload fault is distinct from resident-system health. The S20 boot guard prevents
+repeated unclean boots from making the resident system unrecoverable.
 
 See `INVARIANTS.md` for normative rules and `docs/decisions/` for rationale.
