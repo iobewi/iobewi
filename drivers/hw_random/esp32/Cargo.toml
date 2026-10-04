@@ -20,4 +20,4 @@ rand-core = ["dep:rand_core"]
 [dependencies]
 rand_core = { version = "0.10.1", default-features = false, optional = true }
 iobewi-entropy = { path = "../../../crypto/rng" }
-esp-hal = { version = "~1.1.0", default-features = false }
+esp-hal = { version = "~1.2", default-features = false }
