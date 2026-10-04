@@ -24,7 +24,8 @@ use embassy_net::{Runner, Stack, StackResources};
 use embassy_time::{Duration, with_timeout};
 use esp_hal::peripherals::WIFI;
 use esp_radio::wifi::{
-    AuthenticationMethod, Config, Interface, WifiController, scan::ScanConfig, sta::StationConfig,
+    AuthenticationMethod, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
+    WifiController, scan::ScanConfig, sta::StationConfig,
 };
 use log::{info, warn};
 use iobewi_wifi_core::WifiTransport;
@@ -94,9 +95,9 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
 
     fn radio(&mut self) -> Option<&mut Radio> {
         if self.radio.is_none() {
-            let (mut controller, interfaces) =
-                match esp_radio::wifi::new(self.peripheral.take()?, Default::default()) {
-                    Ok(parts) => parts,
+            let mut controller =
+                match WifiController::new(self.peripheral.take()?, ControllerConfig::default()) {
+                    Ok(controller) => controller,
                     Err(e) => {
                         warn!("Wi-Fi init failed: {e:?}");
                         return None;
@@ -111,7 +112,7 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             let resources = self.resources.take()?;
             let seed = esp_hal::time::Instant::now().duration_since_epoch().as_micros();
             let (stack, runner) = embassy_net::new(
-                interfaces.station,
+                Interface::station(),
                 embassy_net::Config::dhcpv4(Default::default()),
                 resources,
                 seed,
@@ -205,9 +206,24 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             radio.stack.wait_config_down().await;
         }
 
+        let Ok(ssid_cfg) = ssid.try_into() else {
+            warn!("Wi-Fi: invalid SSID {ssid}");
+            return false;
+        };
+        let authentication = if password.is_empty() {
+            AuthenticationMethodConfig::Open
+        } else {
+            match password.as_str().try_into() {
+                Ok(password) => AuthenticationMethodConfig::Wpa2Personal(password),
+                Err(_) => {
+                    warn!("Wi-Fi: invalid password for {ssid}");
+                    return false;
+                }
+            }
+        };
         let mut config = StationConfig::default()
-            .with_ssid(ssid)
-            .with_password(password);
+            .with_ssid(ssid_cfg)
+            .with_authentication(authentication);
         if let Some(bssid) = bssid {
             config = config.with_bssid(bssid);
         }
@@ -269,6 +285,6 @@ impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
 }
 
 #[embassy_executor::task]
-async fn net_task(mut runner: Runner<'static, Interface<'static>>) -> ! {
+async fn net_task(mut runner: Runner<'static, Interface>) -> ! {
     runner.run().await
 }

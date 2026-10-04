@@ -1050,8 +1050,8 @@ dependencies = [
  "document-features",
  "enumset",
  "esp-config",
- "esp-metadata-generated 0.5.3",
- "esp-sync 0.3.0",
+ "esp-metadata-generated",
+ "esp-sync",
  "linked_list_allocator",
  "rlsf",
 ]
@@ -1064,10 +1064,10 @@ checksum = "ba0e487f6843419bb085d871f6e860da1bb8c267ce1c5db1051b83882e943054"
 dependencies = [
  "document-features",
  "esp-config",
- "esp-hal-procmacros 0.23.0",
- "esp-metadata-generated 0.5.3",
+ "esp-hal-procmacros",
+ "esp-metadata-generated",
  "esp-rom-sys",
- "esp-storage 0.10.0",
+ "esp-storage",
  "jiff",
  "sha2 0.11.0",
  "strum 0.27.2",
@@ -1080,7 +1080,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcd577a122ec917691f6820a3df54388ecebc750f071b060f5e83707bc415512"
 dependencies = [
  "document-features",
- "esp-metadata-generated 0.5.3",
+ "esp-metadata-generated",
  "serde",
  "serde_yaml",
  "somni-expr",
@@ -1113,11 +1113,11 @@ dependencies = [
  "embedded-io-async 0.7.0",
  "enumset",
  "esp-config",
- "esp-hal-procmacros 0.23.0",
- "esp-metadata-generated 0.5.3",
+ "esp-hal-procmacros",
+ "esp-metadata-generated",
  "esp-riscv-rt",
  "esp-rom-sys",
- "esp-sync 0.3.0",
+ "esp-sync",
  "esp32",
  "esp32c2",
  "esp32c3 0.33.0",
@@ -1150,20 +1150,6 @@ dependencies = [
 
 [[package]]
 name = "esp-hal-procmacros"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e025a7a7a0affdb4ff913b5c4494aef96ee03d085bf83c27453ae3a71d50da6"
-dependencies = [
- "document-features",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "termcolor",
-]
-
-[[package]]
-name = "esp-hal-procmacros"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a8733fdeadc349ba1e4a345c7bfb74d195d8c98fd3be9d2c15bfd78601cbc44"
@@ -1178,14 +1164,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp-hal-smartled2"
-version = "0.29.0"
+name = "esp-hal-smartled"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e166cce2f6ce276612e4b3b62ff155cc9e6f84b3fd8a8250c8b698f1416e9fe2"
+checksum = "5315ad80e19e70920e282676e56fec5fb2115c36c9f9fbe14b154148ba761743"
 dependencies = [
+ "document-features",
  "esp-hal",
  "num-traits",
  "smart-leds-trait",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1212,12 +1200,6 @@ dependencies = [
 
 [[package]]
 name = "esp-metadata-generated"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a93e39c8ad8d390d248dc7b9f4b59a873f313bf535218b8e2351356972399e3"
-
-[[package]]
-name = "esp-metadata-generated"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "911aadae41ec99104efa865bd0b6e486b4b735999f9b571963748a46d16495ab"
@@ -1229,8 +1211,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b61bade3acc39e566697bd215068384afba840999fcd8e9366702f267034c7c0"
 dependencies = [
  "embedded-storage",
- "esp-hal",
- "esp-storage 0.8.1",
  "strum 0.27.2",
  "thiserror 2.0.21",
 ]
@@ -1245,8 +1225,8 @@ dependencies = [
  "embassy-sync 0.8.0",
  "esp-config",
  "esp-hal",
- "esp-metadata-generated 0.5.3",
- "esp-sync 0.3.0",
+ "esp-metadata-generated",
+ "esp-sync",
  "esp-wifi-sys-esp32c3",
  "esp-wifi-sys-esp32s3",
  "esp32c3 0.34.0",
@@ -1261,8 +1241,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebf772a41bc642b57399632aa06ab55391de35b2b8fcbb1b270d282fbd0fe5ff"
 dependencies = [
  "document-features",
- "esp-metadata-generated 0.5.3",
- "esp-sync 0.3.0",
+ "esp-metadata-generated",
+ "esp-sync",
  "log",
  "portable-atomic",
 ]
@@ -1286,12 +1266,12 @@ dependencies = [
  "esp-alloc",
  "esp-config",
  "esp-hal",
- "esp-hal-procmacros 0.23.0",
- "esp-metadata-generated 0.5.3",
+ "esp-hal-procmacros",
+ "esp-metadata-generated",
  "esp-phy",
  "esp-radio-rtos-driver",
  "esp-rom-sys",
- "esp-sync 0.3.0",
+ "esp-sync",
  "esp-wifi-sys-esp32",
  "esp-wifi-sys-esp32c2",
  "esp-wifi-sys-esp32c3",
@@ -1319,7 +1299,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27d3ad9d7ed96260566acd1a69a908ff805cfaa73a936ae445c1252e1ec983be"
 dependencies = [
- "esp-sync 0.3.0",
+ "esp-sync",
  "portable-atomic",
 ]
 
@@ -1341,24 +1321,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e933ff78374b763b65998b64ad671b4890ed4ba13a80deff9f53afe95ede289d"
 dependencies = [
  "document-features",
- "esp-metadata-generated 0.5.3",
+ "esp-metadata-generated",
  "esp32c3 0.33.0",
  "esp32s3 0.36.0",
-]
-
-[[package]]
-name = "esp-storage"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1495fc1f5549bdd840b52d9ceb201746200e1620d2636f46958c11e765623b80"
-dependencies = [
- "document-features",
- "embedded-storage",
- "esp-hal",
- "esp-hal-procmacros 0.21.0",
- "esp-metadata-generated 0.3.0",
- "esp-rom-sys",
- "esp-sync 0.1.1",
 ]
 
 [[package]]
@@ -1370,27 +1335,12 @@ dependencies = [
  "document-features",
  "embedded-storage",
  "esp-hal",
- "esp-hal-procmacros 0.23.0",
- "esp-metadata-generated 0.5.3",
+ "esp-hal-procmacros",
+ "esp-metadata-generated",
  "esp-rom-sys",
- "esp-sync 0.3.0",
+ "esp-sync",
  "esp32c3 0.33.0",
  "esp32s3 0.36.0",
-]
-
-[[package]]
-name = "esp-sync"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d44974639b4e88914f83fe60d2832c00276657d7d857628fdfc966cc7302e8a8"
-dependencies = [
- "cfg-if",
- "document-features",
- "embassy-sync 0.6.2",
- "embassy-sync 0.7.2",
- "esp-metadata-generated 0.3.0",
- "riscv",
- "xtensa-lx",
 ]
 
 [[package]]
@@ -1403,7 +1353,7 @@ dependencies = [
  "embassy-sync 0.6.2",
  "embassy-sync 0.7.2",
  "embassy-sync 0.8.0",
- "esp-metadata-generated 0.5.3",
+ "esp-metadata-generated",
  "riscv",
  "xtensa-lx",
 ]
@@ -1955,7 +1905,7 @@ name = "iobewi-esp-device"
 version = "0.1.0"
 dependencies = [
  "esp-hal",
- "esp-metadata-generated 0.5.3",
+ "esp-metadata-generated",
  "iobewi-device",
 ]
 
@@ -1976,7 +1926,7 @@ dependencies = [
  "embedded-storage",
  "esp-hal",
  "esp-rom-sys",
- "esp-storage 0.10.0",
+ "esp-storage",
  "static_cell",
 ]
 
@@ -1987,7 +1937,7 @@ dependencies = [
  "embassy-executor",
  "embassy-time",
  "esp-hal",
- "esp-hal-smartled2",
+ "esp-hal-smartled",
  "iobewi-indicator",
  "log",
  "smart-leds",
@@ -1999,7 +1949,7 @@ version = "0.1.0"
 dependencies = [
  "embedded-storage",
  "esp-nvs",
- "esp-storage 0.10.0",
+ "esp-rom-sys",
  "iobewi-esp-flash",
 ]
 
@@ -2029,7 +1979,7 @@ dependencies = [
  "embedded-storage",
  "esp-bootloader-esp-idf",
  "esp-rom-sys",
- "esp-storage 0.10.0",
+ "esp-storage",
 ]
 
 [[package]]
