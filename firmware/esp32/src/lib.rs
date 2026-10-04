@@ -16,13 +16,12 @@
 //! - HTTP, TLS, Embassy tasks, or application orchestration.
 
 use iobewi_ota::ArtifactStorage;
-use embedded_storage::Storage;
 use embedded_storage::nor_flash::NorFlash;
 use esp_bootloader_esp_idf::partitions::{
     AppPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType,
 };
 use iobewi_esp_partitions::{
-    PartitionRange, erase_range as erase_raw_partition_range, find as find_partition,
+    FlashStorage, PartitionRange, erase_range as erase_raw_partition_range, find as find_partition,
 };
 
 pub mod otadata;
@@ -72,14 +71,11 @@ pub enum PartitionError {
 ///
 /// Slot-selection policy is intentionally left to the caller: this function
 /// only maps an already-chosen logical slot to its physical flash range.
-pub fn find_app_partition<F>(
-    flash: &mut F,
+pub fn find_app_partition(
+    flash: &mut FlashStorage<'_>,
     table_buffer: &mut [u8; PARTITION_TABLE_MAX_LEN],
     slot: AppSlot,
-) -> Result<AppPartition, PartitionError>
-where
-    F: Storage,
-{
+) -> Result<AppPartition, PartitionError> {
     let range = find_partition(flash, table_buffer, PartitionType::App(subtype(slot)))
         .map_err(|e| match e {
             iobewi_esp_partitions::PartitionError::NotFound => PartitionError::NotFound,
