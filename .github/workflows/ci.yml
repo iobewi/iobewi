@@ -94,7 +94,7 @@ jobs:
         with:
           buildtargets: esp32s3
       - name: Select current ESP generation
-        run: ./ci/use-latest-esp.sh
+        run: bash ./ci/use-latest-esp.sh
       - name: Resolve latest allowed dependencies
         run: rm -f Cargo.lock && cargo +esp generate-lockfile
       - name: ESP32-S3 compatibility matrix
