@@ -1,0 +1,50 @@
+name: ESP latest compatibility
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+jobs:
+  esp-latest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: targets/esp32
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          buildtargets: esp32s3
+
+      - name: Select current ESP generation
+        run: bash ./ci/use-latest-esp.sh
+
+      - name: Resolve latest allowed dependencies
+        run: rm -f Cargo.lock && cargo +esp generate-lockfile
+
+      - name: ESP32-S3 compatibility matrix
+        run: |
+          set -eux
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tcp
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-workload --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,embassy-net
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3,rand-core
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-watchdog --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-indicator --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-runtime --features esp32s3
+          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-device --features esp32s3
+
+      - name: ESP32-C3 compatibility smoke
+        run: |
+          set -eux
+          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-workload --features esp32c3
+          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-config-space --features esp32c3
+          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-wifi --features esp32c3
