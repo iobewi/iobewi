@@ -27,4 +27,4 @@ esp32s3 = [
 embedded-storage = "0.3.1"
 iobewi-esp-flash = { path = "../../../drivers/flash/esp32" }
 esp-nvs = { version = "0.5.0", default-features = false }
-esp-storage = { version = "0.9.0", default-features = false }
+esp-storage = { version = "~0.10", default-features = false, features = ["embedded-storage"] }
