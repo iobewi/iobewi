@@ -25,9 +25,8 @@ embassy-net = { version = "0.9.1", default-features = false, features = [
   "medium-ethernet",
   "tcp",
 ] }
-esp-hal = { version = "~1.1.0", default-features = false, features = ["unstable"] }
-esp-radio = { version = "0.18.0", default-features = false, features = [
-  "esp-alloc",
+esp-hal = { version = "~1.2", default-features = false, features = ["unstable"] }
+esp-radio = { version = "=1.0.0-beta.1", default-features = false, features = [
   "log-04",
   "unstable",
   "wifi",
