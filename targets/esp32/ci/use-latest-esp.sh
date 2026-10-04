@@ -25,7 +25,7 @@ replace_all 'esp-hal = { version = "~1\.1\.0"' 'esp-hal = { version = "1"'
 # Move the companion ESP crates to the generation paired with esp-hal 1.2+.
 # These are compatibility-probe constraints, not release pins.
 replace_all 'esp-radio = { version = "0\.18\.0"' 'esp-radio = { version = "1.0.0-beta.1"'
-replace_all 'esp-storage = { version = "0\.9\.0"' 'esp-storage = { version = "0.10"'
+replace_all 'esp-storage = { version = "0\.9\.0", default-features = false }' 'esp-storage = { version = "0.10", default-features = false, features = ["embedded-storage"] }'
 replace_all 'esp-rom-sys = { version = "=0\.1\.4"' 'esp-rom-sys = { version = "0.1.5"'
 replace_all 'esp-bootloader-esp-idf = { version = "=0\.5\.0"' 'esp-bootloader-esp-idf = { version = "0.6"'
 replace_all 'esp-alloc = { version = "0\.10\.0"' 'esp-alloc = { version = "0.11"'
