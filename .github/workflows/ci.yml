@@ -3,6 +3,31 @@ on:
   push:
   pull_request:
 jobs:
+  refresh-esp-lockfiles:
+    if: github.ref == 'refs/heads/migration/esp-latest-ci'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Regenerate ESP lockfiles from the 1.2 baseline
+        run: |
+          set -eux
+          (cd targets/esp32 && cargo generate-lockfile)
+          (cd bootloader/esp && cargo generate-lockfile)
+      - name: Commit refreshed lockfiles on migration branch
+        run: |
+          if git diff --quiet -- targets/esp32/Cargo.lock bootloader/esp/Cargo.lock; then
+            echo "ESP lockfiles already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add targets/esp32/Cargo.lock bootloader/esp/Cargo.lock
+          git commit -m "esp: refresh 1.2 baseline lockfiles"
+          git push origin HEAD:migration/esp-latest-ci
+
   host:
     runs-on: ubuntu-latest
     steps:
