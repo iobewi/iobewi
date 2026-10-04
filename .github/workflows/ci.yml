@@ -2,32 +2,11 @@ name: Rust
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # Daily: catches upstream drift inside the supported esp-hal 1.2 range (job `esp (latest)`).
+    - cron: "17 4 * * *"
 jobs:
-  refresh-esp-lockfiles:
-    if: github.ref == 'refs/heads/migration/esp-latest-ci'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Regenerate ESP lockfiles from the 1.2 baseline
-        run: |
-          set -eux
-          (cd targets/esp32 && cargo generate-lockfile)
-          (cd bootloader/esp && cargo generate-lockfile)
-      - name: Commit refreshed lockfiles on migration branch
-        run: |
-          if git diff --quiet -- targets/esp32/Cargo.lock bootloader/esp/Cargo.lock; then
-            echo "ESP lockfiles already current"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add targets/esp32/Cargo.lock bootloader/esp/Cargo.lock
-          git commit -m "esp: refresh 1.2 baseline lockfiles"
-          git push origin HEAD:migration/esp-latest-ci
-
   host:
     runs-on: ubuntu-latest
     steps:
@@ -74,11 +53,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-  esp-esp32s3:
+  # ESP support policy: esp-hal 1.2.x (manifests carry `~1.2`, i.e. >=1.2.0 <1.3.0).
+  #   locked: committed Cargo.lock + --locked = the validated, reproducible baseline.
+  #   latest: same manifest ranges, Cargo.lock removed in this checkout only = newest
+  #           allowed 1.2.x. It never tests 1.3: moving to 1.3 is an explicit migration.
+  esp:
+    name: esp (${{ matrix.mode }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [locked, latest]
     defaults:
       run:
         working-directory: targets/esp32
+    env:
+      FLAGS: ${{ matrix.mode == 'locked' && '--locked' || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust for Xtensa
@@ -87,60 +77,42 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           buildtargets: esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tcp
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-workload --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-workload --features esp32c3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,embassy-net
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-crypto-mbedtls --features use-gcc
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3,rand-core
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-console --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-watchdog --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-indicator --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-runtime --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-device --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3
-      - run: cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-reset --features esp32s3
-  # Canary: test the current ESP ecosystem independently from the committed lockfile.
-  # This job intentionally mutates only the CI checkout. Normal builds remain --locked/reproducible.
-  esp-latest:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: targets/esp32
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust for Xtensa
-        uses: esp-rs/xtensa-toolchain@v1.5
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          buildtargets: esp32s3
-      - name: Select current ESP generation
-        run: bash ./ci/use-latest-esp.sh
-      - name: Resolve latest allowed dependencies
+      - name: Resolve newest dependencies allowed by the manifests
+        if: matrix.mode == 'latest'
         run: rm -f Cargo.lock && cargo +esp generate-lockfile
-      - name: ESP32-S3 compatibility matrix
+      - name: Resolved ESP stack must stay on esp-hal 1.2.x
+        run: |
+          set -eu
+          grep -A1 -E '^name = "esp-(hal|radio|storage|bootloader-esp-idf|hal-smartled)"$' Cargo.lock | grep -E '^(name|version)'
+          grep -A1 -E '^name = "esp-hal"$' Cargo.lock | grep -q 'version = "1\.2\.'
+      - name: ESP32-S3
         run: |
           set -eux
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tcp
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-workload --features esp32s3
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-ota --features esp32s3,shared-flash
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-config-space --features esp32s3
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-wifi --features esp32s3
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-tls --features esp32s3,embassy-net
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-entropy --features esp32s3,rand-core
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-watchdog --features esp32s3
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-indicator --features esp32s3
-          cargo +esp check -Z build-std=core,alloc --target xtensa-esp32s3-none-elf -p iobewi-esp-device --features esp32s3
-      - name: ESP32-C3 compatibility smoke
+          T=xtensa-esp32s3-none-elf
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-tcp
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-workload --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ota --features esp32s3,shared-flash
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-config-space --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-wifi --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-tls --features esp32s3,embassy-net
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-crypto-mbedtls --features use-gcc
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-entropy --features esp32s3,rand-core
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-entropy --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-console --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-watchdog --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-indicator --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-runtime --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-device --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-reset --features esp32s3
+      - name: ESP32-C3 smoke
         run: |
           set -eux
-          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-workload --features esp32c3
-          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-config-space --features esp32c3
-          cargo +esp check -Z build-std=core,alloc --target riscv32imc-unknown-none-elf -p iobewi-esp-wifi --features esp32c3
+          T=riscv32imc-unknown-none-elf
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-workload --features esp32c3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-config-space --features esp32c3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-wifi --features esp32c3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ota --features esp32c3,shared-flash
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-indicator --features esp32c3
 
   esp-bootloader:
     runs-on: ubuntu-latest

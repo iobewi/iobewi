@@ -15,3 +15,17 @@ Members (each declares `workspace = "<path>/targets/esp32"`): `arch/esp32/{reset
 
 The ESP bootloader is **not** a member: `bootloader/esp` keeps an autonomous workspace and lockfile.
 The former provisional `iobewi-esp/` subtree was removed in S13 (its history stays in earlier commits).
+
+## ESP support policy
+
+- Supported esp-hal line: **1.2.x** (manifests carry `~1.2`, i.e. `>=1.2.0 <1.3.0`).
+- `Cargo.lock` (here and in `bootloader/esp`) is the reproducible, validated baseline. CI
+  `esp (locked)` builds with `--locked`.
+- CI `esp (latest)` removes the lockfile in its checkout only and resolves the newest
+  dependencies the manifests allow (newest 1.2.x). It runs on push/PR and daily.
+- Moving to esp-hal 1.3 is an explicit migration (manifests + lockfiles), never automatic.
+
+Notes on the 1.2 baseline: `esp-nvs` 0.5 (latest) caps `esp-storage` at `<0.10`, so
+`iobewi-esp-nvs` does not enable its chip features and supplies the ROM CRC itself
+(`esp-rom-sys`); the Wi-Fi adapter targets `esp-radio =1.0.0-beta.1`; the status LED uses
+`esp-hal-smartled` 0.18 (the pulse-width compensation needed with `esp-hal-smartled2` is gone).
