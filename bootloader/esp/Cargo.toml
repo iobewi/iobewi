@@ -30,8 +30,8 @@ esp32s3 = [
 ]
 
 [dependencies]
-esp-hal = { version = "~1.1.0", default-features = false }
-esp-println = { version = "0.17.0", default-features = false }
+esp-hal = { version = "~1.2", default-features = false }
+esp-println = { version = "~0.18", default-features = false }
 iobewi-esp-boot = { path = "../../arch/esp32/boot", default-features = false }
 iobewi-esp-platform = { path = "../../arch/esp32/platform" }
 iobewi-firmware-boot = { path = "../../firmware/boot" }

@@ -64,7 +64,9 @@ impl MultiwriteNorFlash for NvsFlash<'_> {}
 
 impl Crc for NvsFlash<'_> {
     fn crc32(init: u32, data: &[u8]) -> u32 {
-        <esp_storage::FlashStorage<'static> as Crc>::crc32(init, data)
+        // Same ROM routine esp-nvs uses for its own esp-storage impl, which is bound to
+        // esp-storage <0.10 and so cannot be used with the 1.2 baseline.
+        esp_rom_sys::rom::crc::crc32_le(init, data)
     }
 }
 

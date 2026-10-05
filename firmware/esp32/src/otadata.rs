@@ -4,7 +4,6 @@
 //! module locates the ESP `otadata` partition and executes those transitions
 //! with readback verification. The caller owns and locks the physical flash.
 
-use embedded_storage::Storage;
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use esp_bootloader_esp_idf::partitions::{
     DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
@@ -13,6 +12,7 @@ use iobewi_ota::BackendOutcome;
 use iobewi_firmware_boot::{self as boot, Decoded};
 
 use crate::{AppPartition, AppSlot, find_app_partition};
+use iobewi_esp_partitions::FlashStorage;
 
 const SLOT_COUNT: u8 = 2;
 const SECTOR_SIZE: u32 = 0x1000;
@@ -26,8 +26,8 @@ pub enum Error {
     Verify,
 }
 
-fn read_at<F: Storage + ReadNorFlash>(
-    flash: &mut F,
+fn read_at(
+    flash: &mut FlashStorage<'_>,
     scratch: &mut TableBuffer,
 ) -> Result<(u32, Entries), Error> {
     let table = read_partition_table(flash, scratch).map_err(|_| Error::Unavailable)?;
@@ -43,8 +43,8 @@ fn read_at<F: Storage + ReadNorFlash>(
     Ok((base, entries))
 }
 
-pub fn read_entries<F: Storage + ReadNorFlash>(
-    flash: &mut F,
+pub fn read_entries(
+    flash: &mut FlashStorage<'_>,
     scratch: &mut TableBuffer,
 ) -> Result<Entries, Error> {
     read_at(flash, scratch).map(|(_, entries)| entries)
@@ -52,7 +52,7 @@ pub fn read_entries<F: Storage + ReadNorFlash>(
 
 /// Reports the running partition, including after the bootloader falls back
 /// from an invalid image without rewriting the latest EWBT entry.
-pub fn booted_slot<F: Storage>(flash: &mut F, scratch: &mut TableBuffer) -> Result<&'static str, Error> {
+pub fn booted_slot(flash: &mut FlashStorage<'_>, scratch: &mut TableBuffer) -> Result<&'static str, Error> {
     let table = read_partition_table(flash, scratch).map_err(|_| Error::Unavailable)?;
     let entry = table.booted_partition().map_err(|_| Error::Unavailable)?.ok_or(Error::Unavailable)?;
     Ok(match entry.label_as_str() {
@@ -65,8 +65,8 @@ pub fn booted_slot<F: Storage>(flash: &mut F, scratch: &mut TableBuffer) -> Resu
 
 /// Choose the other slot only after IOBEWI OTA entries identify a running Valid
 /// or Pending image. A stale Valid entry may remain in the other sector.
-pub fn write_target<F: Storage + ReadNorFlash>(
-    flash: &mut F,
+pub fn write_target(
+    flash: &mut FlashStorage<'_>,
     scratch: &mut TableBuffer,
 ) -> Result<AppPartition, Error> {
     let entries = read_entries(flash, scratch)?;
@@ -109,8 +109,8 @@ pub fn boot_entry(entries: &Entries) -> Option<BootEntry> {
     })
 }
 
-fn execute<F: Storage + NorFlash>(
-    flash: &mut F,
+fn execute(
+    flash: &mut FlashStorage<'_>,
     scratch: &mut TableBuffer,
     write: boot::Write,
 ) -> Result<(), Error> {
@@ -138,20 +138,20 @@ fn execute<F: Storage + NorFlash>(
     Ok(())
 }
 
-pub fn confirm<F: Storage + NorFlash>(flash: &mut F, scratch: &mut TableBuffer) -> Result<(), Error> {
+pub fn confirm(flash: &mut FlashStorage<'_>, scratch: &mut TableBuffer) -> Result<(), Error> {
     let entries = read_entries(flash, scratch)?;
     let write = boot::confirm(entries).ok_or(Error::NoTransition)?;
     execute(flash, scratch, write)
 }
 
-pub fn reject<F: Storage + NorFlash>(flash: &mut F, scratch: &mut TableBuffer) -> Result<(), Error> {
+pub fn reject(flash: &mut FlashStorage<'_>, scratch: &mut TableBuffer) -> Result<(), Error> {
     let entries = read_entries(flash, scratch)?;
     let write = boot::reject(entries).ok_or(Error::NoTransition)?;
     execute(flash, scratch, write)
 }
 
-pub fn activate<F: Storage + NorFlash>(
-    flash: &mut F,
+pub fn activate(
+    flash: &mut FlashStorage<'_>,
     scratch: &mut TableBuffer,
     target: AppSlot,
 ) -> Result<(), Error> {

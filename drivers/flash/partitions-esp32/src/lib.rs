@@ -5,11 +5,11 @@
 //! Functions here are intentionally policy-free. Slot selection, rollback,
 //! ConfigSpace ownership and firmware transactions remain in higher layers.
 
-use embedded_storage::Storage;
 use embedded_storage::nor_flash::NorFlash;
 use esp_bootloader_esp_idf::partitions::{
     PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
 };
+pub use esp_storage::FlashStorage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartitionRange {
@@ -44,14 +44,11 @@ pub struct RawEntry<'a> {
 }
 
 /// Calls `visit` for every entry of the partition table, in table order.
-pub fn for_each_entry<F>(
-    flash: &mut F,
+pub fn for_each_entry(
+    flash: &mut FlashStorage<'_>,
     table_buffer: &mut [u8; PARTITION_TABLE_MAX_LEN],
     mut visit: impl FnMut(RawEntry<'_>),
-) -> Result<(), PartitionError>
-where
-    F: Storage,
-{
+) -> Result<(), PartitionError> {
     let table = read_partition_table(flash, table_buffer).map_err(|_| PartitionError::TableUnreadable)?;
     for entry in table.iter() {
         visit(RawEntry {
@@ -67,16 +64,13 @@ where
 
 /// Locates a partition by its **label** among entries of a given raw type and
 /// subtype (for partitions that share a type: the Workload `data/undefined` ones).
-pub fn find_by_label<F>(
-    flash: &mut F,
+pub fn find_by_label(
+    flash: &mut FlashStorage<'_>,
     table_buffer: &mut [u8; PARTITION_TABLE_MAX_LEN],
     label: &str,
     kind: u8,
     subtype: u8,
-) -> Result<PartitionRange, PartitionError>
-where
-    F: Storage,
-{
+) -> Result<PartitionRange, PartitionError> {
     let mut found = None;
     for_each_entry(flash, table_buffer, |entry| {
         if found.is_none() && entry.kind == kind && entry.subtype == subtype && entry.label == label {
@@ -87,14 +81,11 @@ where
 }
 
 /// Locate one partition of the requested ESP-IDF type.
-pub fn find<F>(
-    flash: &mut F,
+pub fn find(
+    flash: &mut FlashStorage<'_>,
     table_buffer: &mut [u8; PARTITION_TABLE_MAX_LEN],
     kind: PartitionType,
-) -> Result<PartitionRange, PartitionError>
-where
-    F: Storage,
-{
+) -> Result<PartitionRange, PartitionError> {
     let table = read_partition_table(flash, table_buffer)
         .map_err(|_| PartitionError::TableUnreadable)?;
     let entry = table

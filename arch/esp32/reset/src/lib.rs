@@ -17,7 +17,7 @@
 //! caller's business; the hardware watchdog used as a boot-window guard is
 //! `iobewi-esp-watchdog`, a different peripheral.
 
-use esp_hal::peripherals::LPWR;
+use esp_hal::peripherals::RTC_TIMER;
 use esp_hal::rtc_cntl::{Rtc, RwdtStage, RwdtStageAction};
 
 /// Immediate digital-core reset. Never returns.
@@ -29,8 +29,8 @@ pub fn software_reset() -> ! {
 ///
 /// Returns the `Rtc` handle: the caller keeps it alive (and then simply waits
 /// for the reset), exactly as the watchdog is configured and enabled here.
-pub fn arm_system_reset(lpwr: LPWR<'static>, after_ms: u64) -> Rtc<'static> {
-    let mut rtc = Rtc::new(lpwr);
+pub fn arm_system_reset(rtc_timer: RTC_TIMER<'static>, after_ms: u64) -> Rtc<'static> {
+    let mut rtc = Rtc::new(rtc_timer);
     rtc.rwdt
         .set_timeout(RwdtStage::Stage0, esp_hal::time::Duration::from_millis(after_ms));
     rtc.rwdt.set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);

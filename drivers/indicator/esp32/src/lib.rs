@@ -23,23 +23,19 @@ use esp_hal::gpio::AnyPin;
 use esp_hal::peripherals::RMT;
 use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
-use esp_hal_smartled::{RmtSmartLeds, Timing, buffer_size, color_order};
+use esp_hal_smartled::{RmtSmartLeds, WS2812_TIMING, buffer_size, color_order};
 use iobewi_indicator::{Status, StatusIndicator, StatusIndicatorCapabilities};
 use log::{info, warn};
 use smart_leds::{RGB8, SmartLedsWrite};
 
-/// `esp-hal-smartled2` 0.29.0 multiplies its pulse widths by an extra `* 2`,
-/// assuming the RMT counter runs at twice the given source clock. That is
-/// wrong here, and made the LED sit at full-brightness white whatever was
-/// written (upstream issue #9, reported for the ESP32-S3). Pre-halving every
-/// duration cancels that doubling.
-const WS2812_TIMING_HALVED: Timing = Timing {
-    time_0_high: esp_hal_smartled::WS2812_TIMING.time_0_high / 2,
-    time_0_low: esp_hal_smartled::WS2812_TIMING.time_0_low / 2,
-    time_1_high: esp_hal_smartled::WS2812_TIMING.time_1_high / 2,
-    time_1_low: esp_hal_smartled::WS2812_TIMING.time_1_low / 2,
-    reset: esp_hal_smartled::WS2812_TIMING.reset / 2,
-};
+/// RMT source clock. `esp-hal-smartled` converts the WS2812 pulse widths to ticks from it
+/// (ticks = ns * MHz / 1000, clock divider 1), so it must match the `Rmt::new` frequency.
+///
+/// `esp-hal-smartled2` 0.29 doubled every pulse width (upstream issue #9: the LED sat at
+/// full-brightness white on the ESP32-S3), and this driver compensated by pre-halving the
+/// timings. `esp-hal-smartled` 0.18 corrects the tick calculation, so the compensation is gone:
+/// the pulse widths on the wire are unchanged.
+const RMT_FREQ: Rate = Rate::from_mhz(80);
 
 fn to_byte(status: Status) -> u8 {
     match status {
@@ -158,7 +154,7 @@ async fn park() -> ! {
 /// actually configured.
 #[embassy_executor::task]
 pub async fn led_task(rmt: RMT<'static>, pin: AnyPin<'static>) -> ! {
-    let rmt = match Rmt::new(rmt, Rate::from_mhz(80)) {
+    let rmt = match Rmt::new(rmt, RMT_FREQ) {
         Ok(rmt) => rmt,
         Err(e) => {
             warn!("Status LED unavailable, RMT init failed: {e:?}");
@@ -170,7 +166,7 @@ pub async fn led_task(rmt: RMT<'static>, pin: AnyPin<'static>) -> ! {
         _,
         RGB8,
         color_order::Grb,
-    >::new_with_memsize(WS2812_TIMING_HALVED, rmt.channel0, pin, 2)
+    >::new_with_memsize(WS2812_TIMING, rmt.channel0, pin, 2, RMT_FREQ)
     {
         Ok(led) => led,
         Err(e) => {
