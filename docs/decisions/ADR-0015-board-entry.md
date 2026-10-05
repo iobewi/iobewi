@@ -1,6 +1,6 @@
 # ADR-0015 — Board capabilities and framework-owned product entry
 
-Status: Proposed — requires explicit approval before implementation.
+Status: Board model approved in principle; boot-time USB selection approved on 2026-10-05. Entry remains subject to experiment review.
 Tracking: https://github.com/iobewi/iobewi/issues/15
 
 ## Context and evidence
@@ -74,25 +74,32 @@ pub trait SerialBank {
     fn take_next(&mut self) -> Option<Serial<Self::Rx, Self::Tx>>;
 }
 
-// Consuming the factory guarantees one acquisition per boot.
-// Awaiting permits safe retirement of a shared serial peripheral.
-pub trait UsbFactory {
+pub enum UsbBootMode { Provisioning, MassStorage }
+
+pub struct BootIo<S, D> {
+    pub serial: S,
+    pub usb: Option<D>,
+}
+
+// Consumed once during boot, before either USB controller is initialized.
+pub trait BootIoFactory {
+    type Serial: SerialBank;
     type Driver: embassy_usb::driver::Driver<'static>;
     type Error: core::fmt::Debug;
 
-    async fn acquire(self) -> Result<Self::Driver, Self::Error>;
+    fn select(self, mode: UsbBootMode)
+        -> Result<BootIo<Self::Serial, Self::Driver>, Self::Error>;
 }
 
 pub trait Reset {
     fn reset(self) -> !;
 }
 
-pub struct BoardParts<W, C, S, B, U, R, I> {
+pub struct BoardParts<W, C, B, IO, R, I> {
     pub wifi: W,
     pub config: C,
-    pub serial: S,
     pub button: B,
-    pub usb: U,
+    pub io: IO,
     pub reset: R,
     pub identity: I,
 }
@@ -100,16 +107,15 @@ pub struct BoardParts<W, C, S, B, U, R, I> {
 pub trait Board: Sized {
     type Wifi: iobewi_wifi_core::WifiTransport;
     type Config: iobewi_config_space::ConfigBackend;
-    type Serial: SerialBank;
     type Button: embedded_hal_async::digital::Wait;
-    type Usb: UsbFactory;
+    type Io: BootIoFactory;
     type Reset: Reset;
     type Identity: iobewi_device::DeviceIdentity
         + iobewi_device::DeviceMetadata;
 
     fn into_parts(self) -> BoardParts<
-        Self::Wifi, Self::Config, Self::Serial, Self::Button,
-        Self::Usb, Self::Reset, Self::Identity,
+        Self::Wifi, Self::Config, Self::Button,
+        Self::Io, Self::Reset, Self::Identity,
     >;
 }
 ```
@@ -131,47 +137,54 @@ implementations; absent input waits must stay pending without spinning, and USB
 acquisition must report unsupported capability. These adapters are not evidence
 that C3 or RP2350 is supported.
 
-## Shared USB lifecycle
+## USB selected once at boot from product ConfigSpace
 
-UART0 remains available when OTG starts. On S3, USB-Serial-JTAG and OTG use
-GPIO19/20; independent ownership of those pins must never be exposed to the app.
+The user replaces hot handover with exclusive boot-time selection. No running
+transition, PHY arbiter, revocation protocol or asynchronous USB acquisition is
+required for StreamBeWI.
 
-The ESP serial adapter and USB factory share a private arbiter. acquire first
-retires JTAG IO: stop admitting operations, wake pending reads/writes with a
-documented retired-port error, wait for driver access to end, release/reroute the
-shared PHY, then construct OTG. New operations on retired handles fail without
-touching hardware. Cancellation of acquire leaves shared serial retired and must
-not allow a second acquisition. Failure is explicit; no live JTAG/OTG overlap.
+Entry initializes the platform and single flash/config backend, but neither JTAG
+nor OTG. The product consumes BoardParts, reads its ConfigSpace flag and calls
+io.select(mode) once before normal services. The consuming factory constructs
+the serial bank and chosen USB controller; no second selection is exposed.
 
-The product decides *when* to call acquire (configured/stream-ready for StreamBeWI).
-It treats a retired provisioning port as finished instead of retrying it forever.
-This transition needs a dedicated implementation experiment and hardware proof;
-the current late FnOnce closure does not establish those guarantees.
+| StreamBeWI flag | Mode | Native USB hardware |
+| --- | --- | --- |
+| otg_enabled = false or absent | Provisioning | Serial/JTAG initialized, no OTG |
+| otg_enabled = true | MassStorage | OTG initialized, no Serial/JTAG |
 
-USB buffers are framework-owned static resources sized by validated resource requests.
-The product retains USB identity, MSC policy and descriptor/class buffer choices.
+UART0 is independent and may remain available in either mode. No retired JTAG
+handles are returned in OTG mode. MassStorage returns Some(driver), Provisioning
+returns None. Product policy still determines when the MSC medium is ready.
 
-## Console ownership during USB handover
+The flag/schema, ConfigSpace name, provisioning decision and recovery policy belong
+to StreamBeWI, not IOBEWI. IOBEWI supplies the mode and exclusive constructors.
+An unreadable/corrupt ConfigSpace value is an explicit error, not an absent flag.
 
-The current console_print directly calls esp-println. The new S3 composition must
-not rely on an automatic console backend that can select USB-Serial-JTAG: that
-would bypass the PHY arbiter after retirement. Logs and Improv must share the
-same serial ownership rules.
+After successful Wi-Fi provisioning, the product durably commits otg_enabled=true.
+The current boot stays in provisioning. OTG starts only at the next reboot or
+unplug/replug. No mandatory immediate reboot and no automatic running switch.
+A failed commit must not be reported as successful or change the running mode.
 
-For the first implementation, choose **discard of the physical console output**
-from the beginning of JTAG retirement through OTG operation. Atomically disable
-admission of console writes and finish any in-flight access before changing the
-PHY. Console writes must be bounded even before retirement: a disconnected or
-backpressured host must never block startup or USB handover. The console callback
-must not await an async lock, perform an unbounded flush or spin waiting for a host.
-After retirement it returns immediately without touching JTAG. Portable ring
-capture and configured network log consumers remain independent of this physical
-sink. A later UART fallback would require arbitration with Improv on UART0 and
-is not assumed here.
+Recovery persists otg_enabled=false before clearing Wi-Fi credentials, then reboots
+after both succeed. Failures must remain explicit with a usable provisioning
+recovery path. Do not claim atomicity across independent ConfigSpace records.
 
-The handover experiment must exercise logs with a connected host, a disconnected
-host and a stalled host, including concurrent serial IO. Explicitly measure the
-bound; an unbounded esp-println backend cannot satisfy this contract unchanged.
+The synchronous consuming BootIoFactory replaces the initial asynchronous factory.
+The exact error API remains to finalize with the portable contract.
+
+## Console ownership by boot mode
+
+Do not install the current automatic esp-println sink in the new entry composition:
+it can access JTAG independently of HAL ownership. Physical console output is
+disabled before selection and stays disabled on JTAG for the entire OTG boot.
+The first composition can discard the physical console sink while preserving
+portable ring capture and network logging.
+
+Any console enabled in provisioning must share writer ownership with Improv and
+be bounded for absent/stalled hosts. Existing console APIs remain available to
+other compositions. No in-flight JTAG retirement is necessary because JTAG is
+never initialized in the OTG boot.
 
 ## Entry, startup and profiles
 
@@ -179,6 +192,7 @@ bound; an unbounded esp-println backend cannot satisfy this contract unchanged.
   UART pins, NVS label and physical memory limits. Keep that crate host-testable.
 - Put HAL startup in a platform module of `arch/esp32/runtime`: clock, allocator,
   timer/RTOS, one-time resource initialization and Board construction.
+- Defer boot IO construction until the product has read its ConfigSpace mode.
 - Put OTG device glue in `drivers/usb/esp32`, serial transports in a dedicated
   `drivers/serial/esp32`, and input glue in `drivers/input/esp32`.
 - Keep existing device metadata/identity, Wi-Fi and config backend implementations.
@@ -225,8 +239,9 @@ composition and must not be duplicated by product dependencies.
 - Product-owned Platform/targets: retains the duplication reported in #15.
 - A universal Board with raw peripherals: leaks HAL and pin ownership into products.
 - Fixed serial_a/serial_b: repeats one product's assumptions rather than 0..n.
-- Immediate OTG factory plus independent JTAG ports: cannot express safe ownership
-  transfer of the shared PHY.
+- Hot JTAG-to-OTG handover: unnecessary for an unplug/replug dongle; adds
+  cancellation, interrupt and console retirement complexity.
+- Initializing JTAG before reading the flag: recreates the avoided handover.
 - Forcing Embassy Stack on Board: needlessly narrows the existing Wi-Fi contract.
 - Routing Board through the native Workload ABI: violates INV-010 and changes scope.
 
@@ -255,8 +270,8 @@ builds; inspecting the macro invocation alone does not prove its expanded value.
 
 ## Approval levels
 
-1. Board model: consuming parts, finite serial bank and asynchronous consuming
-   USB acquisition are the architectural model approved in principle by the user,
+1. Board model: consuming parts, finite serial bank and synchronous consuming
+   boot IO selection are the architectural model approved in principle by the user,
    subject to this review's corrections. No entry implementation is thereby proven.
 2. entry!: **conditionally proposed**, accepted only after milestone 1 proves an
    external macro can emit the concrete ESP entry, preserve the product descriptor
@@ -266,7 +281,8 @@ builds; inspecting the macro invocation alone does not prove its expanded value.
 ## Milestones after model approval
 
 1. Compile experiments for external entry expansion, product descriptor identity,
-   concrete main future size and JTAG-to-OTG retirement. Record actual measurements.
+   concrete main future size. Record measurements; running USB retirement is removed
+   from this milestone by the approved boot-mode decision.
 2. Portable Board contract with fake capabilities and serial-bank tests.
 3. ESP drivers, profile, single-owner startup and entry/build helper.
 4. Migrate StreamBeWI to Board; remove targets/esp32; retain one entry binary.
@@ -281,9 +297,12 @@ authorized, following root AGENTS.md.
   entry! and the build helper; image descriptor matches fixture name/version.
 - Record the product main future's actual storage size and linker RAM/heap/stack
   headroom; do not use a guessed universal threshold.
-- Test bounded console discard/retirement for connected, absent and stalled hosts.
-- Test zero/three serial ports, pending IO retirement and no busy retry loop;
-  acquisition cannot access shared pins while JTAG IO is active.
+- Test absent/false/true persisted flags and explicit load/commit failures.
+- Test zero/three serial ports and exclusive boot IO construction.
+- Provisioning initializes no OTG; MassStorage initializes no JTAG.
+- Persisting true does not change this boot; reboot/replug starts OTG.
+- Recovery resets the flag before clearing Wi-Fi and rebooting.
+- Console cannot touch JTAG in an OTG boot.
 - Test NVS discovery failure and validate one SharedFlash owner.
 - Replay BG-ESP-S3 and BG-USB-MSC on hardware; host tests/builds alone are partial.
 - Run esp locked/latest CI and docs_tool.py generate/check.
@@ -292,7 +311,7 @@ authorized, following root AGENTS.md.
 
 ## Review outcome and next gate
 
-The user approves the Board model in principle. This revision addresses numbering,
-partial supersession, physical log ownership, product-declared socket resources
-and conditional entry approval. Milestone 1 is the next validation gate.
+The user approves the Board model and replaces hot handover with persisted boot-time
+USB selection on 2026-10-05. Keep the entry compile proofs, remove retirement tests
+from that milestone and implement the simpler exclusive boot lifecycle.
 Do not merge or claim entry! accepted until the relevant approval/proofs exist.
