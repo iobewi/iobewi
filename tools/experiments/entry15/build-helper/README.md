@@ -25,7 +25,7 @@ OTA or hardware qualification. Not a framework API to integrate into products.
 ## Architecture
 
 Isolated experimental workspace; no changes to production workspace membership.
-See [experiment instructions](../README.md). All crates are unpublished.
+See [experiment instructions](https://github.com/iobewi/iobewi/blob/feat/15-entry-experiments/tools/experiments/entry15/README.md). All crates are unpublished.
 
 ## Public API
 
@@ -51,4 +51,4 @@ The negative async-main mode is expected to fail and is not a production feature
 
 ## Related components
 
-[Experiment instructions](../README.md), issue #15 and proposed ADR-0015 in PR #16.
+[Experiment instructions](https://github.com/iobewi/iobewi/blob/feat/15-entry-experiments/tools/experiments/entry15/README.md), issue #15 and proposed ADR-0015 in PR #16.
