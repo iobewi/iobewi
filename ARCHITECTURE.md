@@ -58,8 +58,10 @@ policy consumes ports; a target composition package owns HAL resources, concrete
 adapters and task wrappers. The guide lists the current ESP bindings and gaps.
 [ADR-0015](docs/decisions/ADR-0015-board-entry.md) approves moving those responsibilities
 into framework startup. The portable [Board contract](board/README.md) defines
-consuming capabilities and boot I/O selection; production Board adapters and entry
-are still pending, so target-local composition remains the available runtime path.
+consuming capabilities and boot I/O selection. The S3 native-USB adapter and entry
+facade now compile and link as a downstream candidate. Hardware qualification and
+the real StreamBeWI memory budget remain pending before migration. Portable pin
+metadata describes upstream-generated GPIO functions; board profiles describe wiring.
 
 ## Update domains
 
@@ -105,8 +107,7 @@ volume over a file source. Their crate README files define the local contracts.
 The portable USB MSC class at `drivers/usb/msc` consumes block devices through
 Embassy USB driver contracts. The product supplies the device/PHY driver, protocol
 identity and unavailable-read policy in the current target-local composition.
-The Board contract reserves exclusive boot-time driver construction for a future
-framework adapter; the product keeps protocol identity and medium-readiness policy.
+The S3 Board adapter supplies exclusive boot-time driver construction; the product keeps protocol identity and medium-readiness policy.
 These portable components do not own networking, physical flash or product
 buffering policy. They do not add networking/storage capabilities to the native
 Workload ABI; a product composes them within its own firmware binary.

@@ -337,3 +337,15 @@ The user approves the Board model and replaces hot handover with persisted boot-
 USB selection on 2026-10-05. Keep the entry compile proofs, remove retirement tests
 from that milestone and implement the simpler exclusive boot lifecycle.
 Do not merge or claim entry! accepted until the relevant approval/proofs exist.
+
+## Milestone 3 implementation record
+
+The S3 native-USB candidate reuses SharedFlash and the existing NVS backend, adding
+label discovery and geometry validation rather than another storage stack.
+The product declares `ResourceRequest` (sockets, heap and minimum stack), and
+the profile admits bytes without selecting socket count. GPIO descriptions use
+the optional portable `PinMetadata` trait projected from upstream generated
+metadata; wiring remains a separate platform profile. The fatal startup channel
+is bounded best-effort UART0, with silent halt if UART itself cannot initialize.
+No normal or panic physical console sink is installed. Compilation of the real
+Board fixture does not close hardware or real StreamBeWI memory acceptance gates.

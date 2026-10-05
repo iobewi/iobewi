@@ -27,6 +27,7 @@ jobs:
       - run: cargo test -p iobewi-runtime
       - run: cargo test -p iobewi-device
       - run: cargo test -p iobewi-board --locked
+      - run: cargo test -p iobewi-esp-platform -p gpio15-metadata-proof --locked
       - run: cargo test -p iobewi-entropy
       - run: cargo test -p iobewi-http-server
       - run: cargo test -p iobewi-http-client --features websocket
@@ -116,12 +117,16 @@ jobs:
       - name: Entry macro downstream link and negative hygiene experiment
         working-directory: .
         run: bash tools/experiments/entry15/run.sh ${{ matrix.mode }}
+      - name: Board startup downstream link in both USB modes
+        working-directory: .
+        run: bash tools/experiments/board15/run.sh ${{ matrix.mode }}
       - name: ESP32-C3 smoke
         run: |
           set -eux
           T=riscv32imc-unknown-none-elf
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-workload --features esp32c3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-config-space --features esp32c3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-device --features esp32c3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-wifi --features esp32c3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ota --features esp32c3,shared-flash
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ws2812 --features esp32c3

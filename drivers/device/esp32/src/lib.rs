@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::string::String;
-use iobewi_device::{hardware_id_from_mac, DeviceIdentity, DeviceMetadata};
+use iobewi_device::{DeviceIdentity, DeviceMetadata, hardware_id_from_mac};
 
 /// ESP implementation of IOBEWI's portable device identity capability.
 ///
@@ -40,3 +40,5 @@ impl DeviceMetadata for EspDeviceMetadata {
         (dram.end - dram.start) as u32
     }
 }
+
+mod pins;

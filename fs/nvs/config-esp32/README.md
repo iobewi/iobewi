@@ -43,6 +43,10 @@ Local IOBEWI path dependencies declared by Cargo:
 
 Package features and dependency declarations are canonical in `Cargo.toml`.
 
+### Discovered startup
+
+NvsConfigBackend::from_label(shared_flash, label).await discovers a DATA/NVS partition using the existing partition helper, validates erase geometry against actual flash capacity, releases the shared lock and reuses new(). Errors distinguish discovery, geometry and backend initialization. There is no hardcoded address fallback, new physical flash owner or explicit erase/reformat-on-failure path. Existing esp-nvs open/recovery semantics still apply; initialization is not a guarantee of read-only flash access. Missing partitions/backend failures stop Board startup before any native USB constructor.
+
 ## Invariants
 
 - `INV-001`

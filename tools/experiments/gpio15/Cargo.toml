@@ -1,0 +1,11 @@
+[package]
+name = "gpio15-metadata-proof"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.95"
+license.workspace = true
+repository.workspace = true
+publish = false
+[dependencies]
+iobewi-device = { path = "../../../drivers/device/core" }
+esp-metadata-generated = { version = "~0.5", features = ["esp32s3"] }

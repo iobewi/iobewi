@@ -1,0 +1,16 @@
+[package]
+name = "board15-product-proof"
+version = "7.8.9"
+edition = "2024"
+publish = false
+[dependencies]
+iobewi-board = { path = "../../../../board" }
+iobewi-config-space = { path = "../../../../fs/config" }
+iobewi-device = { path = "../../../../drivers/device/core" }
+entry_api = { package = "iobewi-entry", path = "../../../../entry", features = ["esp32s3"] }
+[build-dependencies]
+iobewi-entry-build = { path = "../../../../entry-build" }
+
+[features]
+default = []
+mass-storage = []

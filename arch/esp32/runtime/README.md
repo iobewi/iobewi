@@ -11,7 +11,7 @@ gates:
 ## Summary
 
 ESP stack painting and heap measurements implementing portable `RuntimeDiagnostics`.
-This crate does not start the HAL, RTOS or Embassy executor.
+Diagnostics-only features do not start HAL/RTOS. The optional Board feature adds startup composition; the entry facade owns HAL and executor startup.
 
 ## Responsibilities
 
@@ -20,7 +20,7 @@ This crate does not start the HAL, RTOS or Embassy executor.
 
 ## Non-responsibilities
 
-No allocator setup, task spawning, scheduler, overflow prevention, per-task stack
+The diagnostics-only API does not own allocator setup, task spawning or scheduling. No overflow prevention, per-task stack
 accounting or second-core/Workload-stack diagnostics.
 
 ## Architecture
@@ -38,6 +38,10 @@ It uses architecture assembly and linker symbols, not a portable host implementa
   the first non-`0xAA` byte; `heap_free_bytes()` returns `esp_alloc::HEAP.free()`
   converted to `u32`. The latter is a current free-byte count, not a high-water
   mark or largest contiguous allocation.
+
+### Optional S3 Board startup
+
+With board-s3-native-usb, platform::Startup<SOCKETS> prepares the allocator/RTOS and single SharedFlash, then finish(spawner).await discovers NVS by label and builds EspBoard. ResourceRequest socket count must match SOCKETS; byte admission uses the profile budget and minimum linker stack. Board owns existing Wi-Fi, config, identity, reset and newly supplied UART/button/USB adapters. Its consuming I/O factory constructs JTAG only in Provisioning or OTG only in MassStorage, retaining UART0 in both. The product reads configuration before select; startup does not interpret otg_enabled. StartupFailure::halt emits only a short best-effort UART0 fatal code, with one FIFO-readiness check per byte and no retry/flush. UART constructor failure silently halts. Normal boots and panic have no physical console sink. RTC system reset is used, but PHY behavior after reset still requires hardware. The feature does not start another physical flash owner. Existing diagnostics-only chip features retain their lifecycle. Validate both modes with tools/experiments/board15/run.sh and hardware gates.
 
 ## Lifecycle
 

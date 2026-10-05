@@ -40,6 +40,10 @@ Both types are zero-sized, `Clone + Copy + Default`; identity does not implement
 metadata and metadata does not implement identity. Import the corresponding portable
 trait to call its methods. Select one matching `esp32s3` or `esp32c3` feature.
 
+### Generated GPIO projection
+
+EspDeviceMetadata also implements portable PinMetadata. The adapter expands esp-metadata-generated::for_each_gpio! from the pinned dependency rather than copying SoC tables. It projects GPIO IDs, digital direction flags and mux alternate functions. Selector and signal names are descriptive. It does not certify board availability, flash/PSRAM use, electrical constraints, analog/RTC functions or every upstream attribute. The S3 host proof uses the actual mapper source and checks 45 pins and UART functions.
+
 ## Invariants
 
 Repository-wide invariants apply; platform dependencies remain in this adapter.

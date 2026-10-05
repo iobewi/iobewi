@@ -10,9 +10,9 @@ This is the **current transitional integration path**.
 [issue #15](https://github.com/iobewi/iobewi/issues/15), records the approved Board
 direction: framework-owned startup/adapters, consuming capabilities and exclusive
 USB selection at boot. The portable [Board contract](../board/README.md) is now
-implemented and host-tested, but there is no production Board adapter or framework
-entry yet. Keep the target-local composition below until those implementations ship;
-the experiments do not constitute an available production entry API. ADR-0015
+implemented and host-tested. A concrete S3 native-USB Board and framework entry
+candidate now compile and link downstream; hardware and real-product memory gates
+remain pending. The target-local path below remains supported. ADR-0015
 partially supersedes the corresponding ADR-0014 rules as its implementation ships.
 
 ## Read before assembling
@@ -87,17 +87,18 @@ Before implementing target-local helpers, consult these canonical contracts:
 
 | Existing capability | Provider and scope |
 | --- | --- |
-| Boot memory geometry | [ESP platform](../arch/esp32/platform/README.md): C3/S3 `BOOT_MEMORY_MAP`, not board pinout/startup |
-| Main-stack and heap diagnostics | [ESP runtime](../arch/esp32/runtime/README.md): initialize once and early on the main stack; does not start HAL/RTOS |
+| Boot memory geometry | [ESP platform](../arch/esp32/platform/README.md): C3/S3 `BOOT_MEMORY_MAP` plus the separate S3 wiring profile |
+| Main-stack and heap diagnostics | [ESP runtime](../arch/esp32/runtime/README.md): initialize once and early; diagnostics-only features do not start HAL/RTOS |
 | Hardware identity | [Device contracts](../drivers/device/core/README.md) and [ESP providers](../drivers/device/esp32/README.md): `EspDeviceIdentity` for base MAC/ID |
 | Static chip facts | `EspDeviceMetadata` is a separate provider for chip name/DRAM range size; not free RAM |
 | Console output | [ESP console](../drivers/console/esp32/README.md): synchronous callback, default auto backend, polling/drop and PHY-sharing limitations |
 
-These APIs are implemented today; they do not supply the proposed Board/entry
-startup or exclusive boot-time serial/USB construction. In particular, do not infer a complete MCU
-pinout from the boot memory map or HAL initialization from runtime diagnostics.
+These APIs are reused by the optional S3 Board startup. PinMetadata provides a
+portable descriptive GPIO projection generated from upstream metadata; it does not
+certify physical board availability. The boot memory map remains separate from
+GPIO descriptions and wiring profiles.
 
-### Capabilities still supplied locally by the product
+### Responsibilities of the legacy target-local path
 
 - **Plain outbound TCP connector:** `net/io::Connector` exists, but the current
   tree only provides `SecureConnector` through the TLS service. `EspTcpListener`
@@ -112,11 +113,11 @@ pinout from the boot memory map or HAL initialization from runtime diagnostics.
   GPIO adapter. The product owns hold duration, debounce and recovery decisions.
 - **Improv Serial transport:** the external [improv-serial](https://github.com/iobewi/improv-serial)
   crate already supplies portable parsing/framing (`no_std + alloc`); its caller
-  supplies transport and provisioning actions. IOBEWI does not yet supply the
-  concrete UART/Serial-JTAG adapter or task wiring. Keep these target-local and
+  supplies transport and provisioning actions. IOBEWI supplies an S3 UART/Serial-JTAG adapter and Board startup. Legacy targets
+  can still compose these locally and
   coordinate console writes; do not pass the HAL serial type into business logic.
 - **USB OTG creation:** the portable MSC class does not create the ESP OTG/PHY
-  driver. The target owns it, USB identity and concrete Embassy task wrappers.
+  driver. The S3 Board candidate supplies exclusive driver construction; legacy targets still own it. The product keeps USB identity and readiness policy.
 - **Reset:** raw software/RTC reset functions exist, but deferred HTTP reboot
   orchestration remains target composition. Never reset before the response can
   leave the device.
@@ -202,3 +203,33 @@ Do not confuse a portable crate linked into one firmware with an independently
 loaded native Workload. Generic Rust traits/futures can cross the former source
 boundary, but must never cross the Agent/Workload binary boundary (INV-010).
 Networking/virtual-media composition does not extend the Workload ABI implicitly.
+
+## S3 Board entry candidate (milestone 3)
+
+The first profile uses BOOT GPIO0, UART0 TX43/RX44 and USB D+20/D-19. It is
+selected by the entry `esp32s3` feature; arbitrary board profiles are not implemented.
+The portable product exports `BOARD_RESOURCES: iobewi_board::ResourceRequest`
+and `async fn run<B: Board>(board: B)` with any additional service bounds.
+The facade calls it through `iobewi_entry::entry!(product::run)`. The firmware
+uses `iobewi_entry_build::emit()` in build.rs. See the canonical
+[entry README](../entry/README.md) and [downstream fixture](../tools/experiments/board15/product/README.md).
+
+The request sets product socket count, heap and minimum linker stack. The Board
+validates its RAM budget; it does not choose the product socket count. Optional
+`B::Identity: iobewi_device::PinMetadata` adds read-only GPIO descriptions without
+exposing HAL types. Upstream metadata remains the MCU source; profile wiring
+remains board-specific. No generic GPIO configuration API is introduced here.
+
+Startup opens the existing NVS backend through `from_label("nvs")` on the one
+SharedFlash, with no address fallback or explicit failure-triggered erasure.
+The product then reads its flag **before** consuming `parts.io.select(mode)`.
+It owns unreadable-flag reporting/fallback, credentials and flag write ordering,
+and reset policy. The fixture compiles both modes but does not implement that policy.
+There is no live JTAG-to-OTG handover. UART stays available in both modes.
+
+No physical console or panic sink is installed. Fatal startup uses bounded
+best-effort UART0 only; if UART initialization itself fails, startup silently halts.
+Do not add esp-println auto or esp-backtrace through feature unification.
+The fixture gate audits the normal/build dependency graph for both packages.
+Real StreamBeWI future, heap/stack high-water measurements, actual NVS failures,
+reset/PHY behavior and BG-ESP-S3/BG-USB-MSC still require qualification.

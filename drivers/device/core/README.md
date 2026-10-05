@@ -37,7 +37,11 @@ traits. Product policy consumes these contracts without knowing the HAL.
 | `DeviceMetadata::ram_size() -> u32` | Platform-reported RAM size; not current free heap or stack headroom |
 | `hardware_id_from_mac([u8; 6]) -> String` | Last three MAC bytes, lowercase zero-padded hex, no prefix: `aa:bb:cc:0a:0b:ff` becomes `0a0bff` |
 
-Identity and metadata are separate traits; a provider need not implement both.
+PinMetadata is an additional optional descriptive capability. Identity and metadata are separate traits; a provider need not implement both.
+
+### Portable GPIO metadata
+
+PinMetadata exposes a static slice of PinDescriptor and sparse lookup by PinId. Each descriptor names the adapter-local GPIO, its digital input/output capabilities and PinFunction alternatives with SignalDirection and an opaque selector name. PinId is not a physical header or package number. This optional capability grants no GPIO ownership, register access or pin configuration. A product requiring it adds a bound to B::Identity; Board does not impose it on all adapters.
 
 ## Lifecycle
 
