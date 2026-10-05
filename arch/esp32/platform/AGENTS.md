@@ -9,47 +9,65 @@
 
 ## Role
 
-Pure no-std ESP platform descriptors for memory and boot hardware profiles
+Pure `no_std`, host-testable ESP32-C3/S3 memory descriptors for boot/image logic.
 
 ## Owns
 
-- Own the capability, policy or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-architecture` layer.
+- Describe chip image identifiers, address ranges, SRAM aliases and the bootloader reservation.
+- Classify a single address as flash-mapped without accessing hardware.
 
 ## Does not own
 
-- Does not redefine portable policy that belongs in platform-independent contracts.
-- Does not own unrelated product/application composition.
+No GPIO/pinout, board wiring, peripheral ownership, HAL/RTOS startup, flash access,
+partition discovery or OTA/rollback policy. A memory map is not a complete Board profile.
 
 ## Architecture position
 
-This crate lives at `arch/esp32/platform` and is classified as **platform-architecture**. It implements platform-specific behaviour behind IOBEWI boundaries.
+Hardware facts at `arch/esp32/platform`, with no dependencies. Image validation
+and boot adapters consume these values; target linker scripts own actual placement.
 
 ## Public contracts
 
-The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+- `MemoryMap` is a cloneable descriptor with public fields: `chip_id`, half-open
+  `drom`/`irom` flash ranges, `iram`/`dram` SRAM aliases, `rtc`,
+  `sram_alias_offset`, `boot_window` and `mmu_page` (bytes).
+- `MemoryMap::is_flash_mapped(addr)` tests membership in DROM or IROM only.
+  It does not validate a segment length, image, partition or available capacity.
+- `chips::esp32c3::BOOT_MEMORY_MAP` and `chips::esp32s3::BOOT_MEMORY_MAP`
+  are available together without chip features. Image chip IDs are `0x0005`
+  and `0x0009`; both use 64 KiB MMU pages. Exact ranges are in `src/lib.rs`.
 
 ## Invariants
 
-- No additional crate-specific repository invariant is declared; repository-wide rules still apply.
+Repository-wide invariants apply; this crate declares no additional invariant.
 
 ## Modification context
 
-See the canonical README and implementation.
+### Lifecycle
+
+Descriptors require no initialization or allocator and acquire no resource.
+Keep `boot_window` consistent with the matching C3/S3 bootloader linker script
+under `arch/esp32/{c3,s3}/linker/`; do not treat that reserved region as free RAM.
+No operation returns an error; callers own complete image/bounds validation.
 
 ## Required validation
 
-- `BG-ESP-S3`
+Host: `cargo check -p iobewi-esp-platform -p iobewi-esp-boot --features iobewi-esp-boot/esp32s3`.
+Changes to geometry require image/boot validation and `BG-ESP-S3` with the concrete
+linker layout; a documentation check alone is not hardware qualification.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+Only C3 and S3 maps exist. S3's `rtc` describes `0x600fe000..0x60100000`,
+not its additional RTC slow-memory bank at `0x50000000`. These boot-oriented
+ranges do not enumerate all usable memory or describe external PSRAM.
 
 ## Related components
 
-- [Repository architecture](../../../ARCHITECTURE.md)
-- [Repository invariants](../../../INVARIANTS.md)
-- `Cargo.toml` for package features and dependency facts.
+- [ESP boot binding](../boot/README.md)
+- [Firmware image contracts](../../../firmware/image/README.md)
+- [Product integration](../../../docs/product-integration.md)
+- `src/lib.rs` and `Cargo.toml` are authoritative for values and dependencies.
 
 ---
 

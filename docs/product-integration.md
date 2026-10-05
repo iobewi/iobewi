@@ -74,6 +74,22 @@ Cargo.toml remains authoritative for features and exact dependencies.
 | HTTP OTA `RebootPort` | Product-local wrapper using `iobewi-esp-reset` | Schedule deferred RTC reset; raw reset functions are not a RebootPort implementation |
 | Read-only USB MSC driver bound | Embassy USB driver supplied by product | Construct USB OTG device/PHY driver and buffers; IOBEWI supplies MSC protocol |
 
+### Existing ESP capabilities to reuse
+
+Before implementing target-local helpers, consult these canonical contracts:
+
+| Existing capability | Provider and scope |
+| --- | --- |
+| Boot memory geometry | [ESP platform](../arch/esp32/platform/README.md): C3/S3 `BOOT_MEMORY_MAP`, not board pinout/startup |
+| Main-stack and heap diagnostics | [ESP runtime](../arch/esp32/runtime/README.md): initialize once and early on the main stack; does not start HAL/RTOS |
+| Hardware identity | [Device contracts](../drivers/device/core/README.md) and [ESP providers](../drivers/device/esp32/README.md): `EspDeviceIdentity` for base MAC/ID |
+| Static chip facts | `EspDeviceMetadata` is a separate provider for chip name/DRAM range size; not free RAM |
+| Console output | [ESP console](../drivers/console/esp32/README.md): synchronous callback, default auto backend, polling/drop and PHY-sharing limitations |
+
+These APIs are implemented today; they do not supply the proposed Board/entry
+startup or serial/USB arbitration. In particular, do not infer a complete MCU
+pinout from the boot memory map or HAL initialization from runtime diagnostics.
+
 ### Capabilities still supplied locally by the product
 
 - **Plain outbound TCP connector:** `net/io::Connector` exists, but the current
@@ -87,9 +103,11 @@ Cargo.toml remains authoritative for features and exact dependencies.
 - **Button input:** no framework portable button port/ESP adapter currently exists.
   Define a narrow product port or pass sampled semantic events from a target-local
   GPIO adapter. The product owns hold duration, debounce and recovery decisions.
-- **Improv Serial transport:** protocol/provisioning logic can use portable
-  contracts, but the concrete serial peripheral transport and task wiring remain
-  target-local. Do not pass the HAL serial type into business state logic.
+- **Improv Serial transport:** the external [improv-serial](https://github.com/iobewi/improv-serial)
+  crate already supplies portable parsing/framing (`no_std + alloc`); its caller
+  supplies transport and provisioning actions. IOBEWI does not yet supply the
+  concrete UART/Serial-JTAG adapter or task wiring. Keep these target-local and
+  coordinate console writes; do not pass the HAL serial type into business logic.
 - **USB OTG creation:** the portable MSC class does not create the ESP OTG/PHY
   driver. The target owns it, USB identity and concrete Embassy task wrappers.
 - **Reset:** raw software/RTC reset functions exist, but deferred HTTP reboot
