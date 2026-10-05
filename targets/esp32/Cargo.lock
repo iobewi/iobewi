@@ -1931,19 +1931,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-indicator"
-version = "0.1.0"
-dependencies = [
- "embassy-executor",
- "embassy-time",
- "esp-hal",
- "esp-hal-smartled",
- "iobewi-indicator",
- "log",
- "smart-leds",
-]
-
-[[package]]
 name = "iobewi-esp-nvs"
 version = "0.1.0"
 dependencies = [
@@ -2059,6 +2046,19 @@ dependencies = [
  "iobewi-workload-native",
  "iobewi-workload-ota",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "iobewi-esp-ws2812"
+version = "0.1.0"
+dependencies = [
+ "embassy-executor",
+ "embassy-time",
+ "esp-hal",
+ "esp-hal-smartled",
+ "iobewi-indicator",
+ "log",
+ "smart-leds",
 ]
 
 [[package]]
