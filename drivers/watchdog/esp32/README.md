@@ -4,6 +4,7 @@ status: implemented
 invariants: []
 gates:
   - BG-ESP-S3
+  - BG-AGENT-OTA
 ---
 
 # iobewi-esp-watchdog
