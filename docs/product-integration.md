@@ -5,6 +5,12 @@ one firmware image. The decision is recorded in
 [ADR-0014](decisions/ADR-0014-product-composition.md). Preserve INV-001 and INV-008:
 business source is portable; the firmware binary and its composition are target-specific.
 
+This is the **current transitional integration path**.
+[Issue #15](https://github.com/iobewi/iobewi/issues/15) proposes moving target
+startup and missing adapters into IOBEWI through Board/iobewi-entry. The target-local
+code below is not a permanent product responsibility; the replacement contract
+needs an accepted ADR and implementation before this guide can switch to it.
+
 ## Read before assembling
 
 Read the repository [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md),
@@ -70,6 +76,14 @@ Cargo.toml remains authoritative for features and exact dependencies.
 
 ### Capabilities still supplied locally by the product
 
+- **Plain outbound TCP connector:** `net/io::Connector` exists, but the current
+  tree only provides `SecureConnector` through the TLS service. `EspTcpListener`
+  is inbound and is not an outbound connector. There is no plain ESP TCP
+  Connector adapter yet. A product needing plain HTTP must currently supply
+  target-local connection wiring; exposing `NetworkHandle = embassy_net::Stack`
+  in portable product signatures is a portability debt, not an exception to
+  INV-001/008. Issue #15 should cover an outbound adapter so product HTTP code
+  consumes portable async I/O instead of requiring the concrete stack.
 - **Button input:** no framework portable button port/ESP adapter currently exists.
   Define a narrow product port or pass sampled semantic events from a target-local
   GPIO adapter. The product owns hold duration, debounce and recovery decisions.

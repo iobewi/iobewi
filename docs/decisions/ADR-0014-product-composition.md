@@ -1,6 +1,6 @@
 # ADR-0014 — Portable product policy and target composition roots
 
-Status: accepted. Recorded: 2026-10-05.
+Status: accepted as the current, transitional integration baseline. Recorded: 2026-10-05.
 
 ## Context
 
@@ -18,6 +18,18 @@ concrete Embassy task wrappers around generic product futures. iobewi-esp-* and
 HAL/radio types are confined to that target package, including target-local board
 and task modules. Missing framework capabilities use narrow product-owned ports
 with target-local implementations until a separate framework change is justified.
+
+## Planned evolution
+
+[Issue #15](https://github.com/iobewi/iobewi/issues/15) proposes a portable Board
+contract and iobewi-entry so platform startup, drivers and concrete task wiring
+move into IOBEWI and products contain no target implementation code. Target-local
+adapters described here are an interim response to missing framework capabilities,
+not the desired permanent ownership. This ADR must not be used to reject that
+work. The Board contract requires its own reviewed ADR before implementation; once
+accepted, that ADR should explicitly supersede the affected composition rules and
+update the integration guide. Until then, this document describes the available
+integration path without claiming Board/iobewi-entry already exist.
 
 ## Consequences
 
