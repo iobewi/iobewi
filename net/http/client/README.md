@@ -10,7 +10,7 @@ gates: []
 
 ## Summary
 
-Portable outbound HTTP/1.1 client primitives and WebSocket client over any connected stream
+Portable JSON POST, response draining and optional WebSocket client over a connected asynchronous stream
 
 ## Responsibilities
 
@@ -28,7 +28,11 @@ Path: `net/http/client`. Layer: **portable-service**.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+- `post_json` sends an authenticated JSON POST and leaves the connection open.
+- `drain_response` discards one response body incrementally and returns its HTTP status and whether the connection can be reused. It handles Content-Length and chunked bodies; the caller supplies scratch space large enough for the complete headers.
+- The optional `websocket` module provides upgrade, frame processing and text sending over the connected stream.
+
+Connection establishment, TLS and certificate policy belong to transport adapters. Package features and dependency declarations are canonical in `Cargo.toml`.
 
 ## Invariants
 
@@ -40,7 +44,7 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+There is no GET API exposing response body bytes to a consumer, and no HTTP live-streaming API. `drain_response` discards bodies rather than delivering them. Requests and responses must be strictly sequential: pipelined bytes read beyond a response may be dropped. Headers must fit the supplied scratch buffer.
 
 ## Related components
 

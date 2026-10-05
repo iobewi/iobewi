@@ -30,7 +30,12 @@ Local IOBEWI path dependencies declared by Cargo:
 
 ## Public contracts
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+- `EspTcpListener::new` binds an Embassy network stack, listening port and caller-owned receive/transmit buffers.
+- `accept_connection` accepts an inbound TCP socket.
+- `EspTcpListener` implements `ConnectionListener`, returning `EspTcpStream` connections.
+- `EspTcpStream` implements asynchronous read/write and clean close.
+
+Package features and dependency declarations are canonical in `Cargo.toml`.
 
 ## Invariants
 
@@ -46,7 +51,7 @@ See the canonical README and implementation.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Only inbound TCP connections are implemented. This crate currently provides no outbound `Connector`, DNS resolution or product reconnection policy.
 
 ## Related components
 

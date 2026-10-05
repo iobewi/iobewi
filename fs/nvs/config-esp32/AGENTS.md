@@ -4,7 +4,7 @@
 
 - Package: `iobewi-esp-config-space`
 - Path: `fs/nvs/config-esp32`
-- Layer: `portable-service`
+- Layer: `platform-adapter`
 - Status: `implemented`
 
 ## Role
@@ -13,17 +13,18 @@ ESP NVS adapter for IOBEWI ConfigSpace
 
 ## Owns
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-service` layer.
+- Implement the portable ConfigSpace backend contract using ESP NVS and the shared ESP flash path.
+- Use portable NVS record and reservation calculations from `iobewi-nvs-core`.
+- Keep that responsibility inside the `platform-adapter` layer.
 
 ## Does not own
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+- Does not create or own an independent physical flash instance.
+- Does not define product configuration policy.
 
 ## Architecture position
 
-Path: `fs/nvs/config-esp32`. Layer: **portable-service**.
+Path: `fs/nvs/config-esp32`. Layer: **platform-adapter**.
 
 Local IOBEWI path dependencies declared by Cargo:
 - `../../config`
@@ -33,7 +34,9 @@ Local IOBEWI path dependencies declared by Cargo:
 
 ## Public contracts
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`NvsConfigBackend` implements `ConfigBackend`. Construction receives an existing `&'static SharedFlash` and `NvsPartition`; flash access is serialized through that shared owner. `is_healthy` and `self_check` expose backend health checks. `NvsPartition` and NVS capacity constants are re-exported for composition.
+
+Package features and dependency declarations are canonical in `Cargo.toml`.
 
 ## Invariants
 
