@@ -15,6 +15,7 @@ jobs:
       - run: cargo check --workspace --all-features
       - run: cargo check --workspace --no-default-features
       - run: cargo test -p iobewi-config-space
+      - run: cargo test -p iobewi-rolling-stream
       - run: cargo test -p iobewi-net-io
       - run: cargo test -p iobewi-net-tls-core
       - run: cargo test -p iobewi-indicator
