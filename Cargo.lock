@@ -485,6 +485,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "iobewi-block"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-config-space"
 version = "0.1.0"
 
@@ -510,6 +514,13 @@ dependencies = [
 [[package]]
 name = "iobewi-esp-platform"
 version = "0.1.0"
+
+[[package]]
+name = "iobewi-fat16"
+version = "0.1.0"
+dependencies = [
+ "iobewi-block",
+]
 
 [[package]]
 name = "iobewi-firmware-boot"

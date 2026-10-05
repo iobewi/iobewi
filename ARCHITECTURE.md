@@ -88,6 +88,15 @@ Workload core when required.
 Partition discovery is by named partition plus bounds validation. Missing capability is
 reported rather than inferred from apparently free flash.
 
+## Streaming and virtual media
+
+`stream/rolling` provides a bounded byte window with one rebased consumer session.
+`fs/block` defines read-only sector access; `fs/fat16` generates a virtual FAT16
+volume over a file source. Their crate README files define the local contracts.
+These portable components do not own USB, networking, physical flash or product
+buffering policy. They do not add networking/storage capabilities to the native
+Workload ABI; a product composes them within its own firmware binary.
+
 ## Recovery
 
 Persistent update state is restart-safe. The Workload supervisor reconciles OTM2 after a
