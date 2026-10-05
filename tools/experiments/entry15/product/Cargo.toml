@@ -1,0 +1,13 @@
+[package]
+name = "entry15-product-proof"
+version = "7.8.9"
+edition = "2024"
+publish = false
+[dependencies]
+entry_api = { package = "entry15-facade", path = "../facade" }
+
+[build-dependencies]
+entry15-build-helper = { path = "../build-helper" }
+
+[features]
+async-main = ["entry_api/async-main"]

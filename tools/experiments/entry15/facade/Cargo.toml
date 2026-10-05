@@ -1,0 +1,14 @@
+[package]
+name = "entry15-facade"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[dependencies]
+esp-hal = { version = "~1.2", features = ["esp32s3", "unstable"] }
+esp-rtos = { version = "=0.4.0", features = ["esp32s3", "embassy"] }
+embassy-executor = "0.10.0"
+esp-bootloader-esp-idf = { version = "=0.6.0", features = ["esp32s3"] }
+esp-metadata-generated = "~0.5"
+
+[features]
+async-main = []
