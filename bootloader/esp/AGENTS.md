@@ -1,37 +1,31 @@
----
-layer: platform-executable
-status: implemented
-invariants:
-  - INV-003
-  - INV-009
-  - INV-017
-  - INV-021
-gates:
-  - BG-AGENT-OTA
-  - BG-ESP-S3
----
+# Agent Context — iobewi-esp-bootloader
 
-# iobewi-esp-bootloader
+<!-- GENERATED FILE — DO NOT EDIT. Source: README.md -->
 
-## Summary
+- Package: `iobewi-esp-bootloader`
+- Path: `bootloader/esp`
+- Layer: `platform-executable`
+- Status: `implemented`
+
+## Role
 
 Feature-driven Rust `no_std` ESP second-stage bootloader executor using IOBEWI Agent OTA lifecycle semantics.
 
-## Responsibilities
+## Owns
 
 - Own the ESP boot execution boundary: HAL/ROM flash access, watchdog handoff, MMU/cache mapping, RAM loading, linker profile and final jump.
 - Apply portable `iobewi-firmware-boot` decisions and `iobewi-firmware-image` validation on ESP hardware.
 
-## Non-responsibilities
+## Does not own
 
 - Does not own Workload slot activation; the bootloader never chooses Workload A/B.
 - Does not own HTTP, provisioning, Workload supervision or application policy.
 
-## Architecture
+## Architecture position
 
 This is a platform executable with its own autonomous workspace and lockfile. ESP ROM loads this bootloader; it consumes ESP platform/boot primitives plus portable firmware boot/image logic, then transfers control to the selected Agent application slot.
 
-## Public API
+## Public contracts
 
 The executable interface is its boot behaviour and feature-selected target build. `esp32c3` targets `riscv32imc-unknown-none-elf`; `esp32s3` targets `xtensa-esp32s3-none-elf`. There is no library API.
 
@@ -42,7 +36,11 @@ The executable interface is its boot behaviour and feature-selected target build
 - `INV-017`
 - `INV-021`
 
-## Validation
+## Modification context
+
+See the canonical README and implementation.
+
+## Required validation
 
 - `BG-AGENT-OTA`
 - `BG-ESP-S3`
@@ -58,15 +56,9 @@ The linker/memory layout is SoC-specific. On ESP32-S3, DRAM/stack must remain be
 - `firmware/boot`
 - `firmware/image`
 
-## Platform build
+---
 
-```sh
-cd bootloader/esp
-cargo build --release --locked --features esp32c3 --target riscv32imc-unknown-none-elf
-```
-
-No target is enabled by default.
-
-## ESP32-S3 memory-map constraint
-
-The validated S3 layout keeps bootloader DRAM in `0x3fce4000..0x3fcec000` with initial stack pointer `0x3fcec000`. The bootloader must not overlap ROM data around `0x3fced710..0x3fcf0000` or the data-cache window beginning at `0x3fcf8000`. The linker script asserts these constraints so a bad layout fails at link time rather than during boot.
+Canonical local documentation: `README.md`.
+Package/features/dependencies: `Cargo.toml`.
+Repository-wide rules: nearest parent/root `AGENTS.md`, `ARCHITECTURE.md`,
+`INVARIANTS.md`, and referenced contracts/ADRs/gates.
