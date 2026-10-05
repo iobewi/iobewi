@@ -6,10 +6,14 @@ one firmware image. The decision is recorded in
 business source is portable; the firmware binary and its composition are target-specific.
 
 This is the **current transitional integration path**.
-[Issue #15](https://github.com/iobewi/iobewi/issues/15) proposes moving target
-startup and missing adapters into IOBEWI through Board/iobewi-entry. The target-local
-code below is not a permanent product responsibility; the replacement contract
-needs an accepted ADR and implementation before this guide can switch to it.
+[ADR-0015](decisions/ADR-0015-board-entry.md), tracked by
+[issue #15](https://github.com/iobewi/iobewi/issues/15), records the approved Board
+direction: framework-owned startup/adapters, consuming capabilities and exclusive
+USB selection at boot. The portable [Board contract](../board/README.md) is now
+implemented and host-tested, but there is no production Board adapter or framework
+entry yet. Keep the target-local composition below until those implementations ship;
+the experiments do not constitute an available production entry API. ADR-0015
+partially supersedes the corresponding ADR-0014 rules as its implementation ships.
 
 ## Read before assembling
 
@@ -44,7 +48,10 @@ span these target-local modules; it need not be one giant main.rs. It creates
 resources and wires ports, while product policy stays in the portable crate.
 Do not disguise a platform dependency by reexporting its types through product
 ports. For example WifiTransport's Address/NetworkHandle associated types are
-opaque in portable policy; do not constrain them to ESP/Embassy concrete types.
+opaque in the framework contract. Prefer portable I/O contracts in business
+policy. ADR-0015 allows products to add the NetworkHandle bounds their current
+services require (including an Embassy Stack); Board itself must not impose those
+bounds on every product or expose ESP HAL types.
 
 Generic async functions can live in the product crate. An
 `#[embassy_executor::task]` function must be concrete, so put a wrapper with
@@ -87,7 +94,7 @@ Before implementing target-local helpers, consult these canonical contracts:
 | Console output | [ESP console](../drivers/console/esp32/README.md): synchronous callback, default auto backend, polling/drop and PHY-sharing limitations |
 
 These APIs are implemented today; they do not supply the proposed Board/entry
-startup or serial/USB arbitration. In particular, do not infer a complete MCU
+startup or exclusive boot-time serial/USB construction. In particular, do not infer a complete MCU
 pinout from the boot memory map or HAL initialization from runtime diagnostics.
 
 ### Capabilities still supplied locally by the product

@@ -303,6 +303,12 @@ builds; inspecting the macro invocation alone does not prove its expanded value.
 4. Migrate StreamBeWI to Board; remove targets/esp32; retain one entry binary.
 5. Local locked/latest builds, documentation generation/check, then CI and hardware.
 
+Milestone 3 must choose a minimal fatal-startup diagnostic channel independent
+of JTAG (for example UART0 or an available indicator). No physical console sink
+is installed by the first composition; an early partition/backend failure must
+not be silently mistaken for a working boot. The channel is not selected by the
+portable Board contract or this milestone.
+
 Each milestone remains reviewable. Stop before merge or the next milestone unless
 authorized, following root AGENTS.md.
 

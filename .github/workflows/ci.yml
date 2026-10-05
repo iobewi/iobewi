@@ -26,6 +26,7 @@ jobs:
       - run: cargo test -p iobewi-workload-ota-http
       - run: cargo test -p iobewi-runtime
       - run: cargo test -p iobewi-device
+      - run: cargo test -p iobewi-board --locked
       - run: cargo test -p iobewi-entropy
       - run: cargo test -p iobewi-http-server
       - run: cargo test -p iobewi-http-client --features websocket

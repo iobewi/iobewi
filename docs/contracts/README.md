@@ -5,6 +5,7 @@ their specifications.
 
 | Contract | Canonical document | Owner |
 | --- | --- | --- |
+| Owned Board and boot I/O capabilities | [Board contract](../../board/README.md) | board; platform adapters implement it |
 | Dual Agent/Workload update model | [dual-ota](../dual-ota.md) | firmware/model + update layers |
 | OTM2 persistent Workload metadata | [otm2](../otm2.md) | workload/update |
 | Native Workload image IWNI v1 | [native-workload-image](../native-workload-image.md) | workload/image |
