@@ -45,6 +45,11 @@ jobs:
       - run: cargo test -p iobewi-firmware-image --features alloc
       - run: cargo test -p iobewi-firmware-boot
       - run: cargo test -p iobewi-nvs-core
+      - run: cargo test -p iobewi-block
+      - run: cargo test -p iobewi-fat16
+      - run: cargo test -p iobewi-rolling-stream
+      - run: cargo test -p iobewi-usb-msc
+      - run: cargo check -p iobewi-usb-msc --features usb-debug
       - run: cargo check -p iobewi-esp-platform -p iobewi-esp-boot --features iobewi-esp-boot/esp32s3
       - run: cargo test -p iobewi-ota --features runtime,config-space
   # --- targets/esp32: ESP workspace (build/toolchain config only; members live in their subsystems) ---
