@@ -1,0 +1,19 @@
+[package]
+name = "iobewi-board"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable consuming board capabilities and exclusive boot-time I/O selection"
+
+[dependencies]
+iobewi-wifi-core = { path = "../net/wifi/core" }
+iobewi-config-space = { path = "../fs/config" }
+iobewi-device = { path = "../drivers/device/core" }
+embedded-io-async = "0.7.0"
+embedded-hal-async = "1.0.0"
+embassy-usb-driver = { version = "0.2.2", default-features = false }
+
+[dev-dependencies]
+embedded-hal = "1.0.0"

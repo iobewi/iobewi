@@ -548,6 +548,19 @@ name = "iobewi-block"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-board"
+version = "0.1.0"
+dependencies = [
+ "embassy-usb-driver",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "embedded-io-async 0.7.0",
+ "iobewi-config-space",
+ "iobewi-device",
+ "iobewi-wifi-core",
+]
+
+[[package]]
 name = "iobewi-config-space"
 version = "0.1.0"
 
