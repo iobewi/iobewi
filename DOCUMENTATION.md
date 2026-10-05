@@ -110,3 +110,8 @@ python3 tools/docs/docs_tool.py site
 `check` validates README structure/IDs and verifies that versioned AGENTS files exactly
 match the deterministic projection. `site` builds MkDocs source under
 `.generated/docs-site`.
+
+The site projects crate `README.md` pages as `index.md` and rewrites relative
+Markdown links to those pages, preserving fragments. Canonical repository links
+continue to target `README.md`. Validate site changes with
+`python3 -m mkdocs build --strict -f .generated/docs-site/mkdocs.yml` after `site`.

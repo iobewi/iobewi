@@ -264,9 +264,17 @@ def cmd_check(_):
         raise SystemExit(1)
     print(f"documentation check OK: {len(found)} crates")
 
-def copy_page(src: Path, dst: Path):
+def copy_page(src: Path, dst: Path, crate_readmes: set[Path]):
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    def site_link(match):
+        target, separator, fragment = match.group(2).partition("#")
+        if target and ":" not in target and (src.parent / target).resolve() in crate_readmes:
+            target = target.removesuffix("README.md") + "index.md"
+        return match.group(1) + target + separator + fragment + match.group(3)
+
+    text = re.sub(r"(\]\()([^\s)]+)(\))", site_link, src.read_text(encoding="utf-8"))
+    dst.write_text(text, encoding="utf-8")
 
 def cmd_site(_):
     out = GENERATED / "docs-site"
@@ -274,20 +282,21 @@ def cmd_site(_):
         shutil.rmtree(out)
     content = out / "content"
     content.mkdir(parents=True)
+    crate_readmes = {(crate_dir / "README.md").resolve() for crate_dir, _ in crates()}
     for name in GLOBAL_MD:
         src = ROOT / name
         if src.exists():
-            copy_page(src, content / name)
+            copy_page(src, content / name, crate_readmes)
     docs_root = ROOT / "docs"
     if docs_root.exists():
         for src in sorted(docs_root.rglob("*.md")):
             if "templates" in src.parts:
                 continue
-            copy_page(src, content / src.relative_to(ROOT))
+            copy_page(src, content / src.relative_to(ROOT), crate_readmes)
     for crate_dir, package in crates():
         readme = crate_dir / "README.md"
         if readme.exists():
-            copy_page(readme, content / crate_dir.relative_to(ROOT) / "index.md")
+            copy_page(readme, content / crate_dir.relative_to(ROOT) / "index.md", crate_readmes)
     GENERATED.mkdir(parents=True, exist_ok=True)
     GENERATED_INDEX.write_text(build_index(), encoding="utf-8")
     cfg = """site_name: IOBEWI
