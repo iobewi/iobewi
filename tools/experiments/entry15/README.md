@@ -59,18 +59,23 @@ is a linker quantity, not measured free stack; future storage lives in the Embas
 static pool. There is no heap in this fixture. These numbers are not StreamBeWI's
 actual future, memory/heap requirements or runtime high-water marks.
 
-## USB retirement findings and missing evidence
+## Updated USB decision (2026-10-05)
 
-In locked esp-hal 1.2.2 usb/usb_serial_jtag.rs, pending RX/TX futures set interrupt
-enable bits and register static wakers. They have no Drop cleanup. Dropping a pending
-future alone does not prove interrupts/wakers or the peripheral are retired. The
-combined handle has into_blocking() which disables its peripheral interrupt on all
-cores, but split handles and a concurrent console require explicit coordination.
-The production adapter must prove no IO/console admission, cancellation, interrupt
-cleanup and final PHY transfer. Reuse the console limitations documented by #18;
-never keep the automatic esp-println sink active across handover.
+The user selected a simpler product lifecycle: read otg_enabled from StreamBeWI's
+ConfigSpace during boot, before initializing either native USB controller.
+Absent/false selects provisioning (Serial/JTAG only); true selects OTG (no JTAG).
+Successful provisioning durably sets true, effective only at reboot or replug.
+Recovery resets false before clearing credentials and rebooting.
 
-No serial device is attached in this environment. Connected/disconnected/stalled
-host tests, physical USB enumeration and retirement timing are not performed.
-BG-ESP-S3/BG-USB-MSC remain pending. Milestone 1 is PARTIAL; do not start milestone 2
-or mark the production entry accepted on this fixture evidence alone.
+Hot JTAG-to-OTG handover, its arbiter and retirement experiments are removed from
+the required entry milestone. The HAL finding (pending JTAG futures lack Drop
+interrupt cleanup) remains true but is avoided by exclusive boot construction.
+Console auto-backend must not touch JTAG in the OTG boot.
+
+This fixture proves compile/link, descriptor identity, chip metadata and measured
+fixture future layouts. It does not yet implement ConfigSpace mode selection,
+production Board, resource budget validation or the actual StreamBeWI composition.
+Those are subsequent implementation gates. No attached serial device is available
+here, so neither physical boot-mode verification nor BG-ESP-S3/BG-USB-MSC is claimed.
+Production future/heap/stack measurements remain pending. The compile experiments
+can now be reviewed independently of the removed running USB transition.
