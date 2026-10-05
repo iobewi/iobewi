@@ -9,50 +9,74 @@
 
 ## Role
 
-ESP/Xtensa/RISC-V stack high-water-mark measurement for the portable IOBEWI runtime diagnostics capability
+ESP stack painting and heap measurements implementing portable `RuntimeDiagnostics`.
+This crate does not start the HAL, RTOS or Embassy executor.
 
 ## Owns
 
-- Own the capability, policy or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-architecture` layer.
+- Paint unused main-stack memory once and scan the surviving prefix for headroom.
+- Report currently free bytes in the global `esp_alloc::HEAP`.
 
 ## Does not own
 
-- Does not redefine portable policy that belongs in platform-independent contracts.
-- Does not own unrelated product/application composition.
+No allocator setup, task spawning, scheduler, overflow prevention, per-task stack
+accounting or second-core/Workload-stack diagnostics.
 
 ## Architecture position
 
-This crate lives at `arch/esp32/runtime` and is classified as **platform-architecture**. It implements platform-specific behaviour behind IOBEWI boundaries.
-
-Local path dependencies declared by Cargo include:
-- `../../../drivers/diagnostics/core`
+The platform implementation at `arch/esp32/runtime` consumes the portable
+[diagnostics contract](../../../drivers/diagnostics/core/README.md).
+It uses architecture assembly and linker symbols, not a portable host implementation.
 
 ## Public contracts
 
-The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+- `EspRuntimeDiagnostics::initialize() -> Self` paints `[ _stack_end, current SP )`
+  with `0xAA` and returns a zero-sized, `Clone + Copy` handle.
+- With one of `esp32s3`/`esp32c3`, the handle implements `RuntimeDiagnostics`:
+  `stack_headroom_bytes()` scans from `_stack_end` toward `_stack_start` until
+  the first non-`0xAA` byte; `heap_free_bytes()` returns `esp_alloc::HEAP.free()`
+  converted to `u32`. The latter is a current free-byte count, not a high-water
+  mark or largest contiguous allocation.
 
 ## Invariants
 
-- No additional crate-specific repository invariant is declared; repository-wide rules still apply.
+Repository-wide invariants apply; this crate declares no additional invariant.
 
 ## Modification context
 
-See the canonical README and implementation.
+### Lifecycle
+
+Call `initialize()` exactly once, as early as possible in the target entry point,
+while executing on the stack described by `_stack_end`/`_stack_start` (low/high
+addresses, downward-growing stack). Initialize before peripheral setup and task
+spawning where possible; any earlier stack history is not reliably captured.
+The caller owns stack layout and allocator initialization. Copies share the same
+painted memory; they do not start independent measurements. Read diagnostics from
+that main-stack context, not an unrelated core/thread stack.
+
+There is no runtime once guard, `Result`, or reset API. If SP is at/below the low
+boundary painting returns silently; this is not an overflow detector. Calling
+initialization again can erase measurement history.
 
 ## Required validation
 
-- `BG-ESP-S3`
+Run portable `cargo test -p iobewi-runtime`; cross-check `iobewi-esp-runtime`
+with `--features esp32s3` on the Xtensa ESP toolchain. `BG-ESP-S3` is required
+for changes to painting/layout; verify diagnostics on the actual firmware.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+Assembly is implemented for Xtensa/RISC-V; host compilation is not supported.
+The trait implementation requires an ESP chip feature. Linker symbols must match
+the live stack. Measurements cover one linker-defined main stack, not separate
+RTOS radio-thread or second-core stacks. Painting is a heuristic: used bytes that
+match `0xAA` can overestimate headroom. There is no synchronized multicore snapshot.
 
 ## Related components
 
-- [Repository architecture](../../../ARCHITECTURE.md)
-- [Repository invariants](../../../INVARIANTS.md)
-- `Cargo.toml` for package features and dependency facts.
+- [Portable runtime diagnostics](../../../drivers/diagnostics/core/README.md)
+- [Product integration](../../../docs/product-integration.md)
+- `src/lib.rs` and `Cargo.toml` for assembly, features and allocator dependency.
 
 ---
 

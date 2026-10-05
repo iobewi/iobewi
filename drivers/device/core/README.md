@@ -10,40 +10,59 @@ gates: []
 
 ## Summary
 
-Portable device identity and static metadata capabilities
+Portable `no_std + alloc` contracts for hardware identity and static metadata.
 
 ## Responsibilities
 
-- Own the capability, policy or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+- Separate opaque identity from optional MAC and static platform facts.
+- Define the framework's MAC-derived identifier convention.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own product/application composition beyond this crate's stated contract.
+No HAL/eFuse access, resource initialization, application naming prefix, OTA
+partition metadata or identity authentication.
 
 ## Architecture
 
-This crate lives at `drivers/device/core` and is classified as **portable-contract**. It must preserve the portable-to-platform dependency direction.
+Portable contracts at `drivers/device/core`; platform adapters implement the
+traits. Product policy consumes these contracts without knowing the HAL.
 
 ## Public API
 
-The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+| API | Contract |
+| --- | --- |
+| `DeviceIdentity::hardware_id() -> String` | Hardware-derived opaque identifier; application must not assume a MAC/serial representation |
+| `DeviceIdentity::mac_address() -> Option<[u8; 6]>` | Optional link-layer address; default implementation returns `None` |
+| `DeviceMetadata::chip_name() -> &'static str` | Static platform name supplied by implementation |
+| `DeviceMetadata::ram_size() -> u32` | Platform-reported RAM size; not current free heap or stack headroom |
+| `hardware_id_from_mac([u8; 6]) -> String` | Last three MAC bytes, lowercase zero-padded hex, no prefix: `aa:bb:cc:0a:0b:ff` becomes `0a0bff` |
+
+Identity and metadata are separate traits; a provider need not implement both.
+
+## Lifecycle
+
+The contracts acquire no resource or initialization state. Implementations own
+hardware access and preconditions. The MAC helper allocates its returned string;
+embedded callers must provide an allocator. Methods return no `Result`; an absent
+MAC is represented by `None`, and allocation failure follows the caller's allocator.
 
 ## Invariants
 
-- [INV-001](../../../INVARIANTS.md)
+- [INV-001](../../../INVARIANTS.md): portable code must not depend on platform implementations.
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared by this README.
+`cargo test -p iobewi-device` checks MAC formatting and independent capability values.
+No hardware is required for these contract tests.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+A 24-bit MAC suffix is not a globally unique identifier or security credential.
+The metadata contract does not distinguish internal RAM from PSRAM; consult the
+adapter's definition. No network-interface selection or persisted application ID exists here.
 
 ## Related components
 
-- [Repository architecture](../../../ARCHITECTURE.md)
-- [Repository invariants](../../../INVARIANTS.md)
-- `Cargo.toml` for package features and dependency facts.
+- [ESP identity and metadata](../esp32/README.md)
+- [Runtime diagnostics](../../diagnostics/core/README.md)
+- [Product integration](../../../docs/product-integration.md)
