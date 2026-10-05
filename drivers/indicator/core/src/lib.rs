@@ -9,7 +9,7 @@
 //! (an LED, a display, a log line, or nothing at all). This crate
 //! deliberately carries no colour, no GPIO/RMT/peripheral concept, no blink
 //! timing, and no rendering loop -- those belong entirely to the platform
-//! implementation (e.g. `iobewi-esp-indicator`'s WS2812/RMT renderer).
+//! implementation (e.g. `iobewi-esp-ws2812`'s WS2812/RMT renderer).
 
 /// The device's functional state. Each variant is a fact about what the
 /// firmware is doing, never a description of how it should be shown.

@@ -1,9 +1,9 @@
-# Agent Context — iobewi-esp-indicator
+# Agent Context — iobewi-esp-ws2812
 
 <!-- GENERATED FILE — DO NOT EDIT. Source: README.md -->
 
-- Package: `iobewi-esp-indicator`
-- Path: `drivers/indicator/esp32`
+- Package: `iobewi-esp-ws2812`
+- Path: `drivers/led/ws2812/esp32`
 - Layer: `platform-adapter`
 - Status: `implemented`
 
@@ -21,7 +21,9 @@ Choosing product status transitions, board pin configuration, provisioning polic
 
 ## Architecture position
 
-Platform implementation of drivers/indicator/core. Product startup supplies RMT and the configured pin and spawns the concrete led_task.
+This concrete driver lives at `drivers/led/ws2812/esp32` and implements the
+semantic contract at `drivers/indicator/core`. The portable contract remains
+hardware-independent; it is not a generic LED API. Product startup supplies RMT and the configured pin and spawns the concrete led_task.
 
 ## Public contracts
 
@@ -37,7 +39,16 @@ See the canonical README and implementation.
 
 ## Required validation
 
-Build selected chip; compile-time assertions guard per-chip lists. BG-ESP-S3 and a visible LED smoke test validate colour/order/timing when renderer changes.
+Build both chip features in `targets/esp32`; compile-time assertions guard
+per-chip lists. The locked/latest ESP CI matrix checks both features.
+BG-ESP-S3 and a visible LED smoke test validate colour/order/timing when the
+renderer changes.
+
+Existing hardware evidence is recorded in `src/lib.rs`: the S3 board was checked
+visually for GRB order (RGB produced incorrect orange/green colours); the board
+uses GPIO48. This is historical code-recorded evidence, not a new hardware run
+or a C3 qualification. For the package/path rename, `src/lib.rs` is byte-for-byte
+unchanged, including patterns, timings, GPIO lists and error handling.
 
 ## Known limitations
 

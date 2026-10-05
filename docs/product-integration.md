@@ -68,7 +68,7 @@ Cargo.toml remains authoritative for features and exact dependencies.
 | `SecureClientTransport` (`net/tls/core`) | `SecureConnector` in portable TLS service composed with EspTlsDialer | Certificate/time policy is separate from low-level dialing |
 | Secure server listener | `EspTlsListener`, `iobewi-esp-tls` | Compose TCP listener and server certificate/config provider |
 | `EntropySource` (`crypto/rng`) | `EspEntropySource`, `iobewi-esp-entropy` | Supply shared entropy to services |
-| `StatusIndicator` / capabilities | `EspStatusIndicator`, `iobewi-esp-indicator` | Configure pin and spawn led_task; product selects semantic status |
+| `StatusIndicator` / capabilities | `EspStatusIndicator`, `iobewi-esp-ws2812` | Configure pin and spawn led_task; product selects semantic status |
 | Logger console callback `fn(&Record)` | `console_print`, `iobewi-esp-console` | Install iobewi-log once with the application target prefix |
 | `ArtifactStorage`, OTA runtime ports | `EspArtifactStorage`, shared-flash/service adapters, `iobewi-esp-ota` | Compose transaction state, discovered storage, watchdog and boot authority |
 | HTTP OTA `RebootPort` | Product-local wrapper using `iobewi-esp-reset` | Schedule deferred RTC reset; raw reset functions are not a RebootPort implementation |
@@ -107,20 +107,21 @@ add product files to IOBEWI's workspace. Git package resolution uses package nam
 there is no path suffix to add to a git URL.
 
 Pin every direct IOBEWI dependency to the same full commit SHA and commit the
-product Cargo.lock. Example using the baseline reviewed for this guide (update
-all rev values together when upgrading):
+product Cargo.lock. Example template (replace `IOBEWI_FULL_COMMIT_SHA` in both declarations with
+the same full commit containing the WS2812 package rename; update all rev values
+together when upgrading):
 
 ```toml
 # product/Cargo.toml
 [dependencies]
-iobewi-indicator = { git = "https://github.com/iobewi/iobewi", rev = "879045a75f6f47c55994aaa243fde748f19083bf" }
+iobewi-indicator = { git = "https://github.com/iobewi/iobewi", rev = "IOBEWI_FULL_COMMIT_SHA" }
 ```
 
 ```toml
 # targets/esp32/firmware/Cargo.toml
 [dependencies]
 product = { path = "../../../product" }
-iobewi-esp-indicator = { git = "https://github.com/iobewi/iobewi", rev = "879045a75f6f47c55994aaa243fde748f19083bf", default-features = false, features = ["esp32s3"] }
+iobewi-esp-ws2812 = { git = "https://github.com/iobewi/iobewi", rev = "IOBEWI_FULL_COMMIT_SHA", default-features = false, features = ["esp32s3"] }
 ```
 
 The current ESP baseline uses esp-hal **~1.2** (1.2.x), and the Wi-Fi driver pins
@@ -149,14 +150,14 @@ pub fn reflect_stream_state<I: StatusIndicator>(indicator: &I, ready: bool) {
 
 ```rust
 // targets/esp32/firmware/src/board.rs
-use iobewi_esp_indicator::EspStatusIndicator;
+use iobewi_esp_ws2812::EspStatusIndicator;
 
 pub fn reflect_stream_state(ready: bool) {
     product::reflect_stream_state(&EspStatusIndicator, ready);
 }
 ```
 
-Target startup must additionally spawn `iobewi_esp_indicator::led_task` with its
+Target startup must additionally spawn `iobewi_esp_ws2812::led_task` with its
 RMT peripheral and configured pin for visible output. The portable function can
 be tested with a recording StatusIndicator without a HAL. Apply the same pattern
 to async services: generic product future, concrete target task wrapper.

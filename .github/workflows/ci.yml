@@ -108,7 +108,7 @@ jobs:
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-entropy --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-console --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-watchdog --features esp32s3
-          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-indicator --features esp32s3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ws2812 --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-runtime --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-device --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-reset --features esp32s3
@@ -120,7 +120,7 @@ jobs:
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-config-space --features esp32c3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-wifi --features esp32c3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ota --features esp32c3,shared-flash
-          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-indicator --features esp32c3
+          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ws2812 --features esp32c3
 
   esp-bootloader:
     runs-on: ubuntu-latest
