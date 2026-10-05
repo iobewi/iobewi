@@ -112,6 +112,9 @@ jobs:
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-runtime --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-device --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-reset --features esp32s3
+      - name: Entry macro downstream link and negative hygiene experiment
+        working-directory: .
+        run: bash tools/experiments/entry15/run.sh ${{ matrix.mode }}
       - name: ESP32-C3 smoke
         run: |
           set -eux
