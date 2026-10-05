@@ -9,35 +9,23 @@
 
 ## Role
 
-ESP partition and NOR-flash adapter for IOBEWI OTA
+ESP resident OTA partition/storage and EWBT execution adapters.
 
 ## Owns
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-adapter` layer.
+Map logical app slots to discovered partitions, perform bounded NOR erase/write operations and execute EWBT metadata actions. With shared-flash, provide shared writers and runtime adapters.
 
 ## Does not own
 
-- Does not redefine portable policy owned by platform-independent crates.
-- Does not own unrelated product/application composition.
+Product identities, HTTP routes, remote physical-slot authority and the portable transaction model.
 
 ## Architecture position
 
-Path: `firmware/esp32`. Layer: **platform-adapter**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../update`
-- `../boot`
-- `../slots`
-- `../../drivers/flash/partitions-esp32`
-- `../../drivers/flash/esp32`
-- `../../fs/nvs/config-esp32`
-- `../../drivers/watchdog/esp32`
-- `../../arch/esp32/reset`
+Platform implementation of firmware/update contracts using ESP partition/flash adapters. Product composition selects features and supplies the unique SharedFlash owner.
 
 ## Public contracts
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`EspOtaPlatformMetadata`, `AppPartition`, `find_app_partition`, `erase_partition_range`, `EspArtifactStorage::new/new_pre_erased`, `FlashWriteError`, and `otadata`. Feature `shared-flash` exposes `shared_flash` (ArtifactWriter and boot operations) and `service` (EspBoot, EspBootRuntime, EspUploadWriter and reset/watchdog helpers).
 
 ## Invariants
 
@@ -52,18 +40,15 @@ See the canonical README and implementation.
 
 ## Required validation
 
-- `BG-AGENT-OTA`
-- `BG-STORAGE`
-- `BG-ESP-S3`
+Build targets/esp32 with the selected chip/features; BG-AGENT-OTA and BG-STORAGE cover hardware boot and shared storage durability.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Caller selects a safe target before erase. Scratch must hold an erase block. Durable writes advance by complete erase blocks; finish accepts a final partial block. Pre-erased storage requires the caller to have erased the range. ESP chip features are explicit; shared-flash is opt-in. Low-level APIs do not themselves enforce all product transaction/persistence policy.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/update`, `firmware/boot`, `firmware/slots`, `drivers/flash/esp32`, `drivers/flash/partitions-esp32`.
 
 ---
 

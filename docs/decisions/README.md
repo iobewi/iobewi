@@ -16,3 +16,4 @@ replaces one of these records MUST explicitly supersede it.
 - [ADR-0011](ADR-0011-runtime-api.md) — RuntimeApi compatibility
 - [ADR-0012](ADR-0012-boot-guard.md) — Workload boot guard
 - [ADR-0013](ADR-0013-single-source-documentation.md) — README canonical, AGENTS/site generated
+- [ADR-0014](ADR-0014-product-composition.md) — portable product policy and per-target composition

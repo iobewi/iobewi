@@ -10,32 +10,23 @@ gates: []
 
 ## Summary
 
-Portable outbound WebSocket streaming of captured logs
+Best-effort outbound WebSocket delivery of captured logs over a supplied secure client transport.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-service` layer.
+Connect and upgrade with a bearer token, mask client frames using shared entropy, attach node/workload/time metadata, drain captured messages and reconnect with capped jittered backoff.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+TLS setup, certificate persistence, local console output, reliable delivery and application configuration schema.
 
 ## Architecture
 
-Path: `log/stream`. Layer: **portable-service**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../../crypto/rng`
-- `../core`
-- `../../net/http/client`
-- `../../net/io`
-- `../../net/tls/core`
+Portable service above log/core, net/http/client and net/tls/core. The product implements both StreamConfig and LogMetadata.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`StreamConfig` supplies `ctrl_url`, `token` and `path`. `run<C, T, E>(&C, &T, &E) -> !` requires `StreamConfig + LogMetadata`, `SecureClientTransport` and `EntropySource`.
 
 ## Invariants
 
@@ -43,13 +34,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-log-stream` covers URL/backoff and entropy. For product changes involving delivery, run BG-ESP-S3 with TLS/token rotation and reconnection evidence.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Uses alloc and Embassy time. Clears the ring after failed/ended sessions or absent URL/token; no offline replay or delivery acknowledgement. Backoff starts at 5 s, caps at 60 s, uses ±30% jitter and resets after a 30 s stable session. Handshake and incomplete incoming frame timeouts are 10 s. JSON level is `raw`. URL parsing is basic host/port parsing, not a general IPv6 URL parser; transport security comes from the injected secure transport.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`log/core`, `net/http/client`, `net/tls/core`, `crypto/rng`.

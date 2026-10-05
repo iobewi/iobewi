@@ -116,3 +116,5 @@ architecture is not the architecture of IOBEWI itself.
 ## License
 
 MIT.
+
+For product authors: [Integrating IOBEWI into a product](docs/product-integration.md).

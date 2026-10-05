@@ -10,25 +10,23 @@ gates:
 
 ## Summary
 
-ESP timer-group watchdog hardware primitive
+Low-level TIMG0 watchdog control for a caller-owned boot verification window.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-adapter` layer.
+Arm the first hardware watchdog stage, feed it and disable it on request.
 
 ## Non-responsibilities
 
-- Does not redefine portable policy owned by platform-independent crates.
-- Does not own unrelated product/application composition.
+OTA lifecycle policy, selecting deadlines, self-check decisions and RTC deferred reset scheduling.
 
 ## Architecture
 
-Path: `drivers/watchdog/esp32`. Layer: **platform-adapter**.
+Platform mechanism called by resident firmware/OTA composition; it consumes no portable OTA state.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`arm_ms(timeout_ms)`, `feed()` and `disable()` operate the TIMG0 watchdog.
 
 ## Invariants
 
@@ -36,13 +34,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- `BG-ESP-S3`
+Build selected chip; BG-AGENT-OTA hardware tests must demonstrate expiry, feeding and disarming in the actual initialization order.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+esp_hal::init disables watchdogs. Initialize TIMG0 for esp_rtos before arm_ms; constructing the timer group afterwards resets the peripheral and clears the watchdog. The caller owns coordination and feeding. RTC system-reset scheduling is a separate capability in arch/esp32/reset.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`arch/esp32/reset`, `firmware/esp32`, product boot/self-check orchestration.

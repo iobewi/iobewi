@@ -9,28 +9,23 @@
 
 ## Role
 
-ESP NVS hardware bridge over iobewi-esp-flash
+ESP NVS view over an exclusively borrowed existing flash owner.
 
 ## Owns
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-adapter` layer.
+Bridge esp-nvs NOR operations and ROM CRC to EspFlash without constructing another physical flash instance.
 
 ## Does not own
 
-- Does not redefine portable policy owned by platform-independent crates.
-- Does not own unrelated product/application composition.
+Namespaces, ConfigSpace keys/framing, quotas, migrations, health policy and ownership of the physical flash.
 
 ## Architecture position
 
-Path: `fs/nvs/esp32`. Layer: **platform-adapter**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../../../drivers/flash/esp32`
+Platform adapter between esp-nvs and drivers/flash/esp32. The caller acquires SharedFlash access before opening the view.
 
 ## Public contracts
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`NvsPartition { offset, size }`, `NvsPartition::new`, `NvsFlash` and `open(&mut EspFlash, NvsPartition)` returning a borrowed `Nvs<NvsFlash>`.
 
 ## Invariants
 
@@ -43,17 +38,15 @@ See the canonical README and implementation.
 
 ## Required validation
 
-- `BG-STORAGE`
-- `BG-ESP-S3`
+Build through targets/esp32 for the selected chip; BG-STORAGE validates the shared flash path and hardware NVS operations when implementation changes.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+The NVS view must not outlive the exclusive flash borrow. Partition discovery and validation are caller responsibilities; open does not discover partitions. No host execution of the ESP ROM CRC path.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`drivers/flash/esp32`, `fs/nvs/core`, `fs/nvs/config-esp32`.
 
 ---
 

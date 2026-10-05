@@ -10,25 +10,23 @@ gates: []
 
 ## Summary
 
-Firmware image descriptions: SHA-256 digest type/text format, and ESP application image bootability validation
+Portable artifact digest representation and host-testable ESP application-image validation.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Parse SHA-256 textual digests and validate ESP headers, segments, integrity and address constraints through a supplied reader and memory map.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Flash ownership, partition discovery, slot selection, OTA state and native IWNI Workload image parsing.
 
 ## Architecture
 
-Path: `firmware/image`. Layer: **portable-contract**.
+Pure image semantics below firmware boot/update; ESP image rules are data-driven and do not require a HAL.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`Digest`, `parse_digest`, and alloc-gated `format_digest`; module `esp` exports `Read`, `MemoryMap`, `Verify`, `Image`, `Segment`, `ImageError` and `validate`.
 
 ## Invariants
 
@@ -36,13 +34,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-firmware-image --features alloc` covers digest and ESP image validation.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Caller supplies the correct chip memory map and reader bounds. Digest integrity is not signature authentication or memory isolation. ESP application images and IWNI Workload images are different formats. Formatting requires feature alloc.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/boot`, `arch/esp32/boot`; `workload/image` owns IWNI.

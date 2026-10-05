@@ -14,29 +14,23 @@ gates:
 
 ## Summary
 
-HTTP routes of the OTA workflow (prepare / streaming write / activate) over iobewi-http-server and iobewi-ota
+Portable HTTP surface for resident firmware prepare, streamed write and activation.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-service` layer.
+Mount authenticated OTA routes, validate upload metadata/ranges and stream image bytes through the caller backend without buffering the entire artifact.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Physical slot selection, flash/NVS mechanics, TLS listener setup and immediate hardware reset.
 
 ## Architecture
 
-Path: `net/http/ota`. Layer: **portable-service**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../../../firmware/update`
-- `../server`
+HTTP adapter above firmware/update and net/http/server. The caller supplies transaction effects and deferred reboot.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`routes<B, R>` mounts relative `/prepare`, `/write`, `/activate`. `ControlBackend`, `WriteBackend`, `RebootPort`, `OtaWrite` and request/result/error types define effects. `prepare_response` and `activate_response` expose response construction; activation returns a reboot flag.
 
 ## Invariants
 
@@ -47,13 +41,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- `BG-AGENT-OTA`
+`cargo test -p iobewi-ota-http`; run BG-AGENT-OTA for route/lifecycle changes, including streamed resume and deferred reboot on hardware.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Routes must be nested under the product API prefix and served over its secured listener. Backend supplies authorization. Write uses a 1024-byte scratch buffer and u32 image/range limits. Received bytes and durable written bytes differ for resume. RebootPort must defer reset long enough to send the response; the handler schedules it before returning that response. Resident OTA only, not Workload OTA.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/update`, `net/http/server`, `firmware/esp32`; Workload routes live in `workload/http`.

@@ -10,10 +10,13 @@ Before modifying code:
 
 1. Read `ARCHITECTURE.md`.
 2. Read `INVARIANTS.md`.
-3. Read the nearest generated crate `AGENTS.md`.
-4. Read the crate `README.md` when rationale or details are needed.
-5. Read every referenced contract, ADR and validation gate.
-6. Inspect the implementation and tests.
+3. For external product integration, read `docs/product-integration.md` and
+   `docs/decisions/ADR-0014-product-composition.md`. Read `docs/contracts/README.md`
+   and every applicable capability contract before writing assembly code.
+4. Read the nearest generated crate `AGENTS.md`.
+5. Read the crate `README.md` when rationale or details are needed.
+6. Read every referenced contract, ADR and validation gate.
+7. Inspect the implementation and tests.
 
 ## Sources of truth
 
