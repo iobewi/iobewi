@@ -1,1 +1,3 @@
-fn main() { entry15_build_helper::emit(); }
+fn main() {
+    entry15_build_helper::emit();
+}

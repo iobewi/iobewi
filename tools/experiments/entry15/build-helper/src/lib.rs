@@ -1,1 +1,3 @@
-pub fn emit() { println!("cargo:rustc-link-arg=-Tlinkall.x"); }
+pub fn emit() {
+    println!("cargo:rustc-link-arg=-Tlinkall.x");
+}

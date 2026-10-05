@@ -17,7 +17,7 @@ Emit -Tlinkall.x from the downstream build.rs.
 
 ## Does not own
 
-No production Board, serial/console retirement, USB handover, storage, Wi-Fi,
+No production Board, boot-mode USB selection, physical storage, Wi-Fi,
 OTA or hardware qualification. Not a framework API to integrate into products.
 
 ## Architecture position
@@ -46,8 +46,8 @@ this README and generated AGENTS. Compilation does not satisfy BG-ESP-S3 hardwar
 
 ## Known limitations
 
-The entry task never completes in this fixture. No allocator/resource budget is
-initialized or validated. The panic handler belongs to the fixture. Future sizes
+The entry task never completes in this fixture. A 96-KiB heap is initialized,
+but no production resource budget or runtime heap/stack high-water mark is validated. The panic handler belongs to the fixture. Future sizes
 are fixture-specific, not StreamBeWI memory requirements. Chip support is S3 only.
 The negative async-main mode is expected to fail and is not a production feature.
 

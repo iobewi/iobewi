@@ -15,11 +15,11 @@ Experimental ESP32-S3 entry facade; not a production Board implementation.
 
 ## Responsibilities
 
-Emit a downstream descriptor and concrete Embassy task, initialize HAL/RTOS and launch the caller future. Preserve a failing async-main variant to reproduce macro hygiene limits.
+Emit a downstream descriptor and concrete Embassy task, initialize HAL/RTOS and a 96-KiB allocator, then construct an owning MockBoard and launch the generic caller future. Preserve a failing async-main variant to reproduce macro hygiene limits.
 
 ## Non-responsibilities
 
-No production Board, serial/console retirement, USB handover, storage, Wi-Fi,
+No production Board, boot-mode USB selection, physical storage, Wi-Fi,
 OTA or hardware qualification. Not a framework API to integrate into products.
 
 ## Architecture
@@ -29,7 +29,7 @@ See [experiment instructions](https://github.com/iobewi/iobewi/blob/feat/15-entr
 
 ## Public API
 
-Exports entry!, dependency reexports and future_layout(). Default uses blocking esp_hal::main plus an explicit task with an overridden executor path; async-main reproduces the upstream absolute-path failure.
+Exports entry!, dependency reexports, generic future_layout(), and experiment-only Board/SharedFlashAccess capabilities. Macro internals live in a reserved hidden module with reserved ELF probe names. Default uses blocking esp_hal::main plus an explicit task with an overridden executor path; async-main reproduces the upstream absolute-path failure.
 
 ## Invariants
 
@@ -44,8 +44,8 @@ this README and generated AGENTS. Compilation does not satisfy BG-ESP-S3 hardwar
 
 ## Known limitations
 
-The entry task never completes in this fixture. No allocator/resource budget is
-initialized or validated. The panic handler belongs to the fixture. Future sizes
+The entry task never completes in this fixture. A 96-KiB heap is initialized,
+but no production resource budget or runtime heap/stack high-water mark is validated. The panic handler belongs to the fixture. Future sizes
 are fixture-specific, not StreamBeWI memory requirements. Chip support is S3 only.
 The negative async-main mode is expected to fail and is not a production feature.
 

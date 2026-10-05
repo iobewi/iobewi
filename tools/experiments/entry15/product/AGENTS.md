@@ -13,11 +13,11 @@ Downstream product fixture with a renamed facade dependency and no direct HAL/RT
 
 ## Owns
 
-Exercise generic source composition retaining a 2048-byte buffer across await and export compile-time layouts.
+Exercise run<B: Board>(board) through entry!, retaining a 2048-byte buffer, a simulated flash token and a 128-byte Box across await. Exercise old root-name collisions.
 
 ## Does not own
 
-No production Board, serial/console retirement, USB handover, storage, Wi-Fi,
+No production Board, boot-mode USB selection, physical storage, Wi-Fi,
 OTA or hardware qualification. Not a framework API to integrate into products.
 
 ## Architecture position
@@ -27,7 +27,7 @@ See [experiment instructions](https://github.com/iobewi/iobewi/blob/feat/15-entr
 
 ## Public contracts
 
-The entry is entry_api::entry!(run). A minimal local BufferBoard is solely a future-size probe, not the approved Board contract.
+The entry is entry_api::entry!(crate::run). The generic product consumes a Board with an associated SharedFlashAccess bound. These reduced experiment-only contracts are future-size probes, not the approved complete Board API. A facade HAL reexport import exists solely as a namespace collision probe outside the generic run.
 
 ## Invariants
 
@@ -46,8 +46,8 @@ this README and generated AGENTS. Compilation does not satisfy BG-ESP-S3 hardwar
 
 ## Known limitations
 
-The entry task never completes in this fixture. No allocator/resource budget is
-initialized or validated. The panic handler belongs to the fixture. Future sizes
+The entry task never completes in this fixture. A 96-KiB heap is initialized,
+but no production resource budget or runtime heap/stack high-water mark is validated. The panic handler belongs to the fixture. Future sizes
 are fixture-specific, not StreamBeWI memory requirements. Chip support is S3 only.
 The negative async-main mode is expected to fail and is not a production feature.
 

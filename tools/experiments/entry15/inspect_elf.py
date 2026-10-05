@@ -32,12 +32,14 @@ version = desc[16:48].split(b'\0', 1)[0].decode()
 product = desc[48:80].split(b'\0', 1)[0].decode()
 assert product == 'entry15-product-proof', product
 assert version == '7.8.9', version
-assert data('ENTRY15_CHIP') == b'ESP32-S3'
+assert data('__iobewi_entry15_experiment_chip') == b'ESP32-S3'
 result = {'descriptor_product': product, 'descriptor_version': version,
-          'chip': data('ENTRY15_CHIP').decode()}
-for name in ['ENTRY15_PRODUCT_LAYOUT', 'ENTRY15_MAIN_LAYOUT']:
+          'chip': data('__iobewi_entry15_experiment_chip').decode()}
+for name in ['__iobewi_entry15_experiment_product_layout', '__iobewi_entry15_experiment_main_layout']:
     size, alignment = struct.unpack('<II', data(name))
     result[name] = {'bytes': size, 'alignment': alignment}
+result['configured_heap_bytes'] = struct.unpack('<I', data('__iobewi_entry15_experiment_heap_bytes'))[0]
+assert result['configured_heap_bytes'] == 96 * 1024
 for name in ['_stack_end', '_stack_start']:
     result[name] = hex(symbols[name][0])
 result['linker_stack_reservation_bytes'] = symbols['_stack_start'][0] - symbols['_stack_end'][0]
