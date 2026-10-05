@@ -1,5 +1,5 @@
 ---
-layer: portable-service
+layer: platform-adapter
 status: implemented
 invariants:
   - INV-001
@@ -17,21 +17,26 @@ Policy-free ESP-IDF partition table and raw partition helpers
 
 ## Responsibilities
 
-- Own the capability, policy or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-service` layer.
+- Read and locate ESP-IDF partitions and provide bounded raw partition erase helpers.
+- Keep that responsibility inside the `platform-adapter` layer.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
+- Does not create an independent physical flash owner.
+- Does not select slots or define OTA/rollback policy.
 - Does not own product/application composition beyond this crate's stated contract.
 
 ## Architecture
 
-This crate lives at `drivers/flash/partitions-esp32` and is classified as **portable-service**. It must preserve the portable-to-platform dependency direction.
+This crate lives at `drivers/flash/partitions-esp32` and is classified as **platform-adapter**. Its partition discovery API uses the concrete ESP storage driver; the generic erase helper does not make the crate portable.
 
 ## Public API
 
-The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+- `for_each_entry` reads raw partition entries; `find_by_label` matches label, raw type and subtype.
+- `find` locates a partition using the ESP-IDF typed partition accessor.
+- `erase_range` accepts a `NorFlash` implementation and checks logical range bounds, erase alignment and address overflow.
+
+Partition discovery receives an existing mutable `FlashStorage`; callers obtain it through the shared flash owner. Package features and dependency declarations are canonical in `Cargo.toml`.
 
 ## Invariants
 
@@ -45,7 +50,7 @@ The Rust items exported by this crate are the code-level API authority. Consumer
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+The ESP-IDF typed accessors used by `find` can panic on unknown partition subtypes. `for_each_entry` and `find_by_label` compare raw entries instead.
 
 ## Related components
 

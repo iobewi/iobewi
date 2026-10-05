@@ -12,3 +12,5 @@ their specifications.
 | Workload OTA HTTP API | [workload-ota-http](../workload-ota-http.md) | workload/http |
 | Workload supervisor/runtime lifecycle | [workload-supervisor](../workload-supervisor.md) | workload/update + native |
 | ESP32 Workload partition layout | [esp32-workload-layout](../esp32-workload-layout.md) | platform storage |
+| Virtual FAT16 volume | [virtual FAT16](../../fs/fat16/README.md) | fs/fat16 |
+| Read-only USB MSC supported wire behaviour | [USB MSC](../../drivers/usb/msc/README.md) | drivers/usb/msc |

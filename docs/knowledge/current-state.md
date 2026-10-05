@@ -16,6 +16,14 @@ Baseline: S20.
 - Candidate corruption rejection before execution.
 - NativeRuntime production path; ProbeRuntime test/fault-injection only.
 
+## Portable virtual media additions
+
+- Rolling byte window and read-only block contracts have host validation.
+- Virtual FAT16 metadata is compared against the functional reference byte-for-byte.
+- The portable USB MSC class has protocol tests; complete physical qualification
+  requires BG-USB-MSC for its consumer composition.
+- These components do not introduce general networking/storage Workload ABI APIs.
+
 ## Not started / not implemented as a complete capability
 
 - General Workload GPIO capability.

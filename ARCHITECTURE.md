@@ -93,7 +93,10 @@ reported rather than inferred from apparently free flash.
 `stream/rolling` provides a bounded byte window with one rebased consumer session.
 `fs/block` defines read-only sector access; `fs/fat16` generates a virtual FAT16
 volume over a file source. Their crate README files define the local contracts.
-These portable components do not own USB, networking, physical flash or product
+The portable USB MSC class at `drivers/usb/msc` consumes block devices through
+Embassy USB driver contracts. The product supplies the device/PHY driver, protocol
+identity and unavailable-read policy.
+These portable components do not own networking, physical flash or product
 buffering policy. They do not add networking/storage capabilities to the native
 Workload ABI; a product composes them within its own firmware binary.
 

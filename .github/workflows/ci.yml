@@ -16,6 +16,7 @@ jobs:
       - run: cargo check --workspace --no-default-features
       - run: cargo test -p iobewi-config-space
       - run: cargo test -p iobewi-block -p iobewi-fat16
+      - run: cargo test -p iobewi-usb-msc
       - run: cargo test -p iobewi-rolling-stream
       - run: cargo test -p iobewi-net-io
       - run: cargo test -p iobewi-net-tls-core

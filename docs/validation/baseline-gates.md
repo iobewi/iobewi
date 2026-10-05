@@ -77,3 +77,25 @@ Minimum evidence:
 - missing Workload partitions report unsupported capability rather than inferred free space.
 
 Hardware required: host isolation tests plus hardware smoke when storage code changes.
+
+## BG-USB-MSC
+
+Purpose: qualify the supported read-only USB Mass Storage composition, without
+claiming complete BOT/SCSI conformance beyond the class README's supported subset.
+
+Minimum evidence:
+
+- portable protocol tests and the supported target build succeed;
+- a physical host enumerates the 08/06/50 class and reads the configured INQUIRY
+  identity, capacity and write-protected medium information;
+- supported READ(10) transfers deliver known sectors, with the documented sense
+  and command status behaviour for unsupported commands and invalid ranges;
+- unavailable reads follow the caller-selected retry/fallback policy; a bounded
+  product policy is exercised with a stalled source;
+- disconnect/reconnect ends and begins consumer sessions, including source rebasing
+  when the composition uses a session-dependent source;
+- file discovery/mount works when a virtual filesystem is part of the composition.
+
+Hardware required: yes for the complete gate. Host tests do not prove physical USB
+compatibility. Product prebuffer, networking, audio playback and reader-specific
+acceptance remain in the product's canonical validation instructions.

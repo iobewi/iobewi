@@ -31,7 +31,17 @@ This crate lives at `drivers/flash/esp32` and is classified as **platform-adapte
 
 ## Public API
 
-The Rust items exported by this crate are the code-level API authority. Consumers should depend on the semantic capability described here and avoid coupling to private implementation details. Package features and dependency declarations are canonical in `Cargo.toml`.
+- `init(FLASH)` creates the process-wide flash owner and returns `&'static SharedFlash`.
+- `SharedFlash` is an asynchronous Embassy mutex around `EspFlash`.
+- `EspFlash` implements the synchronous `ReadNorFlash`, `NorFlash` and `MultiwriteNorFlash` traits. `storage()` exposes the underlying ESP driver while the caller holds exclusive access.
+
+Package features and dependency declarations are canonical in `Cargo.toml`.
+
+## Lifecycle
+
+The composition root must call `init` exactly once per firmware image. All flash consumers share the returned mutex. It is not reentrant: release the guard before invoking another subsystem that locks the same flash, including ConfigSpace.
+
+With the S3 feature, initialization enables `multicore_auto_park` so flash operations safely pause and resume a Workload executing on the second core.
 
 ## Invariants
 
@@ -45,7 +55,7 @@ The Rust items exported by this crate are the code-level API authority. Consumer
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond the repository current-state and open-debt documents. Add limitations here when they affect callers or modification safety.
+Repeated initialization is unsupported. Nested acquisition of the shared mutex cannot complete; callers must preserve the lock ordering described above.
 
 ## Related components
 
