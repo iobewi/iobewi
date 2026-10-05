@@ -10,25 +10,23 @@ gates: []
 
 ## Summary
 
-Logical application slot model of the current A/B layout (ota_0 / ota_1)
+Logical names and indices for the existing two-slot resident application layout.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Define ota_0/ota_1, their opposite/index/name mappings and the exposed layout identifier.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Physical partition addresses, per-slot metadata, boot trust, Workload slots and generalized kernel/userspace/recovery roles.
 
 ## Architecture
 
-Path: `firmware/slots`. Layer: **portable-contract**.
+Allocation-free portable vocabulary consumed by boot and ESP OTA mapping.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`AppSlot::{Ota0,Ota1}`, `from_name`, `as_str`, `other`, `index`, `from_index`; `SLOT_COUNT = 2` and `PARTITION_LAYOUT = "embewi-ab-v1"`.
 
 ## Invariants
 
@@ -36,13 +34,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-firmware-slots` checks exact names, indices, opposite mapping and layout identifier.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Only ota_0 and ota_1 are recognized; factory and additional names/indices return None. Changing these identifiers changes the OTA compatibility contract.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/boot`, `firmware/esp32`, `firmware/update`.

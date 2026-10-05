@@ -10,25 +10,23 @@ gates: []
 
 ## Summary
 
-Local log capture: bounded ring and global logger, no network dependency
+Local, process-wide log capture without a network dependency.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Install the global logger and capture formatted messages in a critical-section protected FIFO. Invoke the caller-supplied console callback before attempting ring capture.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Console hardware, log delivery, persistence and network retry policy.
 
 ## Architecture
 
-Path: `log/core`. Layer: **portable-contract**.
+Portable capture layer consumed by log/stream; the target supplies the console callback and application target prefix.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`install(print, application_target)` is called once during single-threaded startup. `pop_line()` removes the oldest message; `discard()` clears the ring. `Line`, `LINE_MAX` (160 bytes), `RING_CAPACITY` (24 lines) and `LogMetadata` define capture and delivery metadata.
 
 ## Invariants
 
@@ -36,13 +34,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-log` covers filtering, overflow, oversized messages and discard.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+The global maximum level is Info. Targets starting with `application_target` or `iobewi_log` accept Info and above; all other targets accept Warn and above. Debug/Trace are excluded. Oversized messages and new messages arriving at a full ring are dropped, not truncated or used to evict old messages. Captured text contains record arguments only, not original level/target. Installation is not repeatable.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`log/stream` consumes this FIFO; `drivers/console/esp32` provides the ESP callback.

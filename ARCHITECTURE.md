@@ -52,6 +52,11 @@ and must not depend directly on `esp-hal` or another platform HAL.
 
 Portability is source/API portability. Native Workload binaries are target-specific.
 
+For external products, follow [the integration guide](docs/product-integration.md)
+and [ADR-0014](docs/decisions/ADR-0014-product-composition.md): portable product
+policy consumes ports; a target composition package owns HAL resources, concrete
+adapters and task wrappers. The guide lists the current ESP bindings and gaps.
+
 ## Update domains
 
 IOBEWI defines two independent update domains:

@@ -11,25 +11,23 @@ gates:
 
 ## Summary
 
-Chip-independent logic of the NVS-backed ConfigSpace persistence: record framing, generations, key rules and the NVS entry-accounting / capacity formulas
+Host-testable ConfigSpace NVS record framing, key validation and entry accounting.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Encode/decode CSM1 records and translate payload budgets into reserved NVS entry counts.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Physical flash access, locking, generation advancement, ConfigBackend implementation and configuration policy.
 
 ## Architecture
 
-Path: `fs/nvs/core`. Layer: **portable-contract**.
+Portable helper below the ESP ConfigSpace backend; it has no fs/config dependency and accepts plain byte budgets.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`encode_record`, `decode_record`, `valid_space_name`, `entries_for_blob`, `reservation_units` and `capacity_units`; constants define a 13-byte CSM1 header and 15-byte maximum NVS key.
 
 ## Invariants
 
@@ -37,13 +35,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- `BG-STORAGE`
+`cargo test -p iobewi-nvs-core` checks golden bytes, corruption, key rules and accounting overflow.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+Uses alloc for encoding. Keys must be nonempty ASCII without NUL and at most 15 bytes. Decoder rejects short headers, wrong magic and unknown flag bits. Reservations include two versions of the largest record: 2 × (ceil((13 + budget)/32) + ceil((13 + budget)/4000) + 1); capacity keeps one page in reserve. This is entry accounting, not a guarantee against all storage failures.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`fs/nvs/config-esp32` consumes framing/accounting; `fs/nvs/esp32` owns the borrowed NVS view.

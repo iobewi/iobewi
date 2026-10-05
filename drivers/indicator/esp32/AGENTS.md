@@ -9,28 +9,23 @@
 
 ## Role
 
-ESP RMT/WS2812 status LED renderer for the portable IOBEWI indicator capability
+ESP RMT/WS2812 rendering of the portable semantic status indicator.
 
 ## Owns
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-adapter` layer.
+Publish the latest status through shared atomic state and render one WS2812 using GRB order with target-specific configurable pin capability lists.
 
 ## Does not own
 
-- Does not redefine portable policy owned by platform-independent crates.
-- Does not own unrelated product/application composition.
+Choosing product status transitions, board pin configuration, provisioning policy and generic display hardware support.
 
 ## Architecture position
 
-Path: `drivers/indicator/esp32`. Layer: **platform-adapter**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../core`
+Platform implementation of drivers/indicator/core. Product startup supplies RMT and the configured pin and spawns the concrete led_task.
 
 ## Public contracts
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`EspStatusIndicator` implements StatusIndicator and chip-gated StatusIndicatorCapabilities. `led_task(RMT, AnyPin) -> !` renders status; per-chip GPIO lists and selected `STATUS_LED_GPIO_NUMBERS` expose capabilities.
 
 ## Invariants
 
@@ -42,16 +37,15 @@ See the canonical README and implementation.
 
 ## Required validation
 
-- `BG-ESP-S3`
+Build selected chip; compile-time assertions guard per-chip lists. BG-ESP-S3 and a visible LED smoke test validate colour/order/timing when renderer changes.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+One global indicator state and one LED renderer. Booting is white steady, Ready blue slow blink, Scanning blue fast blink, Connecting orange fast blink, Online green steady, Failed red blink. Initialization failure logs and parks the task; it does not stop firmware. Capability lists describe SoC possibilities, not all board wiring/electrical constraints.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`drivers/indicator/core`, `drivers/net/wifi/esp32` and the product composition root.
 
 ---
 

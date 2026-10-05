@@ -9,29 +9,23 @@
 
 ## Role
 
-Portable JSON POST, response draining and optional WebSocket client over a connected asynchronous stream
+Outbound HTTP/1.1 and optional WebSocket primitives over connected async I/O.
 
 ## Owns
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-service` layer.
+Serialize authenticated JSON POST requests, consume one HTTP response body and report safe connection reuse; implement the optional outbound WebSocket upgrade/frame helpers.
 
 ## Does not own
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+DNS, dialing, TLS, certificates, server routes, request cadence and retry policy.
 
 ## Architecture position
 
-Path: `net/http/client`. Layer: **portable-service**.
+Portable protocol layer over embedded_io_async Read/Write. TLS service and log streaming inject established connections.
 
 ## Public contracts
 
-- `post_json` sends an authenticated JSON POST and leaves the connection open.
-- `drain_response` discards one response body incrementally and returns its HTTP status and whether the connection can be reused. It handles Content-Length and chunked bodies; the caller supplies scratch space large enough for the complete headers.
-- The optional `websocket` module provides upgrade, frame processing and text sending over the connected stream.
-
-Connection establishment, TLS and certificate policy belong to transport adapters. Package features and dependency declarations are canonical in `Cargo.toml`.
+`post_json(session, host, path, bearer, json)` writes and flushes without closing. `drain_response(session, scratch)` returns `(status, reusable)`. Feature `websocket` exports upgrade, frame processing and text-send helpers.
 
 ## Invariants
 
@@ -43,16 +37,15 @@ See the canonical README and implementation.
 
 ## Required validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-http-client --features websocket` covers request bytes, framing, truncation and WebSocket behaviour.
 
 ## Known limitations
 
-There is no GET API exposing response body bytes to a consumer, and no HTTP live-streaming API. `drain_response` discards bodies rather than delivering them. Requests and responses must be strictly sequential: pipelined bytes read beyond a response may be dropped. Headers must fit the supplied scratch buffer.
+Uses alloc. Requests reject CR/LF in host/path/bearer and require an absolute path. Response headers must fit scratch and at most 16 parsed headers. Content-Length and chunked bodies are discarded incrementally. Requests/responses are lock-step: pipelined bytes can be discarded. Without body framing, reuse is false. Caller owns deadlines and connection closure; this is not a general browser HTTP client.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`log/stream`, `net/tls/core`, `net/tls/service`.
 
 ---
 

@@ -13,25 +13,23 @@ gates: []
 
 ## Summary
 
-Logical boot state: EWBT otadata entry format and the power-cut-safe boot/activate/confirm/reject transitions (no hardware, no allocation)
+Pure transactional EWBT otadata format and A/B boot decision logic.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Validate committed entries, plan boot/pending/rollback transitions and plan activation, confirmation or rejection while preserving the last Valid fallback.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Flash I/O, image loading, partition discovery, OTM1 persistence and Workload activation.
 
 ## Architecture
 
-Path: `firmware/boot`. Layer: **portable-contract**.
+Allocation-free portable boot policy executed by the platform bootloader and resident firmware adapters.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`Entry`, `Raw`, `Decoded`, `Write`, `Op`, `Plan`, `Boot`, `Halt`; `decode`, `plan_boot`, `activate`, `confirm`, `reject`, `update_target`, `slot_of` and entry queries. `Write::ops` specifies erase, body program, then a separate commit-word program.
 
 ## Invariants
 
@@ -42,13 +40,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-firmware-boot` includes adversarial interrupted flash-command tests. BG-AGENT-OTA validates execution of these plans on hardware.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+EWBT deliberately rejects legacy ESP-IDF-format entries. Executor must verify the body before committing. Blank/corrupt first-boot metadata can seed slot 0 only if bootable; rejected candidates do not silently reseed. Caller supplies valid nonzero slot counts and valid target indices. This is a plan, not executed flash durability.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/image`, `firmware/slots`, `firmware/esp32`, `arch/esp32/boot`, `bootloader/esp`.

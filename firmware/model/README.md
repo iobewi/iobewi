@@ -15,25 +15,23 @@ gates: []
 
 ## Summary
 
-Dual-OTA model: Agent and Workload update targets, runtime-API compatibility, A/B slot sets and the two separate activation policies (no storage, no platform, no transport)
+Portable vocabulary and independent in-memory Agent and Workload OTA activation policies.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `portable-contract` layer.
+Model artifact compatibility, staging, activation and confirmation through separate boot and Workload authorities, including RuntimeApi compatibility checks.
 
 ## Non-responsibilities
 
-- Does not access a platform HAL directly.
-- Does not own hardware-specific implementation details.
+Physical flash writes, durable metadata, actual reboot, native loading and atomic Agent+Workload releases.
 
 ## Architecture
 
-Path: `firmware/model`. Layer: **portable-contract**.
+Portable policy model shared by update domains. It models decisions; production persistence/execution are in update/platform layers.
 
 ## Public API
 
-The exported Rust items are the code-level API authority. Package features and dependency declarations are canonical in `Cargo.toml`; callers should depend on the semantic capability documented here, not private implementation details.
+`AgentOta`, `WorkloadOta`, `InstalledAgent`, `InstalledWorkload`, `Activation`, `Confirmation`, `Reason` `RuntimeApi`, `ArtifactDescriptor`, `UpdateRequest`, `AbSlots`, `BootAuthority` and `WorkloadSupervisor`. Agent activation uses BootAuthority and requires reboot; Workload activation uses WorkloadSupervisor and returns Switched.
 
 ## Invariants
 
@@ -46,13 +44,12 @@ The exported Rust items are the code-level API authority. Package features and d
 
 ## Validation
 
-- Focused crate/workspace tests; no additional hardware baseline gate is declared.
+`cargo test -p iobewi-update-model` verifies independent update policies and compatibility refusal. See docs/dual-ota.md for the canonical model.
 
 ## Known limitations
 
-No additional crate-specific limitation is recorded here beyond `docs/knowledge/current-state.md` and `docs/knowledge/open-debts.md`.
+State here is in memory, not a restart-safe transaction store. Agent confirmation checks compatibility with the active Workload; Workload activation checks the running Agent API before supervisor effects. No physical-slot selection by the remote control plane.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`firmware/update`, `workload/update`, `docs/dual-ota.md`.

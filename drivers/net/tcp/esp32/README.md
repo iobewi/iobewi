@@ -10,33 +10,23 @@ gates:
 
 ## Summary
 
-ESP TCP transport: an embassy-net listener and accepted socket as net/io connections
+Embassy-net TCP listener and accepted async stream implementing portable net/io contracts.
 
 ## Responsibilities
 
-- Own the capability, state model, service or platform mechanism described in the summary.
-- Keep that responsibility inside the `platform-adapter` layer.
+Accept TCP connections using caller-owned buffers and provide reads, writes and graceful FIN/flush closure.
 
 ## Non-responsibilities
 
-- Does not redefine portable policy owned by platform-independent crates.
-- Does not own unrelated product/application composition.
+HTTP routes, TLS certificates/handshake, Wi-Fi initialization and selecting which product ports are exposed.
 
 ## Architecture
 
-Path: `drivers/net/tcp/esp32`. Layer: **platform-adapter**.
-
-Local IOBEWI path dependencies declared by Cargo:
-- `../../../../net/io`
+Platform net/io implementation underneath the ESP TLS listener; HTTP service is layered above by the product.
 
 ## Public API
 
-- `EspTcpListener::new` binds an Embassy network stack, listening port and caller-owned receive/transmit buffers.
-- `accept_connection` accepts an inbound TCP socket.
-- `EspTcpListener` implements `ConnectionListener`, returning `EspTcpStream` connections.
-- `EspTcpStream` implements asynchronous read/write and clean close.
-
-Package features and dependency declarations are canonical in `Cargo.toml`.
+`EspTcpListener::new(stack, port, rx, tx)`, `accept_connection`, ConnectionListener implementation and `EspTcpStream` implementing embedded async I/O and Close.
 
 ## Invariants
 
@@ -44,13 +34,12 @@ Package features and dependency declarations are canonical in `Cargo.toml`.
 
 ## Validation
 
-- `BG-ESP-S3`
+Build targets/esp32 for the selected chip; BG-ESP-S3 validates TCP/TLS listener composition on hardware.
 
 ## Known limitations
 
-Only inbound TCP connections are implemented. This crate currently provides no outbound `Connector`, DNS resolution or product reconnection policy.
+Accepted connections borrow listener buffers, so they cannot outlive that borrow or run concurrently from the same buffers. Accept errors are reduced to (). This primitive can listen on a supplied port; securing management and keeping plaintext port 80 closed is the product composition policy, not a transport-enforced rule.
 
 ## Related components
 
-- Repository `ARCHITECTURE.md` and `INVARIANTS.md`.
-- `Cargo.toml` for machine-readable package facts.
+`net/io`, `drivers/net/tls/esp32`, `net/http/server`.
