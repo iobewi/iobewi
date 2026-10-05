@@ -160,15 +160,27 @@ returns None. Product policy still determines when the MSC medium is ready.
 The flag/schema, ConfigSpace name, provisioning decision and recovery policy belong
 to StreamBeWI, not IOBEWI. IOBEWI supplies the mode and exclusive constructors.
 An unreadable/corrupt ConfigSpace value is an explicit error, not an absent flag.
+The product records that error and selects Provisioning for this boot, without
+clearing or rewriting stored data. This fallback assumes the flash/config backend
+was successfully constructed; partition discovery/startup failures still terminate
+startup. The error remains observable in portable diagnostics and product status.
 
-After successful Wi-Fi provisioning, the product durably commits otg_enabled=true.
-The current boot stays in provisioning. OTG starts only at the next reboot or
-unplug/replug. No mandatory immediate reboot and no automatic running switch.
-A failed commit must not be reported as successful or change the running mode.
+Wi-Fi credentials and otg_enabled=true are committed separately, in that order;
+there is no atomic transaction across these records. If the flag commit fails,
+credentials may remain stored while provisioning remains selected. The product
+returns an Improv error rather than provisioning success; another provisioning
+request retries the operation. The current boot stays in provisioning even after
+both commits succeed. OTG starts only after a restart or a power cycle of the board.
+Unplug/replug constitutes a power cycle only for a dongle powered solely by that
+USB port. No mandatory immediate reboot and no automatic running switch.
 
 Recovery persists otg_enabled=false before clearing Wi-Fi credentials, then reboots
-after both succeed. Failures must remain explicit with a usable provisioning
-recovery path. Do not claim atomicity across independent ConfigSpace records.
+after both succeed. These are separate writes, not an atomic transaction. If the
+flag write fails, report failure and do not proceed to credential clearing. If
+credential clearing fails after the flag write, report failure: provisioning with
+residual credentials is a valid recoverable state, and the next boot selects
+provisioning. No read/write failure is reported as success; no load failure erases
+data.
 
 The synchronous consuming BootIoFactory replaces the initial asynchronous factory.
 The exact error API remains to finalize with the portable contract.
@@ -176,12 +188,13 @@ The exact error API remains to finalize with the portable contract.
 ## Console ownership by boot mode
 
 Do not install the current automatic esp-println sink in the new entry composition:
-it can access JTAG independently of HAL ownership. Physical console output is
-disabled before selection and stays disabled on JTAG for the entire OTG boot.
-The first composition can discard the physical console sink while preserving
-portable ring capture and network logging.
+it can access JTAG independently of HAL ownership. The first composition installs no physical console sink in either boot mode,
+while preserving portable ring capture and network logging. Its panic/backtrace
+handler must not write to USB-Serial-JTAG either; a panic must not initialize or
+access JTAG during an OTG boot. Milestone 3 audits esp-println features, including
+feature unification of auto, and esp-backtrace dependencies for bypass paths.
 
-Any console enabled in provisioning must share writer ownership with Improv and
+Any future console enabled in provisioning must share writer ownership with Improv and
 be bounded for absent/stalled hosts. Existing console APIs remain available to
 other compositions. No in-flight JTAG retirement is necessary because JTAG is
 never initialized in the OTG boot.
@@ -239,7 +252,7 @@ composition and must not be duplicated by product dependencies.
 - Product-owned Platform/targets: retains the duplication reported in #15.
 - A universal Board with raw peripherals: leaks HAL and pin ownership into products.
 - Fixed serial_a/serial_b: repeats one product's assumptions rather than 0..n.
-- Hot JTAG-to-OTG handover: unnecessary for an unplug/replug dongle; adds
+- Hot JTAG-to-OTG handover: unnecessary for a USB-powered dongle restarted by a power cycle; adds
   cancellation, interrupt and console retirement complexity.
 - Initializing JTAG before reading the flag: recreates the avoided handover.
 - Forcing Embassy Stack on Board: needlessly narrows the existing Wi-Fi contract.
@@ -275,7 +288,9 @@ builds; inspecting the macro invocation alone does not prove its expanded value.
    subject to this review's corrections. No entry implementation is thereby proven.
 2. entry!: **conditionally proposed**, accepted only after milestone 1 proves an
    external macro can emit the concrete ESP entry, preserve the product descriptor
-   and fit the measured future in the available memory. If any proof fails, revise
+   and demonstrate generic Board dispatch. Fixture measurements only qualify this
+   mechanism; final acceptance requires the actual StreamBeWI future, heap/stack
+   budget and hardware gates after its composition is available. If any proof fails, revise
    the entry design before proceeding, keeping the approved Board model.
 
 ## Milestones after model approval
@@ -297,12 +312,13 @@ authorized, following root AGENTS.md.
   entry! and the build helper; image descriptor matches fixture name/version.
 - Record the product main future's actual storage size and linker RAM/heap/stack
   headroom; do not use a guessed universal threshold.
-- Test absent/false/true persisted flags and explicit load/commit failures.
+- Test absent/false/true persisted flags, provisioning fallback without erasure on
+  load failure, explicit commit failures and both partial persistence states.
 - Test zero/three serial ports and exclusive boot IO construction.
 - Provisioning initializes no OTG; MassStorage initializes no JTAG.
-- Persisting true does not change this boot; reboot/replug starts OTG.
+- Persisting true does not change this boot; restart or board power cycle starts OTG.
 - Recovery resets the flag before clearing Wi-Fi and rebooting.
-- Console cannot touch JTAG in an OTG boot.
+- Console and panic/backtrace paths cannot touch JTAG in an OTG boot.
 - Test NVS discovery failure and validate one SharedFlash owner.
 - Replay BG-ESP-S3 and BG-USB-MSC on hardware; host tests/builds alone are partial.
 - Run esp locked/latest CI and docs_tool.py generate/check.
