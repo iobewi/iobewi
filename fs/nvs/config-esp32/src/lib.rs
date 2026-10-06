@@ -11,14 +11,15 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicBool, Ordering};
 
+use esp_nvs::Nvs;
+use esp_nvs::error::Error as NvsError;
 use iobewi_config_space::{Budget, ConfigBackend, Snapshot};
 use iobewi_esp_flash::SharedFlash;
 use iobewi_esp_nvs::{NvsFlash, open as open_nvs};
 use iobewi_nvs_core::{
-    capacity_units, decode_record, encode_record, entries_for_blob, reservation_units, valid_space_name,
+    capacity_units, decode_record, encode_record, entries_for_blob, reservation_units,
+    valid_space_name,
 };
-use esp_nvs::error::Error as NvsError;
-use esp_nvs::Nvs;
 use log::warn;
 
 pub use iobewi_nvs_core::{ENTRIES_PER_PAGE, ITEM_SIZE, MAX_BLOB_DATA_PER_PAGE};
@@ -47,19 +48,51 @@ pub struct NvsConfigBackend {
     capacity_units: usize,
 }
 
+#[derive(Debug)]
+pub enum NvsStartupError {
+    Discovery(iobewi_esp_partitions::PartitionError),
+    Geometry(iobewi_nvs_core::PartitionGeometryError),
+    Backend(NvsConfigError),
+}
 impl NvsConfigBackend {
+    /// Discover the named data/NVS partition using the existing shared owner.
+    /// No fallback address, erase/reformat-on-error or new FlashStorage instance.
+    pub async fn from_label(
+        flash: &'static SharedFlash,
+        label: &str,
+    ) -> Result<Self, NvsStartupError> {
+        use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
+        let partition = {
+            let mut owner = flash.lock().await;
+            let mut table = [0u8; iobewi_esp_partitions::TABLE_BUFFER_SIZE];
+            let range =
+                iobewi_esp_partitions::find_by_label(owner.storage(), &mut table, label, 1, 2)
+                    .map_err(NvsStartupError::Discovery)?;
+            iobewi_nvs_core::validate_partition_geometry(
+                range.offset as usize,
+                range.size,
+                owner.capacity(),
+                iobewi_esp_flash::EspFlash::ERASE_SIZE,
+            )
+            .map_err(NvsStartupError::Geometry)?;
+            NvsPartition::new(range.offset as usize, range.size)
+        }; // Release the mutex before new() locks it again.
+        Self::new(flash, partition)
+            .await
+            .map_err(NvsStartupError::Backend)
+    }
+
     pub async fn new(
         flash: &'static SharedFlash,
         partition: NvsPartition,
     ) -> Result<Self, NvsConfigError> {
         let capacity_units = {
             let mut flash = flash.lock().await;
-            let mut nvs = open_nvs(&mut flash, partition)
-                .map_err(|e| {
-                    warn!("NVS unavailable: {e:?}");
-                    HEALTHY.store(false, Ordering::Relaxed);
-                    NvsConfigError::Unavailable
-                })?;
+            let mut nvs = open_nvs(&mut flash, partition).map_err(|e| {
+                warn!("NVS unavailable: {e:?}");
+                HEALTHY.store(false, Ordering::Relaxed);
+                NvsConfigError::Unavailable
+            })?;
             let stats = nvs.statistics().map_err(|e| {
                 warn!("Failed to read NVS statistics: {e:?}");
                 HEALTHY.store(false, Ordering::Relaxed);
@@ -78,7 +111,11 @@ impl NvsConfigBackend {
             )
         };
         HEALTHY.store(true, Ordering::Relaxed);
-        Ok(Self { flash, partition, capacity_units })
+        Ok(Self {
+            flash,
+            partition,
+            capacity_units,
+        })
     }
 
     pub fn is_healthy(&self) -> bool {
@@ -87,12 +124,20 @@ impl NvsConfigBackend {
 
     pub async fn self_check(&self) -> bool {
         const VALUE: u8 = 0xA5;
-        let ok = self.with_nvs(|nvs| {
-            nvs.set(&HEALTH_NAMESPACE, &HEALTH_KEY, VALUE).map_err(|_| NvsConfigError::Write)?;
-            let read_back = nvs.get::<u8>(&HEALTH_NAMESPACE, &HEALTH_KEY).map_err(|_| NvsConfigError::Write)? == VALUE;
-            nvs.delete(&HEALTH_NAMESPACE, &HEALTH_KEY).map_err(|_| NvsConfigError::Write)?;
-            Ok(read_back)
-        }).await.unwrap_or(false);
+        let ok = self
+            .with_nvs(|nvs| {
+                nvs.set(&HEALTH_NAMESPACE, &HEALTH_KEY, VALUE)
+                    .map_err(|_| NvsConfigError::Write)?;
+                let read_back = nvs
+                    .get::<u8>(&HEALTH_NAMESPACE, &HEALTH_KEY)
+                    .map_err(|_| NvsConfigError::Write)?
+                    == VALUE;
+                nvs.delete(&HEALTH_NAMESPACE, &HEALTH_KEY)
+                    .map_err(|_| NvsConfigError::Write)?;
+                Ok(read_back)
+            })
+            .await
+            .unwrap_or(false);
         HEALTHY.store(ok, Ordering::Relaxed);
         ok
     }
@@ -102,12 +147,11 @@ impl NvsConfigBackend {
         f: impl FnOnce(&mut Nvs<NvsFlash<'_>>) -> Result<R, NvsConfigError>,
     ) -> Result<R, NvsConfigError> {
         let mut flash = self.flash.lock().await;
-        let mut nvs = open_nvs(&mut flash, self.partition)
-            .map_err(|e| {
-                warn!("NVS unavailable: {e:?}");
-                HEALTHY.store(false, Ordering::Relaxed);
-                NvsConfigError::Unavailable
-            })?;
+        let mut nvs = open_nvs(&mut flash, self.partition).map_err(|e| {
+            warn!("NVS unavailable: {e:?}");
+            HEALTHY.store(false, Ordering::Relaxed);
+            NvsConfigError::Unavailable
+        })?;
         let result = f(&mut nvs);
         if result.is_err() {
             HEALTHY.store(false, Ordering::Relaxed);
@@ -149,13 +193,21 @@ impl NvsConfigBackend {
         Ok(owned)
     }
 
-    async fn replace(&self, space: &str, present: bool, payload: &[u8]) -> Result<u64, NvsConfigError> {
+    async fn replace(
+        &self,
+        space: &str,
+        present: bool,
+        payload: &[u8],
+    ) -> Result<u64, NvsConfigError> {
         let key = Self::key(space)?;
         self.with_nvs(|nvs| {
             let generation = match nvs.get::<Vec<u8>>(&NAMESPACE, &key) {
                 Ok(raw) => {
-                    let (generation, _, _) = decode_record(&raw).map_err(|_| NvsConfigError::CorruptRecord)?;
-                    generation.checked_add(1).ok_or(NvsConfigError::GenerationOverflow)?
+                    let (generation, _, _) =
+                        decode_record(&raw).map_err(|_| NvsConfigError::CorruptRecord)?;
+                    generation
+                        .checked_add(1)
+                        .ok_or(NvsConfigError::GenerationOverflow)?
                 }
                 Err(NvsError::NamespaceNotFound | NvsError::KeyNotFound) => 1,
                 Err(e) => {
@@ -169,17 +221,22 @@ impl NvsConfigBackend {
                 NvsConfigError::Write
             })?;
             Ok(generation)
-        }).await
+        })
+        .await
     }
 }
 
 impl ConfigBackend for NvsConfigBackend {
     type Error = NvsConfigError;
 
-    fn capacity_units(&self) -> usize { self.capacity_units }
+    fn capacity_units(&self) -> usize {
+        self.capacity_units
+    }
 
     fn reservation_units(&self, space: &str, budget: Budget) -> Option<usize> {
-        if !valid_space_name(space) { return None; }
+        if !valid_space_name(space) {
+            return None;
+        }
         reservation_units(budget.max_bytes())
     }
 
@@ -187,15 +244,20 @@ impl ConfigBackend for NvsConfigBackend {
         let key = Self::key(space)?;
         self.with_nvs(|nvs| match nvs.get::<Vec<u8>>(&NAMESPACE, &key) {
             Ok(raw) => {
-                let (generation, present, payload) = decode_record(&raw).map_err(|_| NvsConfigError::CorruptRecord)?;
-                Ok(present.then(|| Snapshot { generation, data: payload.to_vec() }))
+                let (generation, present, payload) =
+                    decode_record(&raw).map_err(|_| NvsConfigError::CorruptRecord)?;
+                Ok(present.then(|| Snapshot {
+                    generation,
+                    data: payload.to_vec(),
+                }))
             }
             Err(NvsError::NamespaceNotFound | NvsError::KeyNotFound) => Ok(None),
             Err(e) => {
                 warn!("Failed to read blob {}: {e:?}", key.as_str());
                 Err(NvsConfigError::Write)
             }
-        }).await
+        })
+        .await
     }
 
     async fn commit(&self, space: &str, data: &[u8]) -> Result<u64, Self::Error> {

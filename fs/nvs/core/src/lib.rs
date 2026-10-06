@@ -104,7 +104,10 @@ mod tests {
     fn record_golden_bytes_and_round_trip() {
         let raw = encode_record(0x0102_0304_0506_0708, true, b"hi");
         assert_eq!(raw, b"CSM1\x08\x07\x06\x05\x04\x03\x02\x01\x01hi");
-        assert_eq!(decode_record(&raw), Ok((0x0102_0304_0506_0708, true, &b"hi"[..])));
+        assert_eq!(
+            decode_record(&raw),
+            Ok((0x0102_0304_0506_0708, true, &b"hi"[..]))
+        );
         let cleared = encode_record(9, false, &[]);
         assert_eq!(cleared, b"CSM1\x09\0\0\0\0\0\0\0\x00");
         assert_eq!(decode_record(&cleared), Ok((9, false, &[][..])));
@@ -113,9 +116,19 @@ mod tests {
     #[test]
     fn corrupt_records_are_rejected() {
         assert_eq!(decode_record(b"CSM1"), Err(CorruptRecord));
-        assert_eq!(decode_record(b"XXM1\0\0\0\0\0\0\0\0\x01"), Err(CorruptRecord));
-        assert_eq!(decode_record(b"CSM1\0\0\0\0\0\0\0\0\x02"), Err(CorruptRecord), "unknown flag bit");
-        assert_eq!(decode_record(b"CSM1\0\0\0\0\0\0\0\0\x81"), Err(CorruptRecord));
+        assert_eq!(
+            decode_record(b"XXM1\0\0\0\0\0\0\0\0\x01"),
+            Err(CorruptRecord)
+        );
+        assert_eq!(
+            decode_record(b"CSM1\0\0\0\0\0\0\0\0\x02"),
+            Err(CorruptRecord),
+            "unknown flag bit"
+        );
+        assert_eq!(
+            decode_record(b"CSM1\0\0\0\0\0\0\0\0\x81"),
+            Err(CorruptRecord)
+        );
     }
 
     #[test]
@@ -154,5 +167,64 @@ mod tests {
         let after = capacity_units(500 - 14, 0, 14);
         assert_eq!(before, after);
         assert_eq!(capacity_units(10, 0, 0), 0, "saturates at zero");
+    }
+}
+
+/// Invalid discovered NVS geometry. Validation performs no flash access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartitionGeometryError {
+    Unaligned,
+    TooSmall,
+    Overflow,
+    OutOfBounds,
+}
+/// Admit at least two erase pages (one usable, one reserved), with checked bounds.
+/// NVS content/open errors are handled by the existing backend, not by erasing.
+pub fn validate_partition_geometry(
+    offset: usize,
+    size: usize,
+    capacity: usize,
+    erase_size: usize,
+) -> Result<(), PartitionGeometryError> {
+    if erase_size == 0 || offset % erase_size != 0 || size % erase_size != 0 {
+        return Err(PartitionGeometryError::Unaligned);
+    }
+    if size / erase_size < 2 {
+        return Err(PartitionGeometryError::TooSmall);
+    }
+    let end = offset
+        .checked_add(size)
+        .ok_or(PartitionGeometryError::Overflow)?;
+    if end > capacity {
+        return Err(PartitionGeometryError::OutOfBounds);
+    }
+    Ok(())
+}
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+    #[test]
+    fn discovered_geometry_is_bounded_and_aligned() {
+        assert_eq!(validate_partition_geometry(4096, 8192, 16384, 4096), Ok(()));
+        assert_eq!(
+            validate_partition_geometry(4097, 8192, 16384, 4096),
+            Err(PartitionGeometryError::Unaligned)
+        );
+        assert_eq!(
+            validate_partition_geometry(4096, 4096, 16384, 4096),
+            Err(PartitionGeometryError::TooSmall)
+        );
+        assert_eq!(
+            validate_partition_geometry(4096, 8192, 8192, 4096),
+            Err(PartitionGeometryError::OutOfBounds)
+        );
+        assert_eq!(
+            validate_partition_geometry(0, 8192, 16384, 0),
+            Err(PartitionGeometryError::Unaligned)
+        );
+        assert_eq!(
+            validate_partition_geometry(usize::MAX - 1, 2, usize::MAX, 1),
+            Err(PartitionGeometryError::Overflow)
+        );
     }
 }

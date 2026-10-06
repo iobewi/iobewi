@@ -68,9 +68,15 @@ mod tests {
 
     #[test]
     fn hardware_id_is_the_last_three_mac_bytes_lowercase_and_zero_padded() {
-        assert_eq!(hardware_id_from_mac([0xaa, 0xbb, 0xcc, 0x0a, 0x0b, 0xff]), "0a0bff");
+        assert_eq!(
+            hardware_id_from_mac([0xaa, 0xbb, 0xcc, 0x0a, 0x0b, 0xff]),
+            "0a0bff"
+        );
         assert_eq!(hardware_id_from_mac([0, 0, 0, 0, 0, 0]), "000000");
-        assert_eq!(hardware_id_from_mac([0x7c, 0xdf, 0xa1, 0xac, 0x4e, 0x8c]), "ac4e8c");
+        assert_eq!(
+            hardware_id_from_mac([0x7c, 0xdf, 0xa1, 0xac, 0x4e, 0x8c]),
+            "ac4e8c"
+        );
     }
 
     #[test]
@@ -80,5 +86,61 @@ mod tests {
         assert_eq!(device.mac_address(), Some([0, 1, 2, 3, 4, 5]));
         assert_eq!(device.chip_name(), "test-chip");
         assert_eq!(device.ram_size(), 123_456);
+    }
+}
+
+/// Adapter-local GPIO identifier, distinct from a physical package/header pin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PinId(pub u16);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignalDirection {
+    Input,
+    Output,
+}
+/// Read-only alternate mux function from the platform's metadata source.
+/// Names/selectors are opaque display metadata, not a portable register API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PinFunction {
+    pub signal: &'static str,
+    pub selector: &'static str,
+    pub direction: SignalDirection,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PinDescriptor {
+    pub id: PinId,
+    pub name: &'static str,
+    pub digital_input: bool,
+    pub digital_output: bool,
+    pub functions: &'static [PinFunction],
+}
+/// Read-only MCU GPIO capabilities, separate from board wiring/availability.
+/// This grants no peripheral ownership and does not certify an unused/exposed pin.
+/// Identifiers may be sparse; consumers must look up by id rather than index.
+pub trait PinMetadata {
+    fn pins(&self) -> &'static [PinDescriptor];
+    fn pin(&self, id: PinId) -> Option<&'static PinDescriptor> {
+        self.pins().iter().find(|pin| pin.id == id)
+    }
+}
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+    struct Fake;
+    impl PinMetadata for Fake {
+        fn pins(&self) -> &'static [PinDescriptor] {
+            &[PinDescriptor {
+                id: PinId(3),
+                name: "PA3",
+                digital_input: true,
+                digital_output: false,
+                functions: &[],
+            }]
+        }
+    }
+    #[test]
+    fn sparse_adapter_ids_are_not_slice_indices_or_header_pin_numbers() {
+        assert_eq!(Fake.pin(PinId(3)).unwrap().name, "PA3");
+        assert!(Fake.pin(PinId(0)).is_none());
+        assert!(!Fake.pin(PinId(3)).unwrap().digital_output);
     }
 }

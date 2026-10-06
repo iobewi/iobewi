@@ -41,7 +41,10 @@ fn bounds() -> (usize, usize) {
     // `&raw const` only takes the symbol's *address*, never dereferences it
     // -- safe even though `_stack_start`/`_stack_end` have no real storage
     // behind them (the linker never gives them one).
-    (&raw const _stack_end as usize, &raw const _stack_start as usize)
+    (
+        &raw const _stack_end as usize,
+        &raw const _stack_start as usize,
+    )
 }
 
 /// Paints the currently-unused portion of the stack (from the low boundary
@@ -88,7 +91,9 @@ fn free_bytes() -> u32 {
     // reading it (not writing) is safe regardless of what's live in the
     // in-use portion -- we just check whether this byte still matches
     // `PAINT`.
-    (end..start).take_while(|&addr| unsafe { core::ptr::read_volatile(addr as *const u8) } == PAINT).count() as u32
+    (end..start)
+        .take_while(|&addr| unsafe { core::ptr::read_volatile(addr as *const u8) } == PAINT)
+        .count() as u32
 }
 
 /// ESP implementation of the portable [`RuntimeDiagnostics`] capability.
@@ -122,3 +127,8 @@ impl RuntimeDiagnostics for EspRuntimeDiagnostics {
         esp_alloc::HEAP.free() as u32
     }
 }
+
+#[cfg(all(feature = "board-s3-native-usb", feature = "esp32c3"))]
+compile_error!("the S3 native-USB board profile cannot be combined with esp32c3");
+#[cfg(feature = "board-s3-native-usb")]
+pub mod platform;

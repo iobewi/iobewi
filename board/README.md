@@ -72,6 +72,10 @@ may use enums for heterogeneous hardware, without a trait object or allocation.
 Physical port selection and ordering belong to the board profile; portable
 consumers must not infer UART/JTAG identity from an index.
 
+### Product resource declaration
+
+ResourceRequest declares sockets, heap_bytes and minimum_stack_bytes before platform construction. The product chooses socket count; the platform admits the byte requirement or fails, without reducing it. The minimum stack is a linker reservation requirement, not a measured free-stack guarantee.
+
 ## Lifecycle
 
 1. Platform startup constructs Board, leaving both native USB controllers uninitialized.

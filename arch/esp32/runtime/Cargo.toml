@@ -13,6 +13,24 @@ default = []
 esp32c3 = ["dep:esp-alloc", "esp-alloc/esp32c3"]
 esp32s3 = ["dep:esp-alloc", "esp-alloc/esp32s3"]
 
+board-s3-native-usb = ["esp32s3", "dep:iobewi-board", "dep:iobewi-device", "dep:iobewi-esp-device", "dep:iobewi-esp-platform", "dep:iobewi-esp-config-space", "dep:iobewi-esp-flash", "dep:iobewi-esp-wifi", "dep:iobewi-esp-reset", "dep:iobewi-esp-serial", "dep:iobewi-esp-input", "dep:iobewi-esp-usb", "dep:esp-hal", "dep:esp-rtos", "dep:embassy-executor", "dep:embassy-net"]
+
 [dependencies]
 iobewi-runtime = { path = "../../../drivers/diagnostics/core" }
 esp-alloc = { version = "~0.11", optional = true }
+
+iobewi-board = { path = "../../../board", optional = true }
+iobewi-device = { path = "../../../drivers/device/core", optional = true }
+iobewi-esp-device = { path = "../../../drivers/device/esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-platform = { path = "../platform", optional = true }
+iobewi-esp-config-space = { path = "../../../fs/nvs/config-esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-flash = { path = "../../../drivers/flash/esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-wifi = { path = "../../../drivers/net/wifi/esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-reset = { path = "../reset", features = ["esp32s3"], optional = true }
+iobewi-esp-serial = { path = "../../../drivers/serial/esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-input = { path = "../../../drivers/input/esp32", features = ["esp32s3"], optional = true }
+iobewi-esp-usb = { path = "../../../drivers/usb/esp32", features = ["esp32s3"], optional = true }
+esp-hal = { version = "~1.2", default-features = false, features = ["esp32s3", "unstable"], optional = true }
+esp-rtos = { version = "=0.4.0", default-features = false, features = ["esp32s3", "embassy", "esp-radio", "esp-alloc"], optional = true }
+embassy-executor = { version = "0.10.0", default-features = false, optional = true }
+embassy-net = { version = "0.9.1", default-features = false, features = ["dhcpv4", "medium-ethernet", "tcp", "dns"], optional = true }

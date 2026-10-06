@@ -61,7 +61,7 @@ Partition and OTA operations borrowing `storage()` retain this driver-level prot
 
 ## Known limitations
 
-ROM calls are synchronous and postpone interrupts while protected. Erase latency can affect Wi-Fi, USB and watchdog service; the maximum critical-section duration is **not measured**. Small-write provisioning success reported on ESP32-S3 is not evidence for erase/GC or OTA durability. These require the human hardware procedure. The separate second-stage boot ROM primitives do not use esp-storage and are outside this runtime protection.
+ROM calls are synchronous and postpone interrupts while protected. Erase latency can affect Wi-Fi, USB and watchdog service; a human diagnostic campaign observed maxima of 44.6 ms for ROM writes and 37.5 ms for one sector erase at 240 MHz. These are observed values, not a guaranteed maximum; the worst-case bound remains unknown. Small-write provisioning success reported on ESP32-S3 is not evidence for erase/GC or OTA durability. These require the human hardware procedure. The separate second-stage boot ROM primitives do not use esp-storage and are outside this runtime protection.
 
 Repeated initialization is unsupported. Nested acquisition of the shared mutex cannot complete; callers must preserve the lock ordering described above.
 

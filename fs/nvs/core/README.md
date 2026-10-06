@@ -29,6 +29,10 @@ Portable helper below the ESP ConfigSpace backend; it has no fs/config dependenc
 
 `encode_record`, `decode_record`, `valid_space_name`, `entries_for_blob`, `reservation_units` and `capacity_units`; constants define a 13-byte CSM1 header and 15-byte maximum NVS key.
 
+### Partition geometry admission
+
+validate_partition_geometry checks erase alignment, at least two erase pages, checked end arithmetic and physical flash capacity. It does not discover labels, validate partition contents or choose a fallback address. Host tests cover valid geometry, alignment, size, overflow and bounds errors.
+
 ## Invariants
 
 - `INV-001`

@@ -132,3 +132,13 @@ pub trait Board: Sized {
         self,
     ) -> BoardParts<Self::Wifi, Self::Config, Self::Button, Self::Io, Self::Reset, Self::Identity>;
 }
+
+/// Product-owned resource request, evaluated before Board construction.
+/// Additional product buffers remain in the product and are accounted by the
+/// linked RAM/stack check; no universal socket count is encoded by Board.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResourceRequest {
+    pub sockets: usize,
+    pub heap_bytes: usize,
+    pub minimum_stack_bytes: usize,
+}

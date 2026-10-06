@@ -29,7 +29,7 @@ Human tests used ESP32-S3 QFN56 rev v0.2, 16 MB flash / 8 MB PSRAM, StreamBeWI `
 | 4C: with critical-section | All nine credential and six flag writes complete; Improv succeeds. |
 | Normal image, only feature fix | Provisioning succeeds without diagnostic traces/physical console. |
 
-Only 4–36 byte writes to virgin NVS were exercised. The interrupt/cache mechanism is a hypothesis. Main at 96f2197 has matching dependency declarations, but was not hardware-tested. Erase/GC, OTA and interrupt latency remain **not tested / not measured**.
+Only 4–36 byte writes to virgin NVS were exercised. The interrupt/cache mechanism is a hypothesis. Main at 96f2197 has matching dependency declarations, but was not hardware-tested. At that stage, erase/GC, OTA and interrupt latency were **not tested / not measured**. The later campaign update below records the additional observations.
 
 ## Human hardware procedure
 
@@ -38,8 +38,8 @@ Use an expendable board and record product SHA, IOBEWI fix SHA, Cargo.lock hash,
 1. Build StreamBeWI 03bef9b against the fix (local Git-source patches or a reviewed updated pin). Keep the same product boot policy. Record `cargo +esp tree -p streambewi-esp32 --target xtensa-esp32s3-none-elf -e features -i esp-storage` and confirm `critical-section`.
 2. Build the release ELF with `cargo +esp build -p streambewi-esp32 --release -Z build-std=core,alloc --target xtensa-esp32s3-none-elf`. Produce a merged image with `espflash save-image --chip esp32s3 --merge --skip-padding <elf> <out.bin>`. Record hashes and flashing settings. A complete installation can erase NVS.
 3. Start with virgin test NVS, Wi-Fi active. Provision through Improv; verify both credential and boot-flag commits return and the response is successful. Read back data and reboot. Confirm persisted mode and credentials. Repeat the normal, uninstrumented image test.
-4. Perform at least 100 repeated credential/flag commits with alternating values and Wi-Fi traffic. Record return status, elapsed time, read-back and restart persistence. A count alone does not prove erase occurred.
-5. Continue until NVS page rotation/GC causes actual sector erase. Capture erase entry/exit and return values in a diagnostic image, then repeat without diagnostics. Require demonstrated erase, correct read-back, successful reboot, and no hang/watchdog reset. If the image cannot exercise GC, mark this step blocked rather than passed.
+4. Exercise a small, bounded number of real configuration changes with Wi-Fi active. Record return status, read-back and restart persistence. Do not run hundreds of configuration commits solely to force GC in the radio product; a driver stress test needs a separate, explicitly agreed fixture and acceptance budget.
+5. For a driver erase gate, demonstrate an actual sector erase with a bounded fixture; use NVS rotation/GC only when it occurs within an agreed configuration test. Do not continue committing indefinitely to force it. Capture erase entry/exit and return values in a diagnostic image, then repeat without diagnostics. Require demonstrated erase, correct read-back, successful reboot, and no hang/watchdog reset. If the image cannot exercise GC, mark this step blocked rather than passed.
 6. If OTA is part of acceptance, upload a valid image to the inactive slot while Wi-Fi traffic continues. Demonstrate actual erase/program and read-back digest, activation and restart/confirmation. Do not write the active image or unrelated partitions. Record USB/Wi-Fi responsiveness and any resets. Otherwise mark OTA not tested.
 7. Measure the protected interval for each ROM read/unlock/write/sector erase/block erase exercised. Instrument the actual driver lock callback with a RAM-safe GPIO pulse or cycle counter; do not format/log while the cache may be disabled. Collect timing after return via UART-only diagnostics or a RAM buffer. Measure wait-for-lock separately if needed. An outer `write`/`erase` measurement is a conservative whole-call duration, not the exact critical-section duration; label it accordingly.
 8. Report sample count, flash model, CPU clock, workload, timer resolution, maximum observed interval and separate sector/block erase results. Compare with the product's explicit Wi-Fi/USB/watchdog latency budget. An observed maximum is not a worst-case bound: use the flash datasheet/driver call granularity for a justified bound, or mark the bound **unknown**. Higher-level interrupts/NMI need their own RAM-safety audit if used.
@@ -53,9 +53,9 @@ Attach resolved feature graphs before/after, guard negative/positive results, lo
 | Evidence | Current state |
 | --- | --- |
 | Small-write provisioning on ddfa839 plus local feature change | Human-reported success |
-| Main plus this fix on hardware | Pending |
-| NVS repeated writes and actual erase/GC | Pending |
-| Maximum critical-section duration / justified worst-case bound | Not measured / unknown |
+| Main plus this fix on hardware | Human nominal success with 13A (26fbd2f) and 14B (merged 596d180a) |
+| NVS repeated writes and actual erase/GC | 13B diagnostic observations below; not broad workload acceptance |
+| Maximum critical-section duration / justified worst-case bound | Observed maxima below / guaranteed bound unknown |
 | OTA under Wi-Fi load | Not tested |
 
 ## Resolved graph evidence (local)
@@ -151,3 +151,35 @@ cargo +esp check --manifest-path targets/esp32/Cargo.toml --locked \
   -Z build-std=core,alloc --target riscv32imc-unknown-none-elf \
   -p iobewi-esp-ota --features esp32c3,shared-flash
 ```
+
+## Human campaign update (2026-10-06)
+
+The following are Lionel/Claude-reported observations, not tests rerun by Codex.
+Normal 13A used StreamBeWI 03bef9b against IOBEWI 26fbd2f via local Git-source
+patches. Provisioning, power-cycle persistence, ten minutes of Metronic playback
+and three recovery/reprovisioning/MSC cycles succeeded. Normal 14B was locally
+built from published StreamBeWI 620ac9f against merged IOBEWI 596d180a without
+patches; the nominal replay also succeeded. 14B was not the CI artifact, and
+byte-for-byte equality was not verified.
+
+Diagnostic 13B performed 184 commits with no incorrect read-back reported and
+observed one sector erase at 0xa000..0xb000, subsequent successful writes and
+persisted final state after restart. Timing used a cycle counter within the
+protected interval at 240 MHz (one-cycle resolution), outside logging:
+
+| ROM operation | Samples | Largest protected interval observed | Largest whole-call duration |
+| --- | --- | --- | --- |
+| Write | 1,143 | 10,694,990 cycles, about 44.6 ms | 62,522 us |
+| 4 KiB sector erase | 1 | 9,010,036 cycles, about 37.5 ms | 37,745 us |
+
+MSC disconnected three times and streaming slowed during the synthetic load;
+causality was not isolated. Lionel stopped this disproportionate configuration
+workload. These observations are retained, but do not qualify USB coexistence
+under heavy flash load. No repeat stress campaign or extra scratch erase is
+required to reproduce an erase already observed.
+
+The guaranteed latency bound remains unknown. OTA and 64 KiB block erase were
+not exercised; StreamBeWI has no OTA path, so that validation requires a separate
+firmware. Error injection, panic in OTG and precise reset-cause identification
+remain open in the Board/product acceptance work. No global BG-STORAGE or
+BG-ESP-S3 PASS follows from these nominal observations.
