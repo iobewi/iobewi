@@ -8,10 +8,10 @@ extern crate alloc;
 
 use alloc::{format, string::String};
 use core::fmt::{Debug, Display};
-use embassy_time::{with_timeout, Duration, Instant, Timer};
+use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{ErrorType, Read, Write};
 use iobewi_entropy::EntropySource;
-use iobewi_log::{discard, pop_line, LogMetadata, RING_CAPACITY};
+use iobewi_log::{LogMetadata, RING_CAPACITY, discard, pop_record};
 use iobewi_net_tls_core::SecureClientTransport;
 use log::{info, warn};
 use serde::Serialize;
@@ -48,11 +48,25 @@ struct LogFrame<'a> {
     node: &'a str,
     workload: &'static str,
     level: &'static str,
+    target: &'a str,
     msg: &'a str,
 }
 
+fn level_name(level: log::Level) -> &'static str {
+    match level {
+        log::Level::Error => "error",
+        log::Level::Warn => "warn",
+        log::Level::Info => "info",
+        log::Level::Debug => "debug",
+        log::Level::Trace => "trace",
+    }
+}
+
 fn split_host_port(ctrl_url: &str) -> Option<(&str, u16)> {
-    let rest = ctrl_url.split_once("://").map(|(_, value)| value).unwrap_or(ctrl_url);
+    let rest = ctrl_url
+        .split_once("://")
+        .map(|(_, value)| value)
+        .unwrap_or(ctrl_url);
     let host_port = rest.split('/').next().unwrap_or(rest);
     match host_port.split_once(':') {
         Some((host, port)) if !host.is_empty() => Some((host, port.parse().unwrap_or(443))),
@@ -62,7 +76,11 @@ fn split_host_port(ctrl_url: &str) -> Option<(&str, u16)> {
 }
 
 fn websocket_authority(host: &str, port: u16) -> String {
-    if port == 443 { String::from(host) } else { format!("{host}:{port}") }
+    if port == 443 {
+        String::from(host)
+    } else {
+        format!("{host}:{port}")
+    }
 }
 
 fn next_backoff(current: Duration) -> Duration {
@@ -97,13 +115,19 @@ async fn connect_and_upgrade<'a, T: SecureClientTransport, E: EntropySource>(
     Ok(session)
 }
 
-async fn pump_session<S: ErrorType + Read + Write, C: StreamConfig + LogMetadata, E: EntropySource>(
+async fn pump_session<
+    S: ErrorType + Read + Write,
+    C: StreamConfig + LogMetadata,
+    E: EntropySource,
+>(
     session: &mut S,
     config: &C,
     entropy: &E,
     token_snapshot: &str,
 ) -> String
-where S::Error: Display + Debug {
+where
+    S::Error: Display + Debug,
+{
     loop {
         if config.token().await != token_snapshot {
             return String::from("bearer token changed, reconnecting");
@@ -113,24 +137,42 @@ where S::Error: Display + Debug {
             Err(_) => {} // Idle; no WebSocket frame byte was consumed.
             Ok(Ok(0)) => return String::from("server closed the connection"),
             Ok(Err(error)) => return format!("frame read failed: {error}"),
-            Ok(Ok(_)) => match with_timeout(FRAME_TIMEOUT,
-                iobewi_http_client::websocket::process_frame_after_first(&mut *session, first[0], random_u32(entropy))
-            ).await {
-                Ok(Ok(true)) => {},
+            Ok(Ok(_)) => match with_timeout(
+                FRAME_TIMEOUT,
+                iobewi_http_client::websocket::process_frame_after_first(
+                    &mut *session,
+                    first[0],
+                    random_u32(entropy),
+                ),
+            )
+            .await
+            {
+                Ok(Ok(true)) => {}
                 Ok(Ok(false)) => return String::from("server closed the connection"),
                 Ok(Err(error)) => return error,
                 Err(_) => return String::from("incomplete WebSocket frame timed out"),
             },
         }
         for _ in 0..RING_CAPACITY {
-            let Some(line) = pop_line() else { break; };
+            let Some(record) = pop_record() else {
+                break;
+            };
             let node_id = config.node_id().await;
             let frame = LogFrame {
-                ts: config.timestamp(), node: &node_id,
-                workload: config.workload(), level: "raw", msg: &line,
+                ts: config.timestamp(),
+                node: &node_id,
+                workload: config.workload(),
+                level: level_name(record.level),
+                target: &record.target,
+                msg: &record.message,
             };
-            let Ok(json) = serde_json::to_vec(&frame) else { continue; };
-            if let Err(error) = iobewi_http_client::websocket::send_text(&mut *session, &json, random_u32(entropy)).await {
+            let Ok(json) = serde_json::to_vec(&frame) else {
+                continue;
+            };
+            if let Err(error) =
+                iobewi_http_client::websocket::send_text(&mut *session, &json, random_u32(entropy))
+                    .await
+            {
                 return error;
             }
         }
@@ -139,7 +181,11 @@ where S::Error: Display + Debug {
 
 /// Reconnect with capped jittered backoff. Fresh logs are sent only while a
 /// connection is active; the ring is cleared on every failed session.
-pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: EntropySource>(config: &C, transport: &T, entropy: &E) -> ! {
+pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: EntropySource>(
+    config: &C,
+    transport: &T,
+    entropy: &E,
+) -> ! {
     let mut rx = [0u8; 1024];
     let mut tx = [0u8; 512];
     let mut backoff = BASE_BACKOFF;
@@ -157,9 +203,14 @@ pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: Ent
             continue;
         }
         let path = config.path();
-        let connected = with_timeout(HANDSHAKE_TIMEOUT,
-            connect_and_upgrade(transport, entropy, &mut rx, &mut tx, host, port, &path, &token)
-        ).await.unwrap_or_else(|_| Err(String::from("WebSocket handshake timed out")));
+        let connected = with_timeout(
+            HANDSHAKE_TIMEOUT,
+            connect_and_upgrade(
+                transport, entropy, &mut rx, &mut tx, host, port, &path, &token,
+            ),
+        )
+        .await
+        .unwrap_or_else(|_| Err(String::from("WebSocket handshake timed out")));
         let stable = match connected {
             Ok(mut session) => {
                 let connected_at = Instant::now();
@@ -173,7 +224,9 @@ pub async fn run<C: StreamConfig + LogMetadata, T: SecureClientTransport, E: Ent
             }
         };
         discard();
-        if stable { backoff = BASE_BACKOFF; }
+        if stable {
+            backoff = BASE_BACKOFF;
+        }
         Timer::after(jittered(backoff, random_u32(entropy))).await;
         backoff = next_backoff(backoff);
     }
@@ -184,14 +237,51 @@ mod tests {
     use super::*;
 
     #[test]
+    fn frame_preserves_levels_target_and_escaping() {
+        for (level, expected) in [
+            (log::Level::Error, "error"),
+            (log::Level::Warn, "warn"),
+            (log::Level::Info, "info"),
+            (log::Level::Debug, "debug"),
+            (log::Level::Trace, "trace"),
+        ] {
+            let frame = LogFrame {
+                ts: 1,
+                node: "node",
+                workload: "app",
+                level: level_name(level),
+                target: "app::usb",
+                msg: "quoted \"text\"\n",
+            };
+            let json = serde_json::to_vec(&frame).unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
+            assert_eq!(value["level"], expected);
+            assert_eq!(value["target"], "app::usb");
+            assert_eq!(value["msg"], "quoted \"text\"\n");
+        }
+    }
+
+    #[test]
     fn reconnect_policy_and_url_parsing() {
-        assert_eq!(split_host_port("https://core.example:8443/foo"), Some(("core.example", 8443)));
+        assert_eq!(
+            split_host_port("https://core.example:8443/foo"),
+            Some(("core.example", 8443))
+        );
         assert_eq!(split_host_port("core.example"), Some(("core.example", 443)));
         assert_eq!(split_host_port(""), None);
-        assert_eq!(websocket_authority("core.example", 8443), "core.example:8443");
+        assert_eq!(
+            websocket_authority("core.example", 8443),
+            "core.example:8443"
+        );
         assert_eq!(websocket_authority("core.example", 443), "core.example");
-        assert_eq!(next_backoff(Duration::from_secs(40)), Duration::from_secs(60));
-        assert_eq!(jittered(Duration::from_secs(5), 0), Duration::from_millis(3500));
+        assert_eq!(
+            next_backoff(Duration::from_secs(40)),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            jittered(Duration::from_secs(5), 0),
+            Duration::from_millis(3500)
+        );
     }
 }
 

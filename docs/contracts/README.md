@@ -15,3 +15,5 @@ their specifications.
 | ESP32 Workload partition layout | [esp32-workload-layout](../esp32-workload-layout.md) | platform storage |
 | Virtual FAT16 volume | [virtual FAT16](../../fs/fat16/README.md) | fs/fat16 |
 | Read-only USB MSC supported wire behaviour | [USB MSC](../../drivers/usb/msc/README.md) | drivers/usb/msc |
+| Persisted log policy YAML v1 | [log/config](../../log/config/README.md) | log/config |
+| Log WebSocket JSON origin metadata | [log/stream](../../log/stream/README.md) | log/stream |

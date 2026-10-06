@@ -34,11 +34,11 @@ Portable service above log/core, net/http/client and net/tls/core. The product i
 
 ## Validation
 
-`cargo test -p iobewi-log-stream` covers URL/backoff and entropy. For product changes involving delivery, run BG-ESP-S3 with TLS/token rotation and reconnection evidence.
+`cargo test -p iobewi-log-stream` covers URL/backoff, entropy and serialization of every captured level/target with JSON escaping. For product changes involving delivery, run BG-ESP-S3 with TLS/token rotation and reconnection evidence.
 
 ## Known limitations
 
-Uses alloc and Embassy time. Clears the ring after failed/ended sessions or absent URL/token; no offline replay or delivery acknowledgement. Backoff starts at 5 s, caps at 60 s, uses ±30% jitter and resets after a 30 s stable session. Handshake and incomplete incoming frame timeouts are 10 s. JSON level is `raw`. URL parsing is basic host/port parsing, not a general IPv6 URL parser; transport security comes from the injected secure transport.
+Uses alloc and Embassy time. Clears the ring after failed/ended sessions or absent URL/token; no offline replay or delivery acknowledgement. Backoff starts at 5 s, caps at 60 s, uses ±30% jitter and resets after a 30 s stable session. Handshake and incomplete incoming frame timeouts are 10 s. JSON preserves the original lowercase level (`error`, `warn`, `info`, `debug`, `trace`) and adds `target`; `ts`, `node`, `workload` and `msg` retain their meanings. Consumers must accept the additive `target` field and actual levels instead of `raw`. Capture policy and network authorization remain separate. URL parsing is basic host/port parsing, not a general IPv6 URL parser; transport security comes from the injected secure transport.
 
 ## Related components
 
