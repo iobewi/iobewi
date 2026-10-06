@@ -99,3 +99,30 @@ Minimum evidence:
 Hardware required: yes for the complete gate. Host tests do not prove physical USB
 compatibility. Product prebuffer, networking, audio playback and reader-specific
 acceptance remain in the product's canonical validation instructions.
+
+## BG-WIFI-APSTA
+
+Purpose: qualify temporary provisioning AP without hiding station disruption.
+ADR-0016 records the current dependency blocker. A compile-only experiment is
+not a complete gate PASS.
+
+Minimum evidence:
+
+- one radio owner serializes station/AP operations, including failures/cancellation;
+- S3 firmware links; record dependency lock, ELF digest, radio channels and budgets;
+- clients associate, obtain DHCP leases and reach only the AP provisioning page;
+- activate/stop AP during nominal streaming: station association and established
+  TCP connections survive (a reconnect is a FAIL for this criterion);
+- AP clients/channel behavior on station reconnect and different channels recorded;
+- Improv and identical-credential keep-link preserved; new-credential validation
+  before commit and restoration after failure remain operational;
+- explicit stop and monotonic expiry end advertising and revoke all AP services,
+  including old handles across restarts; observe unexpected radio failures;
+- AP HTTP is an explicit interface-local exception: STA HTTP remains inaccessible
+  and AP routes do not expose the administration router;
+- bounded clients/leases, DHCP renewal/expiration/exhaustion and packet/buffer bounds;
+- heap and stack availability measured before/during/after repeated AP cycles.
+
+Hardware required: ESP32-S3 and Wi-Fi clients. Report first-milestone radio results
+separately from later DHCP/provisioning qualification. Do not infer physical
+coexistence from portable fake-transport tests or a static-IP page.

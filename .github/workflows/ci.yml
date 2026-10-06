@@ -118,6 +118,13 @@ jobs:
       - name: Board startup downstream link in both USB modes
         working-directory: .
         run: bash tools/experiments/board15/run.sh ${{ matrix.mode }}
+      - name: AP31 isolated radio qualification firmware link
+        working-directory: .
+        env:
+          AP31_STA_SSID: qualification-test
+          AP31_STA_PASSWORD: qualification-only
+          AP31_AP_PASSWORD: ci-build-only-unique
+        run: bash tools/experiments/ap31/run.sh
       - name: ESP32-C3 smoke
         run: |
           set -eux
