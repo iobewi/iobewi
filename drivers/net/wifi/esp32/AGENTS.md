@@ -39,13 +39,22 @@ Features `esp32c3` and `esp32s3` select the chip. The caller supplies `StackReso
 
 ### Lifecycle
 
-The first initialization consumes the supplied resources; subsequent connections reuse the same stack. Calling `connect` reconfigures the station even when credentials are unchanged: it disconnects an existing association, waits for the old DHCP configuration to disappear, applies credentials, then associates and waits for DHCP.
+The first initialization consumes the supplied resources; subsequent connections reuse the same stack. Calling `connect` with identical SSID/password preserves the completed association only when the controller is still connected, the stack link is up and IPv4 configuration is available. This avoids interrupting active traffic when the portable manager resumes after an Improv request. A DHCP lease alone is insufficient: link loss, changed credentials or missing configuration follows the existing disconnect/reconfigure/associate/DHCP path. Cached successful credentials are invalidated before that path can await, so a failed or cancelled attempt cannot reuse previous connection evidence. This is in-memory state, not credential persistence.
 
 The handle identifies the reused stack, not permanent link availability. Product composition may publish it to consumers through the portable manager's `LinkObserver::ready`; `link_down` reports configuration loss. The portable manager retains reconnection policy ownership.
 
 ## Required validation
 
 - `BG-ESP-S3`
+
+Host regression tests compile the production connection-evidence module directly:
+
+```sh
+rustc --edition=2024 --test drivers/net/wifi/esp32/src/connection.rs -o /tmp/iobewi-wifi-keep-link-tests
+/tmp/iobewi-wifi-keep-link-tests
+```
+
+They cover retained DHCP after disconnection, link/config loss, changed credentials and invalidation of prior connection evidence. ESP compilation checks the adapter call sites. Hardware acceptance must verify Improv requests during streaming preserve the association and that access-point loss still reconnects; host tests do not prove radio behavior.
 
 ## Known limitations
 

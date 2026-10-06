@@ -16,6 +16,9 @@
 
 extern crate alloc;
 
+mod connection;
+use connection::Connection;
+
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -27,8 +30,8 @@ use esp_radio::wifi::{
     AuthenticationMethod, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
     WifiController, scan::ScanConfig, sta::StationConfig,
 };
-use log::{info, warn};
 use iobewi_wifi_core::WifiTransport;
+use log::{info, warn};
 
 pub use iobewi_wifi_core::Network;
 
@@ -48,6 +51,7 @@ pub struct WifiManager<const SOCKETS: usize> {
     resources: Option<&'static mut StackResources<SOCKETS>>,
     radio: Option<Radio>,
     strongest_bssid: Vec<(String, [u8; 6])>,
+    connection: Connection,
 }
 
 /// Upper bounds for one connection attempt. Without them a rejected or
@@ -70,6 +74,7 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             resources: Some(resources),
             radio: None,
             strongest_bssid: Vec::new(),
+            connection: Connection::default(),
         }
     }
 
@@ -110,7 +115,9 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             }
 
             let resources = self.resources.take()?;
-            let seed = esp_hal::time::Instant::now().duration_since_epoch().as_micros();
+            let seed = esp_hal::time::Instant::now()
+                .duration_since_epoch()
+                .as_micros();
             let (stack, runner) = embassy_net::new(
                 Interface::station(),
                 embassy_net::Config::dhcpv4(Default::default()),
@@ -150,7 +157,10 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             }
 
             let secured = !matches!(ap.auth_method, None | Some(AuthenticationMethod::None));
-            match strongest.iter_mut().find(|(known_ssid, ..)| known_ssid == ssid) {
+            match strongest
+                .iter_mut()
+                .find(|(known_ssid, ..)| known_ssid == ssid)
+            {
                 Some((_, _, signal_strength, _)) if *signal_strength >= ap.signal_strength => {}
                 Some(entry) => *entry = (String::from(ssid), ap.bssid, ap.signal_strength, secured),
                 None => strongest.push((String::from(ssid), ap.bssid, ap.signal_strength, secured)),
@@ -175,6 +185,23 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
     /// Connects and waits for DHCP. Pins to the strongest BSSID seen for this
     /// SSID in the last scan, if available.
     pub async fn connect(&mut self, ssid: &str, password: String) -> bool {
+        // Test current controller state as well as DHCP: a retained lease alone
+        // does not prove that an association survived a link loss.
+        if let Some(radio) = self.radio.as_ref() {
+            if self.connection.can_reuse(
+                radio.controller.is_connected(),
+                radio.stack.is_link_up(),
+                radio.stack.is_config_up(),
+                ssid,
+                &password,
+            ) {
+                return true;
+            }
+        }
+        // Before the first await: failures or cancellation cannot retain proof
+        // of a previous successful connection.
+        self.connection.invalidate();
+
         let bssid = self
             .strongest_bssid
             .iter()
@@ -228,7 +255,11 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             config = config.with_bssid(bssid);
         }
 
-        if radio.controller.set_config(&Config::Station(config)).is_err() {
+        if radio
+            .controller
+            .set_config(&Config::Station(config))
+            .is_err()
+        {
             warn!("Wi-Fi: connection to {ssid} failed");
             return false;
         }
@@ -244,11 +275,15 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             }
         }
 
-        if with_timeout(DHCP_TIMEOUT, radio.stack.wait_config_up()).await.is_err() {
+        if with_timeout(DHCP_TIMEOUT, radio.stack.wait_config_up())
+            .await
+            .is_err()
+        {
             warn!("Wi-Fi: DHCP on {ssid} timed out");
             return false;
         }
         info!("Wi-Fi connected, ip = {:?}", radio.stack.config_v4());
+        self.connection.established(ssid, password);
         true
     }
 }
