@@ -85,6 +85,13 @@ impl LogPolicy {
             .map_or(self.default_level, |rule| rule.level)
     }
 
+    /// Conservative facade ceiling, including every override.
+    pub fn max_level(&self) -> LevelFilter {
+        self.targets
+            .iter()
+            .fold(self.default_level, |max, rule| max.max(rule.level))
+    }
+
     pub fn enabled(&self, level: Level, target: &str) -> bool {
         level <= self.level_for(target)
     }
@@ -120,10 +127,15 @@ struct Logger {
 }
 
 /// Atomically replace the effective policy. Existing records are retained.
-/// The facade stays at Trace: the policy mutex is the sole runtime authority,
-/// avoiding races between concurrent updates of policy and facade max level.
+/// Policy and facade ceiling are updated in the same critical section so
+/// concurrent writers cannot leave the ceiling inconsistent with the policy.
+/// Calls overlapping a change may observe the old or new facade ceiling.
 pub fn apply_policy(policy: LogPolicy) {
-    critical_section::with(|cs| *POLICY.borrow(cs).borrow_mut() = Some(policy));
+    critical_section::with(|cs| {
+        let max = policy.max_level();
+        *POLICY.borrow(cs).borrow_mut() = Some(policy);
+        log::set_max_level(max);
+    });
 }
 
 impl log::Log for Logger {
@@ -184,7 +196,14 @@ pub fn install(print: fn(&Record<'_>), application_target: &'static str) {
     // place only once, before the executor and interrupt-driven loggers start.
     unsafe {
         let _ = log::set_logger_racy(logger);
-        log::set_max_level_racy(LevelFilter::Trace);
+        critical_section::with(|cs| {
+            let max = POLICY
+                .borrow(cs)
+                .borrow()
+                .as_ref()
+                .map_or(LevelFilter::Info, LogPolicy::max_level);
+            log::set_max_level(max);
+        });
     }
 }
 
@@ -270,6 +289,27 @@ mod tests {
 
         // Runtime updates do not reinstall the global logger.
         install(noop, "app");
+        assert_eq!(log::max_level(), LevelFilter::Info);
+        log::debug!(target: "app", "legacy debug rejected");
+        log::trace!(target: "app", "legacy trace rejected");
+        assert!(pop_record().is_none());
+        for level in [
+            LevelFilter::Off,
+            LevelFilter::Error,
+            LevelFilter::Warn,
+            LevelFilter::Info,
+            LevelFilter::Debug,
+            LevelFilter::Trace,
+        ] {
+            apply_policy(LogPolicy::new(level));
+            assert_eq!(log::max_level(), level);
+        }
+        let mut override_policy = LogPolicy::new(LevelFilter::Off);
+        override_policy
+            .add_target("app", LevelFilter::Debug)
+            .unwrap();
+        apply_policy(override_policy);
+        assert_eq!(log::max_level(), LevelFilter::Debug);
         apply_policy(LogPolicy::new(LevelFilter::Off));
         struct NeverFormat;
         impl core::fmt::Display for NeverFormat {
@@ -316,6 +356,7 @@ mod tests {
             Err(PolicyError::TargetTooLong)
         );
         apply_policy(policy);
+        assert_eq!(log::max_level(), LevelFilter::Trace);
         log::debug!(target: "app", "runtime debug");
         log::trace!(target: "app::usb", "runtime trace");
         log::trace!(target: "app", "rejected");
@@ -351,6 +392,7 @@ mod tests {
             Err(PolicyError::TooManyRules)
         );
         apply_policy(default_policy("app").unwrap());
+        assert_eq!(log::max_level(), LevelFilter::Info);
         std::println!(
             "record={} ring={} policy={} legacy_ring={}",
             core::mem::size_of::<CapturedRecord>(),
