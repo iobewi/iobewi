@@ -419,6 +419,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c815b3ed4213d85d6cfd274b871f430c0681084e28dfd4a537877f47f844ec83"
 
 [[package]]
+name = "esp-metadata-generated"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "911aadae41ec99104efa865bd0b6e486b4b735999f9b571963748a46d16495ab"
+
+[[package]]
 name = "esp-nvs"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -493,6 +499,14 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "gpio15-metadata-proof"
+version = "0.1.0"
+dependencies = [
+ "esp-metadata-generated",
+ "iobewi-device",
 ]
 
 [[package]]
@@ -577,6 +591,10 @@ name = "iobewi-entropy"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-entry-build"
+version = "0.1.0"
+
+[[package]]
 name = "iobewi-esp-boot"
 version = "0.1.0"
 dependencies = [
@@ -646,6 +664,17 @@ dependencies = [
  "heapless 0.9.3",
  "log",
  "static_cell",
+]
+
+[[package]]
+name = "iobewi-log-config"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "heapless 0.9.3",
+ "iobewi-config-space",
+ "iobewi-log",
+ "log",
 ]
 
 [[package]]
@@ -1396,21 +1425,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[package]]
-name = "esp-metadata-generated"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "911aadae41ec99104efa865bd0b6e486b4b735999f9b571963748a46d16495ab"
-
-[[package]]
-name = "gpio15-metadata-proof"
-version = "0.1.0"
-dependencies = [
- "esp-metadata-generated",
- "iobewi-device",
-]
-
-[[package]]
-name = "iobewi-entry-build"
-version = "0.1.0"

@@ -1,0 +1,17 @@
+[package]
+name = "iobewi-log-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable ConfigSpace binding for bounded log policies"
+
+[dependencies]
+iobewi-log = { path = "../core" }
+iobewi-config-space = { path = "../../fs/config" }
+heapless = "0.9"
+
+[dev-dependencies]
+critical-section = { version = "1.2", features = ["std"] }
+log = "0.4"
