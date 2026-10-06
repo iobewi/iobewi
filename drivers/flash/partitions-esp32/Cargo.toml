@@ -19,4 +19,4 @@ esp32s3 = ["esp-bootloader-esp-idf/esp32s3", "esp-storage/esp32s3"]
 embedded-storage = "0.3.1"
 esp-bootloader-esp-idf = { version = "~0.6", default-features = false }
 esp-rom-sys = { version = "~0.1.5", default-features = false }
-esp-storage = { version = "~0.10", default-features = false, features = ["embedded-storage"] }
+esp-storage = { version = "~0.10", default-features = false, features = ["embedded-storage", "critical-section"] }

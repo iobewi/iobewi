@@ -7,8 +7,7 @@ on:
   schedule:
     # Daily: catches upstream drift inside the supported esp-hal 1.2 range (job `esp (latest)`).
     - cron: "17 4 * * *"
-# One validation per PR update; keep only its newest revision running.
-# Workflow/event isolation keeps manual, scheduled and main runs independent.
+# Supersede obsolete PR runs without cancelling main or scheduled validation.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -88,6 +87,8 @@ jobs:
           set -eu
           grep -A1 -E '^name = "esp-(hal|radio|storage|bootloader-esp-idf|hal-smartled)"$' Cargo.lock | grep -E '^(name|version)'
           grep -A1 -E '^name = "esp-hal"$' Cargo.lock | grep -q 'version = "1\.2\.'
+      - name: Runtime flash ROM calls must retain interrupt protection
+        run: python3 ../../tools/ci/check_esp_storage_features.py $FLAGS
       - name: ESP32-S3
         run: |
           set -eux
