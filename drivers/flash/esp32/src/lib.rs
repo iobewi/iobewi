@@ -47,10 +47,10 @@ static FLASH: StaticCell<SharedFlash> = StaticCell::new();
 /// Construct the process-wide flash owner. Call exactly once per firmware image.
 pub fn init(flash: FLASH<'static>) -> &'static SharedFlash {
     let storage = FlashStorage::new(flash);
-    // Dual-core chips: a native Workload may run on the second core. While the Agent
-    // writes/erases flash that core is paused (and resumed afterwards), so it can never
-    // fetch from a flash cache that is off. Without a Workload core running this is a
-    // no-op. This is still the single `FlashStorage`, behind the single mutex.
+    // Park a running second core around writes/erases, then resume it. The
+    // driver checks the core state, independently of whether it runs a Workload.
+    // Current-core interrupt masking is provided separately by esp-storage
+    // feature `critical-section`. Keep the single owner and shared mutex.
     #[cfg(feature = "esp32s3")]
     let storage = storage.multicore_auto_park();
     FLASH.init(Mutex::new(EspFlash { storage }))
