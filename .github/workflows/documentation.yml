@@ -2,7 +2,15 @@ name: documentation
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
+    branches: [main]
+
+# One validation per PR update; keep only its newest revision running.
+# Workflow/event isolation keeps manual, scheduled and main runs independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   knowledge:
