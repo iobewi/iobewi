@@ -22,7 +22,7 @@ ESP32-S3 example and hardware test method for provisioning a device through its 
 
 - Not a product: credentials are kept in RAM only (a power cycle starts unconfigured again) and nothing is written to flash.
 - The page is plain HTTP on the access point network, the exception described in ADR-0017; it has no authentication beyond the access point's WPA2 passphrase.
-- No captive portal, no network scan, no HTTPS.
+- No captive portal, no HTTPS.
 
 ## Architecture
 
@@ -30,9 +30,10 @@ Path: `examples/wifi/ap-setup`. Layer: **example**. Independent workspace; it de
 
 Sequence (UART lines are prefixed `SETUP:`):
 
+0. A first scan runs before the access point exists (nobody is connected yet): `scan: N networks`.
 1. Start: `access point ACTIVE: join "IOBEWI-Setup", open http://172.23.241.1/`.
 2. A client joins with the passphrase (default `123456789`, test only; override with `SETUP_AP_PASSWORD` at build time), gets a lease from the built-in DHCP server and opens the page.
-3. The form posts SSID and password. The firmware logs `provisioning requested (ssid N bytes)` (never the SSID or password) and calls `provision` with the access point still up.
+3. The form lists the scanned networks, strongest signal first (dBm and a 0 to 100 % bar, a lock for secured ones); choosing one fills the SSID field, which stays editable for hidden networks. "Actualiser" asks for a new scan (`GET /scan`, then `GET /networks` until `ready`). Network names are rendered as text only (neighbours' SSIDs are untrusted) and only counts reach the UART. The form posts SSID and password. The firmware logs `provisioning requested (ssid N bytes)` (never the SSID or password) and calls `provision` with the access point still up.
 4. On success: `provisioned, station connected, ip=...`; the page shows the address for 8 s, the page task stops, the access point stops (the radio restarts) and `maintain` reconnects from the saved credentials: `station READY ip=...`.
 5. On failure: `connection failed; access point stays up for a retry`.
 
@@ -58,7 +59,7 @@ Record per run: the UART capture, whether the page loaded, the lease, the time f
 
 ## Known limitations
 
-Starting and stopping the access point restart the radio (ADR-0017): the page is cut at the stop, which is why the success message is held for 8 s first. The station reconnection after the stop depends on the driver's disconnect and configuration-down waits, which have no timeout of their own; if the UART shows no `station READY` after `access point stopped`, that is the first place to look. The DHCP server (external `edge-dhcp`) hands out no gateway and no DNS.
+A rescan while a client is connected runs the station's scan on the shared radio, which can pause the access point's traffic for a moment (the page warns about it); the first scan avoids this. Starting and stopping the access point restart the radio (ADR-0017): the page is cut at the stop, which is why the success message is held for 8 s first. The station reconnection after the stop depends on the driver's disconnect and configuration-down waits, which have no timeout of their own; if the UART shows no `station READY` after `access point stopped`, that is the first place to look. The DHCP server (external `edge-dhcp`) hands out no gateway and no DNS.
 
 ## Related components
 
