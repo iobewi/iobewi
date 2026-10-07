@@ -1,6 +1,6 @@
 #![no_std]
 
-//! Reusable ESP Wi-Fi station transport.
+//! Reusable ESP Wi-Fi transport: station, soft access point, or both.
 //!
 //! Owns only Wi-Fi/network mechanics:
 //!
@@ -9,7 +9,9 @@
 //! - association;
 //! - DHCP;
 //! - Embassy network runner;
-//! - reporting the resulting IP-capable stack.
+//! - reporting the resulting IP-capable stack;
+//! - the optional soft access point: its own network stack and a small DHCP
+//!   server for its clients (see [`WifiManager::with_access_point`]).
 //!
 //! It deliberately does not own credential persistence, provisioning
 //! protocols, TLS, HTTP, heartbeat/log services or application supervision.
@@ -22,36 +24,79 @@ use connection::Connection;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use core::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+
+use edge_dhcp::server::{Server as DhcpServer, ServerOptions as DhcpOptions};
+use edge_nal::UdpBind;
+use edge_nal_embassy::{Udp, UdpBuffers};
 use embassy_executor::Spawner;
-use embassy_net::{Runner, Stack, StackResources};
-use embassy_time::{Duration, with_timeout};
+use embassy_futures::select::{Either, select};
+use embassy_net::{Ipv4Address, Ipv4Cidr, Runner, Stack, StackResources, StaticConfigV4};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_time::{Duration, Instant, Timer, with_timeout};
 use esp_hal::peripherals::WIFI;
 use esp_radio::wifi::{
     AuthenticationMethod, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
-    WifiController, scan::ScanConfig, sta::StationConfig,
+    WifiController, ap::AccessPointConfig as EspAccessPointConfig, scan::ScanConfig,
+    sta::StationConfig,
 };
-use iobewi_wifi_core::WifiTransport;
+use iobewi_wifi_core::{AccessPointConfig, WifiAccessPoint, WifiTransport};
 use log::{info, warn};
+use static_cell::StaticCell;
 
 pub use iobewi_wifi_core::Network;
+
+/// The access point's own address and network (`/24`). Clients receive
+/// addresses from [`DHCP_FIRST`] up; there is no gateway and no DNS.
+pub const ACCESS_POINT_ADDRESS: [u8; 4] = [172, 23, 241, 1];
+const DHCP_FIRST: u8 = 2;
+/// Clients served at once (radio association limit and DHCP lease table).
+const DHCP_LEASES: usize = 4;
+const DHCP_LEASE_SECS: u32 = 3600;
+const DHCP_BUFFER_LEN: usize = 600;
+/// Upper bound for the access point's radio and network to become ready.
+const ACCESS_POINT_READY_TIMEOUT: Duration = Duration::from_secs(5);
+const DHCP_STOP_TIMEOUT: Duration = Duration::from_secs(1);
+
+type DhcpBuffers = UdpBuffers<1, DHCP_BUFFER_LEN, DHCP_BUFFER_LEN, 4>;
+
+/// `true` while the DHCP service must answer, `false` to end it.
+static DHCP_ENABLED: Signal<CriticalSectionRawMutex, bool> = Signal::new();
+/// Raised by the DHCP task once it has closed its socket after a `false`.
+static DHCP_STOPPED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static DHCP_BUFFERS: StaticCell<DhcpBuffers> = StaticCell::new();
 
 struct Radio {
     controller: WifiController<'static>,
     stack: Stack<'static>,
+    /// Last station configuration handed to the radio; reused whenever the
+    /// mode changes so the station part is never lost.
+    station: StationConfig,
 }
 
-/// Wi-Fi station transport.
+/// Wi-Fi transport: station, plus an optional soft access point.
 ///
 /// The caller supplies the Embassy socket resources because socket-set sizing
 /// is application policy. The manager consumes them only when the radio is
-/// first initialized.
-pub struct WifiManager<const SOCKETS: usize> {
+/// first initialized. Access point support is opt-in through
+/// [`WifiManager::with_access_point`], which supplies a second, independent
+/// resource set (`AP_SOCKETS`); without it the type is a plain station.
+///
+/// One object owns the one radio. Switching between station-only and
+/// station + access point is a mode change that restarts the radio (esp-radio
+/// applies it that way), so the station link drops and must be re-established;
+/// the portable manager's reconnection loop does that.
+pub struct WifiManager<const SOCKETS: usize, const AP_SOCKETS: usize = 0> {
     peripheral: Option<WIFI<'static>>,
     spawner: Spawner,
     resources: Option<&'static mut StackResources<SOCKETS>>,
     radio: Option<Radio>,
     strongest_bssid: Vec<(String, [u8; 6])>,
     connection: Connection,
+    ap_resources: Option<&'static mut StackResources<AP_SOCKETS>>,
+    ap_stack: Option<Stack<'static>>,
+    /// `Some` exactly while the access point is active.
+    ap_config: Option<AccessPointConfig>,
 }
 
 /// Upper bounds for one connection attempt. Without them a rejected or
@@ -62,7 +107,7 @@ pub struct WifiManager<const SOCKETS: usize> {
 const ASSOCIATE_TIMEOUT: Duration = Duration::from_secs(20);
 const DHCP_TIMEOUT: Duration = Duration::from_secs(20);
 
-impl<const SOCKETS: usize> WifiManager<SOCKETS> {
+impl<const SOCKETS: usize> WifiManager<SOCKETS, 0> {
     pub fn new(
         peripheral: WIFI<'static>,
         spawner: Spawner,
@@ -75,9 +120,38 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             radio: None,
             strongest_bssid: Vec::new(),
             connection: Connection::default(),
+            ap_resources: None,
+            ap_stack: None,
+            ap_config: None,
         }
     }
 
+    /// Enables the soft access point by giving it its own socket resources.
+    ///
+    /// `AP_SOCKETS` must cover everything that will run on the access point's
+    /// network: one socket for the built-in DHCP server plus whatever the
+    /// product serves there (for example one TCP listener). The access point
+    /// stack and the DHCP service are created lazily at the first
+    /// [`WifiAccessPoint::start_access_point`].
+    pub fn with_access_point<const AP_SOCKETS: usize>(
+        self,
+        resources: &'static mut StackResources<AP_SOCKETS>,
+    ) -> WifiManager<SOCKETS, AP_SOCKETS> {
+        WifiManager {
+            peripheral: self.peripheral,
+            spawner: self.spawner,
+            resources: self.resources,
+            radio: self.radio,
+            strongest_bssid: self.strongest_bssid,
+            connection: self.connection,
+            ap_resources: Some(resources),
+            ap_stack: None,
+            ap_config: None,
+        }
+    }
+}
+
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCKETS> {
     /// The device's current IPv4 address, if online.
     pub fn ip(&self) -> Option<embassy_net::Ipv4Address> {
         Some(self.radio.as_ref()?.stack.config_v4()?.address.address())
@@ -125,7 +199,11 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
                 seed,
             );
             self.spawner.spawn(net_task(runner).unwrap());
-            self.radio = Some(Radio { controller, stack });
+            self.radio = Some(Radio {
+                controller,
+                stack,
+                station: StationConfig::default(),
+            });
         }
 
         self.radio.as_mut()
@@ -212,6 +290,11 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             warn!("Wi-Fi: no scan result for {ssid}, letting the radio pick an access point");
         }
 
+        // While the access point is active the station configuration is applied
+        // as station + access point: a station-only config would be a mode change
+        // and would restart the radio under the access point's clients.
+        let access_point = self.ap_config.as_ref().and_then(esp_access_point);
+
         let Some(radio) = self.radio() else {
             return false;
         };
@@ -255,14 +338,15 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
             config = config.with_bssid(bssid);
         }
 
-        if radio
-            .controller
-            .set_config(&Config::Station(config))
-            .is_err()
-        {
+        let mode = match access_point {
+            Some(access_point) => Config::AccessPointStation(config.clone(), access_point),
+            None => Config::Station(config.clone()),
+        };
+        if radio.controller.set_config(&mode).is_err() {
             warn!("Wi-Fi: connection to {ssid} failed");
             return false;
         }
+        radio.station = config;
         match with_timeout(ASSOCIATE_TIMEOUT, radio.controller.connect_async()).await {
             Ok(Ok(_)) => {}
             Ok(Err(_)) => {
@@ -288,7 +372,9 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS> {
     }
 }
 
-impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiTransport
+    for WifiManager<SOCKETS, AP_SOCKETS>
+{
     type Address = embassy_net::Ipv4Address;
     type NetworkHandle = Stack<'static>;
 
@@ -319,7 +405,194 @@ impl<const SOCKETS: usize> WifiTransport for WifiManager<SOCKETS> {
     }
 }
 
+fn esp_access_point(config: &AccessPointConfig) -> Option<EspAccessPointConfig> {
+    let ssid = config.ssid().try_into().ok()?;
+    let password = config.password().try_into().ok()?;
+    Some(
+        EspAccessPointConfig::default()
+            .with_ssid(ssid)
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(password))
+            .with_channel(config.channel())
+            .with_max_connections(DHCP_LEASES as u16),
+    )
+}
+
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCKETS> {
+    /// The access point's network stack, created on first use together with its
+    /// runner and DHCP task. Needs the radio (the interfaces belong to it) and
+    /// the resources supplied through [`WifiManager::with_access_point`].
+    fn access_point_stack(&mut self) -> Option<Stack<'static>> {
+        if let Some(stack) = self.ap_stack {
+            return Some(stack);
+        }
+        self.radio.as_ref()?;
+        let resources = self.ap_resources.take()?;
+        let seed = esp_hal::time::Instant::now()
+            .duration_since_epoch()
+            .as_micros();
+        let [a, b, c, d] = ACCESS_POINT_ADDRESS;
+        let (stack, runner) = embassy_net::new(
+            Interface::access_point(),
+            embassy_net::Config::ipv4_static(StaticConfigV4 {
+                address: Ipv4Cidr::new(Ipv4Address::new(a, b, c, d), 24),
+                gateway: None,
+                dns_servers: Default::default(),
+            }),
+            resources,
+            seed ^ 0x4150,
+        );
+        self.spawner.spawn(net_task(runner).unwrap());
+        let buffers: &'static DhcpBuffers = DHCP_BUFFERS.init(DhcpBuffers::new());
+        self.spawner.spawn(dhcp_task(stack, buffers).unwrap());
+        self.ap_stack = Some(stack);
+        Some(stack)
+    }
+}
+
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiAccessPoint
+    for WifiManager<SOCKETS, AP_SOCKETS>
+{
+    type NetworkHandle = Stack<'static>;
+
+    async fn start_access_point(&mut self, config: &AccessPointConfig) -> bool {
+        if self.ap_config.as_ref() == Some(config) {
+            return true;
+        }
+        let Some(access_point) = esp_access_point(config) else {
+            warn!("Wi-Fi: access point settings refused by the radio library");
+            return false;
+        };
+        if self.radio().is_none() {
+            return false;
+        }
+        let Some(stack) = self.access_point_stack() else {
+            warn!("Wi-Fi: no access point resources (see with_access_point)");
+            return false;
+        };
+        // A mode change restarts the radio: no earlier association can be trusted.
+        self.connection.invalidate();
+        let Some(radio) = self.radio.as_mut() else {
+            return false;
+        };
+        let mode = Config::AccessPointStation(radio.station.clone(), access_point);
+        if radio.controller.set_config(&mode).is_err() {
+            warn!("Wi-Fi: access point start failed");
+            // esp-radio leaves the radio stopped after a failed configuration.
+            if radio
+                .controller
+                .set_config(&Config::Station(radio.station.clone()))
+                .is_err()
+            {
+                warn!("Wi-Fi: station mode could not be restored");
+            }
+            self.ap_config = None;
+            return false;
+        }
+        if with_timeout(ACCESS_POINT_READY_TIMEOUT, stack.wait_link_up())
+            .await
+            .is_err()
+        {
+            warn!("Wi-Fi: access point radio did not come up");
+            if let Some(radio) = self.radio.as_mut() {
+                let _ = radio
+                    .controller
+                    .set_config(&Config::Station(radio.station.clone()));
+            }
+            self.ap_config = None;
+            return false;
+        }
+        // (Re)starts the DHCP service: a changed configuration drops the old clients.
+        DHCP_ENABLED.signal(true);
+        self.ap_config = Some(config.clone());
+        info!("Wi-Fi: access point active");
+        true
+    }
+
+    async fn stop_access_point(&mut self) {
+        if self.ap_config.take().is_none() {
+            return;
+        }
+        // Revoke the address service first, then change the radio mode.
+        DHCP_STOPPED.reset();
+        DHCP_ENABLED.signal(false);
+        if with_timeout(DHCP_STOP_TIMEOUT, DHCP_STOPPED.wait())
+            .await
+            .is_err()
+        {
+            warn!("Wi-Fi: DHCP service did not acknowledge the stop");
+        }
+        self.connection.invalidate();
+        if let Some(radio) = self.radio.as_mut() {
+            if radio
+                .controller
+                .set_config(&Config::Station(radio.station.clone()))
+                .is_err()
+            {
+                warn!("Wi-Fi: station mode could not be restored");
+            }
+        }
+        info!("Wi-Fi: access point stopped");
+    }
+
+    fn is_access_point_active(&self) -> bool {
+        self.ap_config.is_some()
+    }
+
+    fn access_point_handle(&self) -> Option<Self::NetworkHandle> {
+        self.ap_config.as_ref().and(self.ap_stack)
+    }
+}
+
+/// Runs the DHCP server for the access point's clients until the stop signal.
+/// Leases are RAM-only and start empty at every activation.
+async fn serve_dhcp(stack: Stack<'static>, buffers: &'static DhcpBuffers) {
+    let udp = Udp::new(stack, buffers);
+    let Ok(mut socket) = udp
+        .bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 67)))
+        .await
+    else {
+        warn!("Wi-Fi: DHCP server could not bind");
+        return;
+    };
+    let [a, b, c, d] = ACCESS_POINT_ADDRESS;
+    let server_ip = Ipv4Addr::new(a, b, c, d);
+    let mut server = DhcpServer::<_, DHCP_LEASES>::new(|| Instant::now().as_secs(), server_ip);
+    server.range_start = Ipv4Addr::new(a, b, c, DHCP_FIRST);
+    server.range_end = Ipv4Addr::new(a, b, c, DHCP_FIRST + DHCP_LEASES as u8 - 1);
+    // No gateway and no DNS: the access point network is local only.
+    let mut options = DhcpOptions::new(server_ip, None);
+    options.lease_duration_secs = DHCP_LEASE_SECS;
+    let mut buffer = [0u8; DHCP_BUFFER_LEN];
+    if edge_dhcp::io::server::run(&mut server, &options, &mut socket, &mut buffer)
+        .await
+        .is_err()
+    {
+        warn!("Wi-Fi: DHCP server stopped on a socket error");
+    }
+}
+
 #[embassy_executor::task]
+async fn dhcp_task(stack: Stack<'static>, buffers: &'static DhcpBuffers) -> ! {
+    let mut enabled = false;
+    loop {
+        if !enabled {
+            enabled = DHCP_ENABLED.wait().await;
+            continue;
+        }
+        match select(serve_dhcp(stack, buffers), DHCP_ENABLED.wait()).await {
+            // The server ended on an error: retry shortly while still enabled.
+            Either::First(()) => Timer::after(Duration::from_millis(500)).await,
+            Either::Second(on) => {
+                enabled = on;
+                if !on {
+                    DHCP_STOPPED.signal(());
+                }
+            }
+        }
+    }
+}
+
+#[embassy_executor::task(pool_size = 2)]
 async fn net_task(mut runner: Runner<'static, Interface>) -> ! {
     runner.run().await
 }

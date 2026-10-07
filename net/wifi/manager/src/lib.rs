@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 use iobewi_config_space::{Budget, ConfigBackend, ConfigSpace};
-use iobewi_wifi_core::{Network, WifiProvisioning, WifiTransport};
+use iobewi_wifi_core::{AccessPointConfig, Network, WifiAccessPoint, WifiProvisioning, WifiTransport};
 use log::{info, warn};
 
 const CONFIG_MAGIC: &[u8; 4] = b"WFC1";
@@ -210,6 +210,45 @@ where
     pub fn is_online(&self) -> bool { self.transport.is_online() }
 }
 
+/// Access point control for a transport that can host one. Pure delegation:
+/// *when* to open it (an unprovisioned device, a button, repeated failures) and
+/// for how long is product policy, and nothing here persists anything -- the
+/// access point lives in RAM only.
+///
+/// All of these borrow the manager exclusively, so they never overlap
+/// [`WifiManager::maintain`]. Starting or stopping the access point may restart
+/// the radio and drop the station link (see [`WifiAccessPoint`]); the intended
+/// sequence is: drop the `maintain` future, change the access point, call
+/// `maintain` again -- it reconnects from the saved credentials. For a device
+/// with no saved credentials (`MaintainError::NotProvisioned`): start the
+/// access point, serve the product's provisioning page, call
+/// [`WifiManager::provision`] (it connects first and commits only on success,
+/// with the access point still up), stop the access point, then `maintain`.
+impl<T: WifiTransport + WifiAccessPoint, B: ConfigBackend> WifiManager<T, B> {
+    pub async fn start_access_point(&mut self, config: &AccessPointConfig) -> bool {
+        // The SSID and passphrase are never logged.
+        info!("Wi-Fi: starting access point on channel {}", config.channel());
+        let started = self.transport.start_access_point(config).await;
+        if !started {
+            warn!("Wi-Fi: access point could not be started");
+        }
+        started
+    }
+
+    pub async fn stop_access_point(&mut self) {
+        info!("Wi-Fi: stopping access point");
+        self.transport.stop_access_point().await;
+    }
+
+    pub fn is_access_point_active(&self) -> bool {
+        self.transport.is_access_point_active()
+    }
+
+    pub fn access_point_handle(&self) -> Option<<T as WifiAccessPoint>::NetworkHandle> {
+        self.transport.access_point_handle()
+    }
+}
+
 /// Delegates straight to `WifiManager`'s own methods -- no policy lives
 /// here, this only narrows the surface a provisioning workflow sees.
 impl<T: WifiTransport, B: ConfigBackend> WifiProvisioning for WifiManager<T, B>
@@ -307,6 +346,12 @@ mod tests {
         connects: std::vec::Vec<(String, String)>,
         online: bool,
         down_events: u32,
+        ap_active: bool,
+        ap_fail: bool,
+        /// Models a radio that restarts when the access point starts or stops.
+        ap_restarts_station: bool,
+        ap_starts: std::vec::Vec<(String, String, u8)>,
+        ap_stops: u32,
     }
 
     #[derive(Clone, Default)]
@@ -341,6 +386,30 @@ mod tests {
         fn ip(&self) -> Option<u32> { self.0.borrow().online.then_some(7) }
         fn network_handle(&self) -> Option<u8> { self.0.borrow().online.then_some(1) }
         fn is_online(&self) -> bool { self.0.borrow().online }
+    }
+
+    impl WifiAccessPoint for Fake {
+        type NetworkHandle = u16;
+        async fn start_access_point(&mut self, config: &AccessPointConfig) -> bool {
+            let mut s = self.0.borrow_mut();
+            s.ap_starts.push((config.ssid().to_string(), config.password().to_string(), config.channel()));
+            if s.ap_fail { return false; }
+            s.ap_active = true;
+            if s.ap_restarts_station { s.online = false; }
+            true
+        }
+        async fn stop_access_point(&mut self) {
+            let mut s = self.0.borrow_mut();
+            s.ap_stops += 1;
+            if s.ap_active && s.ap_restarts_station { s.online = false; }
+            s.ap_active = false;
+        }
+        fn is_access_point_active(&self) -> bool { self.0.borrow().ap_active }
+        fn access_point_handle(&self) -> Option<u16> { self.0.borrow().ap_active.then_some(9) }
+    }
+
+    fn ap_config() -> AccessPointConfig {
+        AccessPointConfig::new("IOBEWI-Setup", "setup-pass-1", 6).unwrap()
     }
 
     fn setup(outcomes: &[bool]) -> (WifiManager<Fake, MemBackend>, Fake, MemBackend) {
@@ -568,5 +637,76 @@ mod tests {
         assert!(stored(&b).is_some());
         assert_eq!(WifiProvisioning::address(&m), Some(7));
         assert_eq!(block_on(WifiProvisioning::scan(&mut m)).len(), 1);
+    }
+
+    #[test]
+    fn access_point_start_and_stop_delegate_and_write_nothing_to_config_space() {
+        let (mut m, fake, b) = setup(&[]);
+        assert!(!m.is_access_point_active());
+        assert_eq!(m.access_point_handle(), None);
+        assert!(block_on(m.start_access_point(&ap_config())));
+        assert!(m.is_access_point_active());
+        assert_eq!(m.access_point_handle(), Some(9));
+        assert_eq!(fake.0.borrow().ap_starts, [("IOBEWI-Setup".to_string(), "setup-pass-1".to_string(), 6)]);
+        block_on(m.stop_access_point());
+        assert!(!m.is_access_point_active());
+        assert_eq!(m.access_point_handle(), None);
+        assert_eq!(fake.0.borrow().ap_stops, 1);
+        assert!(stored(&b).is_none(), "the access point is RAM-only");
+        assert_eq!(b.0.borrow().generation, 0, "no config-space commit or clear happened");
+    }
+
+    #[test]
+    fn a_failed_start_is_reported_and_leaves_the_access_point_inactive() {
+        let (mut m, fake, _b) = setup(&[]);
+        fake.0.borrow_mut().ap_fail = true;
+        assert!(!block_on(m.start_access_point(&ap_config())));
+        assert!(!m.is_access_point_active());
+        assert_eq!(m.access_point_handle(), None);
+    }
+
+    #[test]
+    fn stopping_an_inactive_access_point_is_harmless() {
+        let (mut m, _fake, _b) = setup(&[]);
+        block_on(m.stop_access_point());
+        assert!(!m.is_access_point_active());
+    }
+
+    #[test]
+    fn provisioning_through_the_access_point_commits_only_after_the_connection() {
+        let (mut m, fake, b) = setup(&[false, true]);
+        assert!(block_on(m.start_access_point(&ap_config())));
+        // A wrong password from the provisioning page: nothing is saved, the access point stays up.
+        assert!(!block_on(m.provision("home", "wrong".to_string())));
+        assert!(stored(&b).is_none());
+        assert!(m.is_access_point_active());
+        // The correct one is saved, with the access point still up for the response to reach the phone.
+        assert!(block_on(m.provision("home", "right".to_string())));
+        assert!(stored(&b).is_some());
+        assert!(m.is_access_point_active());
+        block_on(m.stop_access_point());
+        assert_eq!(fake.0.borrow().connects.len(), 2);
+    }
+
+    #[test]
+    fn a_radio_restart_caused_by_the_access_point_is_recovered_by_maintain() {
+        let (mut m, fake, b) = setup(&[true, true]);
+        seed(&b, "lab", "pw");
+        fake.0.borrow_mut().ap_restarts_station = true;
+        let sleeps = Sleeps::default();
+        let mut ev = Events::default();
+        {
+            let mut fut = core::pin::pin!(m.maintain(&sleeps, &mut ev));
+            assert!(poll_once(&mut fut).is_pending()); // online
+        } // reprovisioning/AP rule: drop maintain before touching the access point
+        assert!(block_on(m.start_access_point(&ap_config())));
+        assert!(!fake.0.borrow().online, "the access point start took the station down");
+        {
+            let mut fut = core::pin::pin!(m.maintain(&sleeps, &mut ev));
+            assert!(poll_once(&mut fut).is_pending()); // reconnects from the saved credentials
+        }
+        assert_eq!(ev.0, ["ready", "ready"]);
+        assert!(fake.0.borrow().online);
+        assert!(m.is_access_point_active(), "the access point survives the station reconnect");
     }
 }
