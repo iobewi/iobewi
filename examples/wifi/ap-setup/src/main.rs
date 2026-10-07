@@ -60,7 +60,7 @@ input,button,select{font:inherit;padding:.5rem;width:100%;box-sizing:border-box}
 select{font-family:ui-monospace,monospace;font-size:.9rem}</style></head><body>
 <h1>Configuration Wi-Fi</h1>
 <p><label>Réseaux détectés (du plus fort au plus faible)<br>
-<select id="nets" size="7"></select></label></p>
+<select id="nets"><option value="">Recherche en cours…</option></select></label></p>
 <p><button id="rescan" type="button">Actualiser la liste</button></p>
 <form id="f"><p><label>Réseau (SSID)<br><input name="ssid" required maxlength="32" autocomplete="off"></label></p>
 <p><label>Mot de passe<br><input name="password" type="password" maxlength="63" autocomplete="off"></label></p>
@@ -71,16 +71,18 @@ const s=document.getElementById('s'),f=document.getElementById('f'),
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // Network names are rendered with textContent only: neighbours' SSIDs are untrusted input.
 async function load(){const lines=(await (await fetch('/networks')).text()).split('\n'),state=lines.shift();
- list.textContent='';
+ list.textContent='';let n=0;
+ const head=document.createElement('option');head.value='';list.appendChild(head);
  for(const l of lines){if(!l)continue;const [rssi,sec,enc]=l.split('\t'),ssid=decodeURIComponent(enc),
   q=Math.max(0,Math.min(100,2*(+rssi+100))),o=document.createElement('option');
-  o.value=ssid;o.textContent=(sec==='1'?'\u{1F512} ':'\u00A0\u00A0\u00A0 ')+ssid+'  '+rssi+' dBm ('+q+'%)';list.appendChild(o);}
+  o.value=ssid;o.textContent=(sec==='1'?'\u{1F512} ':'\u00A0\u00A0\u00A0 ')+ssid+'  '+rssi+' dBm ('+q+'%)';list.appendChild(o);n++;}
+ head.textContent=state==='scanning'&&!n?'Recherche en cours…':n?'— choisir un réseau ('+n+' détectés) —':'Aucun réseau trouvé : saisis le SSID';
  return state;}
-list.onchange=()=>{f.ssid.value=list.value;f.password.focus();};
+list.onchange=()=>{if(list.value){f.ssid.value=list.value;f.password.focus();}};
 async function rescan(){btn.disabled=true;s.textContent='Recherche… (la connexion peut se couper un instant)';
  try{await fetch('/scan');for(let i=0;i<20;i++){await wait(1000);if(await load()==='ready')break;}}catch(x){}
  btn.disabled=false;s.textContent='';}
-btn.onclick=rescan;load().catch(()=>{});
+btn.onclick=rescan;load().catch(x=>{s.textContent='Liste indisponible : '+x;});
 f.onsubmit=async e=>{e.preventDefault();s.textContent='Envoi…';
  try{const r=await fetch('/connect',{method:'POST',body:new URLSearchParams(new FormData(f))});
   s.textContent=await r.text();poll();}catch(x){s.textContent='Erreur: '+x;}};
