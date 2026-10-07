@@ -6,6 +6,8 @@ publish = false
 [features]
 default = []
 dormant-apsta = []
+# Requires the patched esp-radio built by `run.sh MODE VARIANT counters`.
+radio-counters = []
 [workspace]
 [dependencies]
 esp-hal = { version = "~1.2", features = ["esp32s3", "unstable"] }

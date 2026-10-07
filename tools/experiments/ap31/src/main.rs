@@ -1,10 +1,11 @@
 #![no_std]
 #![no_main]
 
+use core::future::Future;
 use embassy_executor::Spawner;
 use embassy_net::{Ipv4Address, Ipv4Cidr, Runner, StackResources, StaticConfigV4};
 use embassy_net::{Stack, tcp::TcpSocket};
-use embassy_time::{Duration, Timer, with_timeout};
+use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::Write;
 use esp_println::println;
 use esp_radio::wifi::{
@@ -84,6 +85,80 @@ async fn ap_page(stack: Stack<'static>) {
     }
 }
 
+const VARIANT: &str = if cfg!(feature = "dormant-apsta") {
+    "dormant-apsta"
+} else {
+    "mode-transition"
+};
+
+/// Phase marker with the device uptime, to line UART up with an external
+/// sniffer/client capture. `cycle` is -1 outside the cycle loop.
+fn phase(cycle: i8, name: &str) {
+    println!(
+        "AP31: t={}ms variant={} cycle={} phase={}",
+        Instant::now().as_millis(),
+        VARIANT,
+        cycle,
+        name
+    );
+}
+
+/// Diagnostic stop: marker only (no error value, SSID or secret), then suspend
+/// WITHOUT resetting. This does not restore the radio; it keeps the failing
+/// state observable (the TCP echo and AP page tasks keep running) so the UART
+/// capture and the external probe can still be attributed.
+async fn halt(cycle: i8, name: &str) -> ! {
+    println!(
+        "AP31: FAIL t={}ms variant={} cycle={} phase={}; experiment suspended, no reset. Save the UART capture before any reset.",
+        Instant::now().as_millis(),
+        VARIANT,
+        cycle,
+        name
+    );
+    core::future::pending::<()>().await;
+    unreachable!()
+}
+
+async fn must<T, E>(cycle: i8, name: &str, result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(_) => halt(cycle, name).await,
+    }
+}
+
+async fn timed<T>(cycle: i8, name: &str, seconds: u64, future: impl Future<Output = T>) -> T {
+    match with_timeout(Duration::from_secs(seconds), future).await {
+        Ok(value) => value,
+        Err(_) => halt(cycle, name).await,
+    }
+}
+
+/// Which internal esp-radio branch ran. Only available with the patched copy of
+/// esp-radio (`run.sh MODE VARIANT counters`); counts, never configuration values.
+#[cfg(feature = "radio-counters")]
+fn diag(cycle: i8, after: &str) {
+    use core::sync::atomic::Ordering::Relaxed;
+    use esp_radio::wifi::ap31_diag::*;
+    println!(
+        "AP31: diag cycle={} after={} sta_skipped={} sta_applied={} ap_skipped={} ap_applied={} radio_stops={}",
+        cycle,
+        after,
+        STA_SKIPPED.load(Relaxed),
+        STA_APPLIED.load(Relaxed),
+        AP_SKIPPED.load(Relaxed),
+        AP_APPLIED.load(Relaxed),
+        RADIO_STOPS.load(Relaxed)
+    );
+}
+
+#[cfg(not(feature = "radio-counters"))]
+fn diag(cycle: i8, after: &str) {
+    println!(
+        "AP31: diag cycle={} after={} counters=unavailable(official esp-radio)",
+        cycle, after
+    );
+}
+
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
     let peripherals = esp_hal::init(esp_hal::Config::default());
@@ -152,19 +227,21 @@ async fn main(spawner: Spawner) {
     spawner.spawn(network(ap_runner).unwrap());
     spawner.spawn(station_echo(station).unwrap());
     spawner.spawn(ap_page(access_point).unwrap());
-    with_timeout(Duration::from_secs(20), controller.connect_async())
-        .await
-        .unwrap()
-        .unwrap();
-    with_timeout(Duration::from_secs(20), station.wait_config_up())
-        .await
-        .unwrap();
+    phase(-1, "initial-connect");
+    must(
+        -1,
+        "initial-connect",
+        timed(-1, "initial-connect", 20, controller.connect_async()).await,
+    )
+    .await;
+    timed(-1, "initial-dhcp", 20, station.wait_config_up()).await;
+    diag(-1, "initial-connected");
     println!(
         "AP31: station ready ip={:?}; attach the single-connection TCP probe now",
         station.config_v4().map(|c| c.address.address())
     );
     Timer::after_secs(30).await;
-    for cycle in 0..3 {
+    for cycle in 0..3i8 {
         println!(
             "AP31: before cycle={} connected={} sta_link={} sta_ip={} heap={}",
             cycle,
@@ -173,25 +250,29 @@ async fn main(spawner: Spawner) {
             station.is_config_up(),
             esp_alloc::HEAP.free()
         );
-        controller
-            .set_config(&Config::AccessPointStation(sta.clone(), ap.clone()))
-            .unwrap();
+        phase(cycle, "request-active");
+        must(
+            cycle,
+            "request-active",
+            controller.set_config(&Config::AccessPointStation(sta.clone(), ap.clone())),
+        )
+        .await;
+        diag(cycle, "request-active");
         #[cfg(not(feature = "dormant-apsta"))]
         {
             // Observe loss of the OLD DHCP configuration before reconnecting.
-            with_timeout(Duration::from_secs(20), station.wait_config_down())
-                .await
-                .unwrap();
-            with_timeout(Duration::from_secs(20), controller.connect_async())
-                .await
-                .unwrap()
-                .unwrap();
-            with_timeout(Duration::from_secs(20), station.wait_config_up())
-                .await
-                .unwrap();
+            timed(cycle, "active-config-down", 20, station.wait_config_down()).await;
+            must(
+                cycle,
+                "active-reconnect",
+                timed(cycle, "active-reconnect", 20, controller.connect_async()).await,
+            )
+            .await;
+            timed(cycle, "active-dhcp", 20, station.wait_config_up()).await;
             println!("AP31: recovery after mode change (not keep-link)");
         }
         Timer::after_secs(2).await;
+        phase(cycle, "active");
         println!(
             "AP31: active connected={} sta_link={} sta_ip={} ap_link={} ap_ip={} sta_channel={:?} heap={}",
             controller.is_connected(),
@@ -205,27 +286,42 @@ async fn main(spawner: Spawner) {
         // In the dormant variant NEVER reconnect: the external probe must
         // observe any disruption instead of having it silently repaired.
         Timer::after_secs(30).await;
+        phase(cycle, "request-inactive");
         #[cfg(feature = "dormant-apsta")]
-        controller
-            .set_config(&Config::AccessPointStation(sta.clone(), dormant.clone()))
-            .unwrap();
+        must(
+            cycle,
+            "request-inactive",
+            controller.set_config(&Config::AccessPointStation(sta.clone(), dormant.clone())),
+        )
+        .await;
         #[cfg(not(feature = "dormant-apsta"))]
         {
-            controller
-                .set_config(&Config::Station(sta.clone()))
-                .unwrap();
-            with_timeout(Duration::from_secs(20), station.wait_config_down())
-                .await
-                .unwrap();
-            with_timeout(Duration::from_secs(20), controller.connect_async())
-                .await
-                .unwrap()
-                .unwrap();
-            with_timeout(Duration::from_secs(20), station.wait_config_up())
-                .await
-                .unwrap();
+            must(
+                cycle,
+                "request-inactive",
+                controller.set_config(&Config::Station(sta.clone())),
+            )
+            .await;
+            diag(cycle, "request-inactive");
+            timed(
+                cycle,
+                "inactive-config-down",
+                20,
+                station.wait_config_down(),
+            )
+            .await;
+            must(
+                cycle,
+                "inactive-reconnect",
+                timed(cycle, "inactive-reconnect", 20, controller.connect_async()).await,
+            )
+            .await;
+            timed(cycle, "inactive-dhcp", 20, station.wait_config_up()).await;
         }
+        #[cfg(feature = "dormant-apsta")]
+        diag(cycle, "request-inactive");
         Timer::after_secs(2).await;
+        phase(cycle, "inactive");
         println!(
             "AP31: inactive-requested connected={} sta_link={} sta_ip={} ap_link={} sta_channel={:?} heap={}",
             controller.is_connected(),
@@ -240,6 +336,7 @@ async fn main(spawner: Spawner) {
         // prove that existing clients were deauthenticated.
         Timer::after_secs(30).await;
     }
+    phase(3, "done");
     #[cfg(feature = "dormant-apsta")]
     println!("AP31: done; AP dormant, radio still active (not AP stopped)");
     #[cfg(not(feature = "dormant-apsta"))]

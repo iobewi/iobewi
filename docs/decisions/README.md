@@ -18,4 +18,4 @@ replaces one of these records MUST explicitly supersede it.
 - [ADR-0013](ADR-0013-single-source-documentation.md) — README canonical, AGENTS/site generated
 - [ADR-0014](ADR-0014-product-composition.md) — portable product policy and per-target composition
 - [ADR-0015](ADR-0015-board-entry.md) — proposed Board contract and conditional framework-owned entry; partially supersedes ADR-0014 when delivered
-- [ADR-0016](ADR-0016-wifi-ap-qualification.md) — proposed temporary AP contract; APSTA qualification blocked by radio mode restart
+- [ADR-0016](ADR-0016-wifi-ap-qualification.md) — proposed temporary AP contract; mode-switch keep-link blocked; same-mode dormant APSTA requires qualification

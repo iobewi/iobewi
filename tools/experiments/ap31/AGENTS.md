@@ -49,9 +49,10 @@ Only generic diagnostic flags are logged, never credentials or panic details.
 
 ### Lifecycle and variants
 
-`run.sh MODE VARIANT` accepts `locked`/`latest` and
-`mode-transition` (default)/`dormant-apsta` respectively. CI updates the independent
-workspace once in the latest leg, then builds both variants against that resolution.
+`run.sh MODE VARIANT [RADIO]` accepts `locked`/`latest`,
+`mode-transition` (default)/`dormant-apsta` and `official` (default)/`counters`
+respectively. CI updates the independent workspace once in the latest leg, then builds
+both variants with the official dependency; it never builds `counters`.
 
 - `mode-transition`: starts in STA and repeats STA -> APSTA -> STA three times.
   After each mode switch, it waits for the OLD DHCP config to go down (20-second
@@ -68,8 +69,38 @@ workspace once in the latest leg, then builds both variants against that resolut
 
 Both wait 30 seconds after initial station readiness for the TCP probe. Active and
 inactive-requested intervals each last 32 seconds including a 2-second settle.
-A failure panics; power off if the run stops progressing. This diagnostic firmware
-is not a safety-bounded production AP service.
+Every reconfiguration step prints a marker `AP31: t=<uptime ms> variant=.. cycle=..
+phase=..` BEFORE it runs; use the uptime to align UART with an external capture. A failed
+or timed-out reconfiguration prints `AP31: FAIL ...` (variant, cycle, phase; no error value,
+SSID or secret) and SUSPENDS the main task without resetting. This does not restore the
+radio: the TCP echo and AP page tasks keep running so the failing state stays observable.
+Save the UART capture before any reset or power cycle. Panics elsewhere still spin;
+power off if the run stops progressing. This diagnostic firmware is not a
+safety-bounded production AP service.
+
+#### Branch counters (`counters` radio build)
+
+Same-mode `set_config` avoids an explicit radio stop/start but still calls
+`apply_sta_config`, which skips `esp_wifi_set_config` only when `esp_wifi_get_config`
+compares equal to the requested STA configuration. Whether the driver normalizes
+fields on read-back, so that the comparison fails and the station set is applied to a
+connected station, cannot be seen from a log around `set_config` in this firmware.
+`patches/esp-radio-1.0.0-beta.1-branch-counters.patch` therefore adds five
+`AtomicU32` counters to a local COPY of the pinned crate: `sta_skipped`, `sta_applied`,
+`ap_skipped`, `ap_applied` and `radio_stops` (increments of branch taken, never values).
+The firmware prints `AP31: diag cycle=.. after=.. ...` after each requested change;
+with the official crate the line says `counters=unavailable`.
+
+`run.sh MODE VARIANT counters` copies the crate from the cargo registry, applies the
+patch (it fails if the source differs) and builds in a scratch directory outside the repository
+(`$AP31_SCRATCH`, default `${TMPDIR:-/tmp}/ap31-radio-counters`), so the committed
+`Cargo.lock` is never rewritten and documentation tooling does not scan the copied crate. cargo may warn that the patch "was not used
+in the crate graph": that comes from the `-Z build-std` sysroot resolution; the firmware
+graph uses the copy (the `radio-counters` feature only compiles against it). The result
+is a diagnostic binary on a modified dependency: never publish it, never use it as
+production evidence, and compare its behavior with the `official` build of the same
+variant, since the patch changes timing only by atomic increments. The counters
+attribute a TCP failure to a branch; they do not validate the dormant AP.
 
 `ap_link` is radio availability, `ap_ip` is configured static-IP availability;
 IP alone does not prove clients can associate. Heap readings do not measure stack
@@ -107,9 +138,17 @@ bash tools/experiments/ap31/run.sh locked mode-transition
 # Same-mode candidate, with an independent temporary dormant secret:
 export AP31_DORMANT_PASSWORD
 bash tools/experiments/ap31/run.sh locked dormant-apsta
+# Optional branch counters on a patched copy of esp-radio (diagnostic only):
+bash tools/experiments/ap31/run.sh locked dormant-apsta counters
 # Flash locally with espflash, using the UART0 console on GPIO43/44.
-espflash flash --monitor tools/experiments/ap31/target/xtensa-esp32s3-none-elf/release/ap31-qualification
+espflash flash tools/experiments/ap31/target/xtensa-esp32s3-none-elf/release/ap31-qualification
 ```
+
+Start a continuous UART capture that writes to a FILE (for example `picocom --logfile`
+or `tio --log`) BEFORE the run and keep the file until the evidence is archived; do not
+rely on a scrolling terminal. After a `AP31: FAIL` line the firmware does not reset:
+copy the capture first, then power cycle. Run each variant with the `official` build for
+the evidence, and with `counters` only to attribute a failure.
 
 Read the station IP on UART. During the initial 30-second wait, run:
 
@@ -136,6 +175,16 @@ password with deauthentication. Use an external scanner to record AP beacons/cha
 UART reports station channel only. Compare current/power with `mode-transition`'s
 station-only intervals; heap readings cannot prove low power.
 
+| Quantity | Source | Notes |
+|---|---|---|
+| Upstream (station) channel | UART `sta_channel` | from `ap_info()`, the router's channel |
+| AP channel and beacons | external client/sniffer | active AND dormant phases, aligned with UART `t=` markers |
+| Hidden-SSID beacons | external sniffer | scan lists do not show hidden SSIDs |
+| Client association/HTTP | external client | leave one client associated across the dormant change |
+| Station TCP continuity | `tcp_probe.py` | one session, no reconnect |
+| Config branch taken | UART `diag` (counters build only) | attribution, not validation |
+| Current/power | external meter | active vs dormant vs station-only |
+
 Run the TCP probe through all cycles (default 300 seconds), synchronize with UART
 phase markers and require the firmware completion marker. A finite-duration TCP
 PASS before cycles complete is insufficient evidence. Capture AP channel/client
@@ -156,6 +205,8 @@ beacons/channel coupling/power overhead and unqualified client deauthentication.
 stop is recovery, not successful keep-link. No hardware PASS has been recorded.
 The test page task is not a revocable production service; old sessions must be
 handled by the eventual adapter. Firmware remains isolated from the default build.
+The branch counters and failure markers only make a failure attributable; no hardware
+run exists and none of these diagnostics validates the dormant AP.
 
 ## Related components
 

@@ -1,0 +1,54 @@
+--- a/src/wifi/mod.rs
++++ b/src/wifi/mod.rs
+@@ -2588,6 +2588,19 @@
+ 
+ static WIFI_REFCOUNT: Refcount = Refcount::new();
+ 
++/// AP31 qualification counters. Branch-taken evidence only: no configuration
++/// value or credential is recorded. NOT part of any supported API.
++#[doc(hidden)]
++pub mod ap31_diag {
++    use core::sync::atomic::AtomicU32;
++
++    pub static STA_SKIPPED: AtomicU32 = AtomicU32::new(0);
++    pub static STA_APPLIED: AtomicU32 = AtomicU32::new(0);
++    pub static AP_SKIPPED: AtomicU32 = AtomicU32::new(0);
++    pub static AP_APPLIED: AtomicU32 = AtomicU32::new(0);
++    pub static RADIO_STOPS: AtomicU32 = AtomicU32::new(0);
++}
++
+ /// Keeps Wi-Fi initialized until the last guard is dropped.
+ #[derive(Debug)]
+ #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+@@ -3208,6 +3221,7 @@
+     }
+ 
+     fn stop_impl() -> Result<(), WifiError> {
++        ap31_diag::RADIO_STOPS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+         set_access_point_state(WifiAccessPointState::Stopping);
+         set_station_state(WifiStationState::Stopping);
+ 
+@@ -3589,9 +3603,11 @@
+                 == include::ESP_OK as i32
+                 && current.ap == cfg.ap
+             {
++                ap31_diag::AP_SKIPPED.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                 return Ok(());
+             }
+ 
++            ap31_diag::AP_APPLIED.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+             esp_wifi_result!(esp_wifi_set_config(wifi_interface_t_WIFI_IF_AP, &mut cfg))
+         }
+     }
+@@ -3642,9 +3658,11 @@
+                 == include::ESP_OK as i32
+                 && current.sta == cfg.sta
+             {
++                ap31_diag::STA_SKIPPED.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                 return Ok(());
+             }
+ 
++            ap31_diag::STA_APPLIED.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+             esp_wifi_result!(esp_wifi_set_config(wifi_interface_t_WIFI_IF_STA, &mut cfg))
+         }
+     }
