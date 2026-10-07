@@ -105,9 +105,31 @@ async fn main(spawner: Spawner) {
         ))
         .with_channel(1)
         .with_max_connections(2);
+    #[cfg(feature = "dormant-apsta")]
+    let dormant = {
+        let secret = env!("AP31_DORMANT_PASSWORD");
+        assert!(secret != env!("AP31_AP_PASSWORD"));
+        AccessPointConfig::default()
+            .with_ssid("IOBEWI-AP31-DORMANT".try_into().unwrap())
+            .with_ssid_hidden(true)
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(
+                secret.try_into().unwrap(),
+            ))
+            .with_channel(1)
+            .with_max_connections(1)
+    };
     let mut controller = WifiController::new(
         peripherals.WIFI,
-        ControllerConfig::default().with_initial_config(Config::Station(sta.clone())),
+        ControllerConfig::default().with_initial_config({
+            #[cfg(feature = "dormant-apsta")]
+            {
+                Config::AccessPointStation(sta.clone(), dormant.clone())
+            }
+            #[cfg(not(feature = "dormant-apsta"))]
+            {
+                Config::Station(sta.clone())
+            }
+        }),
     )
     .unwrap();
     let (station, station_runner) = embassy_net::new(
@@ -119,7 +141,7 @@ async fn main(spawner: Spawner) {
     let (access_point, ap_runner) = embassy_net::new(
         Interface::access_point(),
         embassy_net::Config::ipv4_static(StaticConfigV4 {
-            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 31, 1), 24),
+            address: Ipv4Cidr::new(Ipv4Address::new(172, 23, 241, 1), 24),
             gateway: None,
             dns_servers: Default::default(),
         }),
@@ -138,7 +160,7 @@ async fn main(spawner: Spawner) {
         .await
         .unwrap();
     println!(
-        "AP31: station ready ip={:?}; observe association/link before mode transition",
+        "AP31: station ready ip={:?}; attach the single-connection TCP probe now",
         station.config_v4().map(|c| c.address.address())
     );
     Timer::after_secs(30).await;
@@ -151,60 +173,76 @@ async fn main(spawner: Spawner) {
             station.is_config_up(),
             esp_alloc::HEAP.free()
         );
-        // Single controller, sequential operations. This is deliberately the
-        // suspected destructive transition, NOT a production implementation.
         controller
             .set_config(&Config::AccessPointStation(sta.clone(), ap.clone()))
             .unwrap();
+        #[cfg(not(feature = "dormant-apsta"))]
+        {
+            // Observe loss of the OLD DHCP configuration before reconnecting.
+            with_timeout(Duration::from_secs(20), station.wait_config_down())
+                .await
+                .unwrap();
+            with_timeout(Duration::from_secs(20), controller.connect_async())
+                .await
+                .unwrap()
+                .unwrap();
+            with_timeout(Duration::from_secs(20), station.wait_config_up())
+                .await
+                .unwrap();
+            println!("AP31: recovery after mode change (not keep-link)");
+        }
         Timer::after_secs(2).await;
         println!(
-            "AP31: APSTA connected={} sta_link={} sta_ip={} ap_link={} ap_ip={} heap={}",
+            "AP31: active connected={} sta_link={} sta_ip={} ap_link={} ap_ip={} sta_channel={:?} heap={}",
             controller.is_connected(),
             station.is_link_up(),
             station.is_config_up(),
             access_point.is_link_up(),
             access_point.is_config_up(),
+            controller.ap_info().ok().map(|i| i.channel),
             esp_alloc::HEAP.free()
         );
-        // Establish actual concurrent STA+AP operation only AFTER observing
-        // the destructive transition. This recovery cannot pass keep-link.
-        if !controller.is_connected() {
+        // In the dormant variant NEVER reconnect: the external probe must
+        // observe any disruption instead of having it silently repaired.
+        Timer::after_secs(30).await;
+        #[cfg(feature = "dormant-apsta")]
+        controller
+            .set_config(&Config::AccessPointStation(sta.clone(), dormant.clone()))
+            .unwrap();
+        #[cfg(not(feature = "dormant-apsta"))]
+        {
+            controller
+                .set_config(&Config::Station(sta.clone()))
+                .unwrap();
+            with_timeout(Duration::from_secs(20), station.wait_config_down())
+                .await
+                .unwrap();
             with_timeout(Duration::from_secs(20), controller.connect_async())
                 .await
                 .unwrap()
                 .unwrap();
+            with_timeout(Duration::from_secs(20), station.wait_config_up())
+                .await
+                .unwrap();
         }
-        with_timeout(Duration::from_secs(20), station.wait_config_up())
-            .await
-            .unwrap();
-        println!(
-            "AP31: APSTA recovered connected={} sta_link={} ap_link={}",
-            controller.is_connected(),
-            station.is_link_up(),
-            access_point.is_link_up()
-        );
-        Timer::after_secs(30).await;
-        controller
-            .set_config(&Config::Station(sta.clone()))
-            .unwrap();
         Timer::after_secs(2).await;
         println!(
-            "AP31: stopped connected={} ap_link={} heap={}",
+            "AP31: inactive-requested connected={} sta_link={} sta_ip={} ap_link={} sta_channel={:?} heap={}",
             controller.is_connected(),
+            station.is_link_up(),
+            station.is_config_up(),
             access_point.is_link_up(),
+            controller.ap_info().ok().map(|i| i.channel),
             esp_alloc::HEAP.free()
         );
-        // Reassociation here is an explicit recovery, never evidence of an
-        // uninterrupted connection or a successful keep-link gate.
-        with_timeout(Duration::from_secs(20), controller.connect_async())
-            .await
-            .unwrap()
-            .unwrap();
-        with_timeout(Duration::from_secs(20), station.wait_config_up())
-            .await
-            .unwrap();
-        Timer::after_secs(10).await;
+        // Leave a client associated across this change. Check whether it can
+        // still reach the AP page; hidden SSID/rotated credentials do not
+        // prove that existing clients were deauthenticated.
+        Timer::after_secs(30).await;
     }
+    #[cfg(feature = "dormant-apsta")]
+    println!("AP31: done; AP dormant, radio still active (not AP stopped)");
+    #[cfg(not(feature = "dormant-apsta"))]
     println!("AP31: done; AP disabled");
     core::future::pending::<()>().await;
 }

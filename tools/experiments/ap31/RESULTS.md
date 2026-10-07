@@ -36,3 +36,23 @@ Issue #31 remains open. Resolve the radio API prerequisite or explicitly revise
 the uninterrupted-station requirement before implementing the production port,
 coordinator, adapter, DHCP server and provisioning listener. ADR-0016 describes
 proposed lifecycle/security contracts; they are not an implemented public API.
+
+## Review follow-up
+
+Option 4 (permanent APSTA with same-mode dormant/active AP configuration) is now
+an explicit candidate, not a claim of radio-off or validated station preservation.
+The `dormant-apsta` firmware variant never reconnects during its AP cycles. The
+baseline waits for old DHCP configuration loss before reassociation. Both use
+`172.23.241.0/24`; subnet overlap still requires checking. Earlier build evidence
+above applies to the original fixture; follow-up builds must be reported separately.
+No new hardware evidence is available. Portable contract details remain exploratory
+until a strategy is selected. Automatic fixture builds/lockfile need retirement or
+manual qualification after #31 is resolved.
+
+Follow-up software validation (2026-10-07): both `mode-transition` and
+`dormant-apsta` release firmware build/link PASS locally for ESP32-S3 with the
+committed lockfile, then PASS against a fresh `cargo +esp update` resolution
+(no eligible updates at this run). The original lockfile was restored unchanged.
+The known linker RWX warning remains. Script orchestration for locked/latest and
+both variants, invalid-variant rejection, Rust formatting, documentation
+check/generation, strict MkDocs and whitespace validation PASS. No hardware PASS.

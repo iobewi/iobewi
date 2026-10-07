@@ -1,6 +1,6 @@
 # ADR-0016 — Temporary provisioning AP: qualification prerequisite
 
-Status: proposed; **production APSTA integration blocked** by the current radio API.
+Status: proposed; mode-switch keep-link blocked; same-mode dormant APSTA requires qualification.
 Related: [issue #31](https://github.com/iobewi/iobewi/issues/31).
 Base: `345378ed1ae11a4814c32ee513f20438291cfba7`.
 
@@ -29,16 +29,19 @@ Primary source: [set_config and stop_impl at the exact dependency tag](https://g
 The downloaded crate source and `targets/esp32/Cargo.lock` are the executable
 qualification baseline; the crate is pinned, not an API guessed from latest docs.
 
-This fails the issue's uninterrupted station acceptance criterion at the mechanism
-level. Supporting an AP while a station is stopped would not validate APSTA.
-Keeping APSTA permanently configured is also not a solution to a temporary AP:
-the existing API does not independently stop advertising the AP.
+This establishes that STA/APSTA mode switching cannot preserve the station.
+It does not rule out same-mode AP reconfiguration. `apply_ap_config` compares
+the AP configuration and calls `esp_wifi_set_config` only when it changes; a
+successful same-mode `set_config` skips whole-radio stop/start. It still applies
+STA configuration, which must remain identical, and errors can stop BOTH sides.
+Avoiding an explicit radio restart is not proof of TCP/association preservation.
 
 ## Decision at this milestone
 
 Do not modify the production station driver, Board, entry, durable Wi-Fi manager
 or config-space. Add the isolated [AP31 experiment](../../tools/experiments/ap31/README.md)
-to reproduce the mode transition using one controller and two networks.
+to compare mode switching and same-mode dormant APSTA using one controller and
+two networks.
 Do not implement a production AP facade or DHCP on top of a destructive transition
 while claiming keep-link support. Issue #31 remains open. The experiment is NOT a
 qualified AP implementation, provisioning UI or production API.
@@ -51,8 +54,43 @@ Before proceeding, select and validate one of:
    and a deliberate support/upgrade policy. Do not call private FFI in IOBEWI.
 3. An explicitly revised product requirement accepting station interruption.
    This changes issue #31's scope and must not be described as keep-link APSTA.
+4. Start once in APSTA with a hidden, protected dormant AP, then alternate only
+   the AP configuration using `set_config(AccessPointStation(current_sta, ap))`.
+   This is a qualification candidate, NOT an accepted replacement for AP stop.
+   The feature `dormant-apsta` in AP31 exercises it without repairing station
+   connectivity after the initial connection.
+
+### Option 4 costs and unanswered questions
+
+- A hidden SSID still emits beacons and the AP radio remains active. This is
+  continuing radio exposure, not disappearance of the AP.
+- Use an independent temporary dormant WPA2 secret, never MAC-derived. Hidden
+  SSID, rotated credentials and `max_connections=1` do not prove harmlessness;
+  one is a conservative test value, not a verified minimum. Zero's validity and
+  actual driver client-limit behavior require a separate qualification.
+- Channel coupling and AP-mode power overhead apply permanently, including the
+  dormant interval. Measure idle/current consumption versus station-only and
+  record channel changes with both interfaces in use.
+- Changing AP credentials/SSID might leave already-associated clients connected.
+  No public independent deauthentication mechanism was identified. Keep a client
+  associated across the dormant transition and test both association and HTTP.
+- Every production scan/connect/reprovision path must preserve APSTA and the
+  current AP config; existing `Config::Station` calls would restart the radio.
+  This touches keep-link/reconfiguration logic and needs fresh regression tests.
+- Network services must be revoked independently of radio dormancy. The fixture
+  deliberately leaves its AP page running so retained-client exposure is visible;
+  it does not implement that production service revocation.
+
+Even a successful station TCP test cannot satisfy #31's literal requirement that
+AP advertising stops. Adopting option 4 requires explicit review of that requirement,
+service shutdown, exposure and power costs. Option 3 likewise requires a revised
+acceptance gate: an accepted reconnect must not be labeled uninterrupted keep-link.
 
 ## Proposed portable contract for the next milestone
+
+The following is an exploratory design, not frozen API or accepted semantics.
+Revisit radio-vs-service state, stop, handles and expiration after selecting an
+option; a dormant AP cannot honestly implement a radio-level Stopped state.
 
 Keep `WifiTransport` unchanged. A distinct `WifiAccessPoint` port has associated
 `Error` and opaque `NetworkHandle` types and fallible asynchronous `start(config)`
@@ -153,7 +191,7 @@ production APSTA support. Compile/link only proves API compatibility; radio beha
 channel coupling, active TCP preservation, client disconnects and memory recovery
 require an S3 and a real Wi-Fi client. No hardware PASS is claimed here.
 
-After resolving the radio blocker: contracts/coordination + fake transports,
+After qualifying and choosing a radio strategy: contracts/coordination + fake transports,
 platform adapter + hardware evidence, then DHCP/IP HTTP integration, in that order.
 Captive DNS/portal remain outside the initial scope. Keep issue #31 distinct from
 log-policy work and stop before merge for review.

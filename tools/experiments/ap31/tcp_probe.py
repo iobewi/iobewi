@@ -6,7 +6,7 @@ import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("station_ip")
-parser.add_argument("--seconds", type=int, default=180)
+parser.add_argument("--seconds", type=int, default=300)
 args = parser.parse_args()
 if args.seconds <= 0:
     parser.error("--seconds must be positive")

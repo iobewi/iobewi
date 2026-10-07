@@ -126,3 +126,17 @@ Minimum evidence:
 Hardware required: ESP32-S3 and Wi-Fi clients. Report first-milestone radio results
 separately from later DHCP/provisioning qualification. Do not infer physical
 coexistence from portable fake-transport tests or a static-IP page.
+
+For the dormant-APSTA candidate in ADR-0016 option 4, separately record:
+
+- unchanged-mode station association and ONE established TCP session across cycles;
+- AP beacons/channel and idle power during dormant AND active phases;
+- already-associated client state/access after credential/SSID changes and behavior
+  of new clients using the previous credentials; max-connections enforcement;
+- independent service revocation evidence before any production adoption.
+
+A dormant radio does not meet the advertising-stopped criterion above. Selecting
+option 4 requires explicit revision of that criterion and its security/power gates.
+Selecting option 3 (station interruption accepted) requires a revised gate stating
+that disruption and successful recovery are allowed; it cannot pass the current
+uninterrupted-association/TCP criterion by relabeling a reconnect.
