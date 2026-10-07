@@ -39,9 +39,17 @@ case "${3:-official}" in
     cp -r "$registry_src" "$scratch/esp-radio"
     patch -p1 -d "$scratch/esp-radio" < "$ap31_dir/patches/esp-radio-1.0.0-beta.1-branch-counters.patch"
     cp -r "$ap31_dir/Cargo.toml" "$ap31_dir/Cargo.lock" "$ap31_dir/build.rs" "$ap31_dir/src" "$scratch/fw/"
+    patch_config="patch.crates-io.esp-radio.path='$scratch/esp-radio'"
+    # Guard: the firmware graph must resolve esp-radio to the patched copy. cargo
+    # warns "patch was not used" during -Z build-std (the firmware graph itself is
+    # fine), so this check, not that warning, is the evidence.
+    cargo +esp tree -i esp-radio --manifest-path "$scratch/fw/Cargo.toml" \
+      --config "$patch_config" --target "$target" \
+      --features "$(IFS=,; echo "${ap31_features[*]}")" | grep -qF "($scratch/esp-radio)" \
+      || { echo 'patched esp-radio is not in the firmware dependency graph' >&2; exit 1; }
     cargo +esp build --features "$(IFS=,; echo "${ap31_features[*]}")" \
       --manifest-path "$scratch/fw/Cargo.toml" --release \
-      --config "patch.crates-io.esp-radio.path='$scratch/esp-radio'" \
+      --config "$patch_config" \
       --target "$target" -Z build-std=core,alloc
     echo "counters build: $scratch/fw/target/$target/release/ap31-qualification (patched esp-radio; never publish)"
     ;;

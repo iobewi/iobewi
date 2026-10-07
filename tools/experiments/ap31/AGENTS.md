@@ -52,7 +52,8 @@ Only generic diagnostic flags are logged, never credentials or panic details.
 `run.sh MODE VARIANT [RADIO]` accepts `locked`/`latest`,
 `mode-transition` (default)/`dormant-apsta` and `official` (default)/`counters`
 respectively. CI updates the independent workspace once in the latest leg, then builds
-both variants with the official dependency; it never builds `counters`.
+both variants with the official dependency, plus one `dormant-apsta counters` build to
+detect a broken patch or integration. CI never runs any firmware.
 
 - `mode-transition`: starts in STA and repeats STA -> APSTA -> STA three times.
   After each mode switch, it waits for the OLD DHCP config to go down (20-second
@@ -92,11 +93,19 @@ The firmware prints `AP31: diag cycle=.. after=.. ...` after each requested chan
 with the official crate the line says `counters=unavailable`.
 
 `run.sh MODE VARIANT counters` copies the crate from the cargo registry, applies the
-patch (it fails if the source differs) and builds in a scratch directory outside the repository
-(`$AP31_SCRATCH`, default `${TMPDIR:-/tmp}/ap31-radio-counters`), so the committed
-`Cargo.lock` is never rewritten and documentation tooling does not scan the copied crate. cargo may warn that the patch "was not used
-in the crate graph": that comes from the `-Z build-std` sysroot resolution; the firmware
-graph uses the copy (the `radio-counters` feature only compiles against it). The result
+patch (it fails if the source differs) and builds in a scratch directory outside the
+repository (`$AP31_SCRATCH`, default `${TMPDIR:-/tmp}/ap31-radio-counters`), so the
+committed `Cargo.lock` is never rewritten and documentation tooling does not scan the
+copied crate. Before building it runs `cargo tree -i esp-radio` and fails unless the
+firmware graph resolves esp-radio to the patched copy.
+
+cargo prints "patch ... was not used in the crate graph" during this build. Observed on
+a fresh scratch copy: it appears with `-Z build-std` plus the patch, on every build, and
+not with `cargo tree`/`cargo metadata` or without the patch. The firmware graph does use
+the copy (`cargo tree`, `Fresh esp-radio (<scratch>)` in a verbose build, and the
+`radio-counters` feature only compiles against it). The likely cause is the separate
+`build-std` sysroot resolution, but that mechanism is inferred, not established; rely on
+the `cargo tree` guard, not on the warning. The result
 is a diagnostic binary on a modified dependency: never publish it, never use it as
 production evidence, and compare its behavior with the `official` build of the same
 variant, since the patch changes timing only by atomic increments. The counters

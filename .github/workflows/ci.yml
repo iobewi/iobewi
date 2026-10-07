@@ -128,6 +128,7 @@ jobs:
         run: |
           bash tools/experiments/ap31/run.sh ${{ matrix.mode }} mode-transition
           bash tools/experiments/ap31/run.sh locked dormant-apsta
+          bash tools/experiments/ap31/run.sh locked dormant-apsta counters
       - name: ESP32-C3 smoke
         run: |
           set -eux
