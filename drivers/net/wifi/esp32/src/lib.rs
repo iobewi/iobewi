@@ -36,8 +36,8 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use esp_hal::peripherals::WIFI;
 use esp_radio::wifi::{
-    AuthenticationMethod, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
-    WifiController,
+    AuthenticationMethod, AuthenticationMethodConfig, Config, ConnectionError, ControllerConfig,
+    DisconnectReason, Interface, WifiController,
     ap::AccessPointConfig as EspAccessPointConfig,
     scan::{ScanConfig, ScanTypeConfig},
     sta::{ScanMethod, StationConfig},
@@ -100,6 +100,28 @@ pub struct WifiManager<const SOCKETS: usize, const AP_SOCKETS: usize = 0> {
     ap_stack: Option<Stack<'static>>,
     /// `Some` exactly while the access point is active.
     ap_config: Option<AccessPointConfig>,
+}
+
+/// How one connection attempt ended.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Attempt {
+    Connected,
+    /// The access point answered but refused the credentials (wrong passphrase): the access
+    /// point is fine, so its pin must be kept.
+    CredentialsRefused,
+    /// Anything else: not found, no answer, DHCP: the pinned access point may be gone.
+    Failed,
+}
+
+fn credentials_refused(reason: &DisconnectReason) -> bool {
+    matches!(
+        reason,
+        DisconnectReason::FourWayHandshakeTimeout
+            | DisconnectReason::HandshakeTimeout
+            | DisconnectReason::AuthenticationFailed
+            | DisconnectReason::MicFailure
+            | DisconnectReason::_802_1xAuthenticationFailed
+    )
 }
 
 /// Upper bounds for one connection attempt. Without them a rejected or
@@ -300,15 +322,25 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
     /// pick the strongest itself instead of retrying a dead access point forever.
     pub async fn connect(&mut self, ssid: &str, password: String) -> bool {
         let pinned = self.strongest_bssid.iter().any(|(known, ..)| known == ssid);
-        let connected = self.connect_once(ssid, password).await;
-        if !connected && pinned {
-            self.strongest_bssid.retain(|(known, ..)| known != ssid);
-            warn!("Wi-Fi: the pinned access point failed; the next attempt scans all channels");
+        match self.connect_once(ssid, password).await {
+            Attempt::Connected => true,
+            Attempt::CredentialsRefused => {
+                warn!("Wi-Fi: {ssid} refused the credentials (check the passphrase)");
+                false
+            }
+            Attempt::Failed => {
+                if pinned {
+                    self.strongest_bssid.retain(|(known, ..)| known != ssid);
+                    warn!(
+                        "Wi-Fi: the pinned access point failed; the next attempt scans all channels"
+                    );
+                }
+                false
+            }
         }
-        connected
     }
 
-    async fn connect_once(&mut self, ssid: &str, password: String) -> bool {
+    async fn connect_once(&mut self, ssid: &str, password: String) -> Attempt {
         // Test current controller state as well as DHCP: a retained lease alone
         // does not prove that an association survived a link loss.
         if let Some(radio) = self.radio.as_ref() {
@@ -319,7 +351,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
                 ssid,
                 &password,
             ) {
-                return true;
+                return Attempt::Connected;
             }
         }
         // Before the first await: failures or cancellation cannot retain proof
@@ -344,7 +376,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
         let access_point = self.ap_config.as_ref().and_then(esp_access_point);
 
         let Some(radio) = self.radio() else {
-            return false;
+            return Attempt::Failed;
         };
 
         // Reprovisioning may happen while the station is already associated
@@ -357,7 +389,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             info!("Wi-Fi: disconnecting current association before reconfiguration");
             if let Err(e) = radio.controller.disconnect_async().await {
                 warn!("Wi-Fi: disconnect before reconfiguration failed: {e:?}");
-                return false;
+                return Attempt::Failed;
             }
         }
         if radio.stack.is_config_up() {
@@ -366,7 +398,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
 
         let Ok(ssid_cfg) = ssid.try_into() else {
             warn!("Wi-Fi: invalid SSID {ssid}");
-            return false;
+            return Attempt::Failed;
         };
         let authentication = if password.is_empty() {
             AuthenticationMethodConfig::Open
@@ -375,7 +407,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
                 Ok(password) => AuthenticationMethodConfig::Wpa2Personal(password),
                 Err(_) => {
                     warn!("Wi-Fi: invalid password for {ssid}");
-                    return false;
+                    return Attempt::Failed;
                 }
             }
         };
@@ -384,7 +416,10 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
         let mut config = StationConfig::default()
             .with_ssid(ssid_cfg)
             .with_authentication(authentication)
-            .with_scan_method(ScanMethod::AllChannels);
+            .with_scan_method(ScanMethod::AllChannels)
+            // The portable manager already retries with backoff; an internal retry would only
+            // double the time the access point is disturbed by a failing join.
+            .with_failure_retry_cnt(0);
         if let Some((bssid, channel)) = pin {
             config = config.with_bssid(bssid).with_channel(channel);
         }
@@ -395,18 +430,27 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
         };
         if radio.controller.set_config(&mode).is_err() {
             warn!("Wi-Fi: connection to {ssid} failed");
-            return false;
+            return Attempt::Failed;
         }
         radio.station = config;
         match with_timeout(ASSOCIATE_TIMEOUT, radio.controller.connect_async()).await {
             Ok(Ok(_)) => {}
-            Ok(Err(_)) => {
-                warn!("Wi-Fi: connection to {ssid} failed");
-                return false;
+            Ok(Err(error)) => {
+                // The reason names why the association ended; it carries no credential.
+                match &error {
+                    ConnectionError::Failed(info) => {
+                        warn!("Wi-Fi: connection to {ssid} failed: {:?}", info.reason);
+                        if credentials_refused(&info.reason) {
+                            return Attempt::CredentialsRefused;
+                        }
+                    }
+                    other => warn!("Wi-Fi: connection to {ssid} failed: {other:?}"),
+                }
+                return Attempt::Failed;
             }
             Err(_) => {
                 warn!("Wi-Fi: association with {ssid} timed out");
-                return false;
+                return Attempt::Failed;
             }
         }
 
@@ -415,7 +459,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             .is_err()
         {
             warn!("Wi-Fi: DHCP on {ssid} timed out");
-            return false;
+            return Attempt::Failed;
         }
         info!("Wi-Fi connected, ip = {:?}", radio.stack.config_v4());
         // Which access point we really joined (never its address): channel, signal and whether it
@@ -432,7 +476,7 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             );
         }
         self.connection.established(ssid, password);
-        true
+        Attempt::Connected
     }
 }
 
