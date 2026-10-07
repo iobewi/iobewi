@@ -83,13 +83,20 @@ async function rescan(){btn.disabled=true;s.textContent='Recherche… (la connex
  try{await fetch('/scan');for(let i=0;i<20;i++){await wait(1000);if(await load()==='ready')break;}}catch(x){}
  btn.disabled=false;s.textContent='';}
 btn.onclick=rescan;load().catch(x=>{s.textContent='Liste indisponible : '+x;});
+// Joining the network moves the radio to the router's channel, and the access point follows:
+// the link to this page can drop for a moment, so a failed request is not a failed connection.
 f.onsubmit=async e=>{e.preventDefault();s.textContent='Envoi…';
  try{const r=await fetch('/connect',{method:'POST',body:new URLSearchParams(new FormData(f))});
-  s.textContent=await r.text();poll();}catch(x){s.textContent='Erreur: '+x;}};
-async function poll(){for(;;){await wait(1500);
- try{const t=await (await fetch('/status')).text();s.textContent=t;
-  if(!t.startsWith('connecting'))break;}
- catch(x){s.textContent='Point d\u2019accès fermé : normal après un succès.';break;}}}
+  s.textContent=await r.text();}
+ catch(x){s.textContent='Connexion en cours : la liaison peut se couper un instant (la carte change de canal)…';}
+ poll();};
+async function poll(){let fails=0;
+ for(let i=0;i<80;i++){await wait(1500);
+  try{const t=await (await fetch('/status')).text();fails=0;s.textContent=t;
+   if(t.startsWith('en attente')&&i>3){s.textContent='La demande ne semble pas être arrivée : réessaie.';return;}
+   if(!t.startsWith('connecting')&&!t.startsWith('en attente'))return;}
+  catch(x){fails++;s.textContent='Connexion en cours… liaison coupée un instant ('+fails+')';
+   if(fails>=8){s.textContent='Point d\u2019accès fermé ou injoignable. Si la carte s\u2019est connectée, c\u2019est normal : vérifie l\u2019UART ou ta box.';return;}}}}
 </script></body></html>"#;
 
 #[derive(serde::Deserialize)]
@@ -340,6 +347,9 @@ async fn main(spawner: Spawner) {
             now_ms(),
             ssid.len()
         );
+        // Let the HTTP answer leave first: joining the network moves the radio to the router's
+        // channel, and the access point follows it.
+        Timer::after_millis(800).await;
         if wifi.provision(&ssid, password).await {
             let address = wifi.ip().map(|a| a.octets()).unwrap_or([0; 4]);
             set_status(Status::Connected(address));

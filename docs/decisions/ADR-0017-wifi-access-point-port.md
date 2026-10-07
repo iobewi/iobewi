@@ -73,8 +73,11 @@ and configured by DHCP.
   `embassy-futures`, `embassy-sync`, `static_cell`. The `board15` downstream link still builds
   and passes its ELF inspection with the new lockfile; the size effect on products that never call the
   access point was not measured.
-- **Hardware acceptance is pending** and is listed in the driver README: association and lease,
-  reachability of the product's service, reconnection of the station after start and stop,
-  disappearance of the access point and silence of DHCP after stop, unchanged behavior with no
-  access point, heap before, during and after cycles. `BG-ESP-S3` applies; the complete gate
-  needs a board.
+- **Hardware acceptance is partial.** One run on an ESP32-S3 (see `examples/wifi/ap-setup`)
+  observed association and lease, the product's page, provisioning with the access point up,
+  the stop (as logged by the firmware) and the station's reconnection through `maintain`; the
+  access point followed the router's channel during the join. Still to verify, as listed in
+  the driver README: that the access point is really gone from the air and DHCP silent after
+  the stop (the run only shows the firmware's own log), the wrong-credentials path, unchanged
+  behavior with no access point configured, heap before, during and after repeated cycles,
+  and ESP32-C3. `BG-ESP-S3` applies; the complete gate needs a board.
