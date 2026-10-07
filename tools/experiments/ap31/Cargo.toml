@@ -1,0 +1,27 @@
+[package]
+name = "ap31-qualification"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[features]
+default = []
+dormant-apsta = []
+# Requires the patched esp-radio built by `run.sh MODE VARIANT counters`.
+radio-counters = []
+[workspace]
+[dependencies]
+esp-hal = { version = "~1.2", features = ["esp32s3", "unstable"] }
+esp-radio = { version = "=1.0.0-beta.1", default-features = false, features = ["esp32s3", "wifi", "unstable"] }
+esp-rtos = { version = "=0.4.0", features = ["esp32s3", "embassy", "esp-radio", "esp-alloc"] }
+esp-alloc = { version = "~0.11", features = ["esp32s3"] }
+esp-println = { version = "~0.18", default-features = false, features = ["esp32s3", "uart"] }
+esp-bootloader-esp-idf = { version = "~0.6", features = ["esp32s3"] }
+embassy-executor = "0.10"
+embassy-time = "0.5"
+embassy-net = { version = "0.9.1", features = ["dhcpv4", "medium-ethernet", "tcp"] }
+static_cell = "2"
+embedded-io-async = "0.7"
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
