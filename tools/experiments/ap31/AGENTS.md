@@ -36,6 +36,11 @@ for the upstream stop/start blocker and proposed contracts.
 
 No reusable API. `run.sh` builds a local test binary, using required
 `AP31_STA_SSID`, `AP31_STA_PASSWORD`, and `AP31_AP_PASSWORD` environment variables.
+The optional mode argument defaults to `locked`, which builds the committed
+experiment lockfile. `latest` first runs `cargo +esp update` in this independent
+workspace, then builds with `--locked` against that newly resolved lockfile.
+CI passes its matrix mode; local `latest` updates the experiment lockfile, which
+must not be committed accidentally. Other mode values are rejected.
 Both test networks use WPA2. Secrets are embedded in the local firmware; do not
 publish the ELF, flash image or build artifacts. Never use production credentials.
 A unique temporary AP password is required; no MAC-derived secret or open fallback.

@@ -124,7 +124,7 @@ jobs:
           AP31_STA_SSID: qualification-test
           AP31_STA_PASSWORD: qualification-only
           AP31_AP_PASSWORD: ci-build-only-unique
-        run: bash tools/experiments/ap31/run.sh
+        run: bash tools/experiments/ap31/run.sh ${{ matrix.mode }}
       - name: ESP32-C3 smoke
         run: |
           set -eux
