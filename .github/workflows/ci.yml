@@ -118,6 +118,9 @@ jobs:
       - name: Board startup downstream link in both USB modes
         working-directory: .
         run: bash tools/experiments/board15/run.sh ${{ matrix.mode }}
+      - name: Wi-Fi access point provisioning example link
+        working-directory: .
+        run: bash examples/wifi/ap-setup/run.sh ${{ matrix.mode }}
       - name: ESP32-C3 smoke
         run: |
           set -eux
