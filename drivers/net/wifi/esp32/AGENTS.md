@@ -49,6 +49,8 @@ The first initialization consumes the supplied resources; subsequent connections
 
 The network handle of the access point is valid only while it is active; the product must stop whatever it serves there when it stops the access point (the driver revokes only its own DHCP service).
 
+**Choosing among access points that share an SSID** (mesh, repeaters). esp-radio's default scan dwells 10 to 20 ms per channel and its default station scan method (`Fast`) joins the first access point found, ignoring the signal sort. The driver therefore scans with a 40 to 120 ms active dwell, runs two passes and keeps the strongest access point per SSID (up to 40 records per pass); `connect` uses `ScanMethod::AllChannels` (sorted by signal) and, when a scan result exists, pins that access point's BSSID and channel. If the pinned attempt fails the pin is dropped, so the next attempt scans all channels and lets the radio choose instead of retrying a missing access point forever. After each association it logs the channel and signal and whether it is the pinned access point (never the BSSID). With no scan result (a normal boot with saved credentials) the radio scans all channels and takes the strongest. Choosing the strongest at one moment is not roaming: a connected station does not move to a better access point later.
+
 The handle identifies the reused stack, not permanent link availability. Product composition may publish it to consumers through the portable manager's `LinkObserver::ready`; `link_down` reports configuration loss. The portable manager retains reconnection policy ownership.
 
 ## Required validation

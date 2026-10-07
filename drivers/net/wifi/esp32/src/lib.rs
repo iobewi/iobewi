@@ -37,8 +37,10 @@ use embassy_time::{Duration, Instant, Timer, with_timeout};
 use esp_hal::peripherals::WIFI;
 use esp_radio::wifi::{
     AuthenticationMethod, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
-    WifiController, ap::AccessPointConfig as EspAccessPointConfig, scan::ScanConfig,
-    sta::StationConfig,
+    WifiController,
+    ap::AccessPointConfig as EspAccessPointConfig,
+    scan::{ScanConfig, ScanTypeConfig},
+    sta::{ScanMethod, StationConfig},
 };
 use iobewi_wifi_core::{AccessPointConfig, WifiAccessPoint, WifiTransport};
 use log::{info, warn};
@@ -91,7 +93,8 @@ pub struct WifiManager<const SOCKETS: usize, const AP_SOCKETS: usize = 0> {
     spawner: Spawner,
     resources: Option<&'static mut StackResources<SOCKETS>>,
     radio: Option<Radio>,
-    strongest_bssid: Vec<(String, [u8; 6])>,
+    /// Per SSID, the strongest access point of the last scan: (ssid, bssid, channel).
+    strongest_bssid: Vec<(String, [u8; 6], u8)>,
     connection: Connection,
     ap_resources: Option<&'static mut StackResources<AP_SOCKETS>>,
     ap_stack: Option<Stack<'static>>,
@@ -104,6 +107,13 @@ pub struct WifiManager<const SOCKETS: usize, const AP_SOCKETS: usize = 0> {
 /// `connect` forever and the manager could never retry. These are mechanics
 /// of "one attempt in, one result out"; whether and when to retry is the
 /// manager's policy.
+/// Several access points often share one SSID (mesh, repeaters). The default esp-radio scan
+/// dwells only 10 to 20 ms per channel, so with many answering the same probe the strongest one
+/// is easily missed: dwell longer, scan twice and keep the best per SSID.
+const SCAN_DWELL_MIN_MS: u64 = 40;
+const SCAN_DWELL_MAX_MS: u64 = 120;
+const SCAN_PASSES: usize = 2;
+const SCAN_MAX_RECORDS: usize = 40;
 const ASSOCIATE_TIMEOUT: Duration = Duration::from_secs(20);
 const DHCP_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -215,19 +225,24 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             return Vec::new();
         };
 
-        let access_points = match radio
-            .controller
-            .scan_async(&ScanConfig::default().with_max(20))
-            .await
-        {
-            Ok(access_points) => access_points,
-            Err(e) => {
-                warn!("Wi-Fi scan failed: {e:?}");
-                return Vec::new();
+        let scan_config = ScanConfig::default()
+            .with_scan_type(ScanTypeConfig::Active {
+                min: esp_hal::time::Duration::from_millis(SCAN_DWELL_MIN_MS),
+                max: esp_hal::time::Duration::from_millis(SCAN_DWELL_MAX_MS),
+            })
+            .with_max(SCAN_MAX_RECORDS);
+        let mut access_points = Vec::new();
+        for pass in 0..SCAN_PASSES {
+            match radio.controller.scan_async(&scan_config).await {
+                Ok(found) => access_points.extend(found),
+                Err(e) => warn!("Wi-Fi scan pass {pass} failed: {e:?}"),
             }
-        };
+        }
+        if access_points.is_empty() {
+            return Vec::new();
+        }
 
-        let mut strongest: Vec<(String, [u8; 6], i8, bool)> = Vec::new();
+        let mut strongest: Vec<(String, [u8; 6], i8, bool, u8)> = Vec::new();
         for ap in &access_points {
             let ssid = ap.ssid.as_str();
             if ssid.is_empty() {
@@ -239,20 +254,39 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
                 .iter_mut()
                 .find(|(known_ssid, ..)| known_ssid == ssid)
             {
-                Some((_, _, signal_strength, _)) if *signal_strength >= ap.signal_strength => {}
-                Some(entry) => *entry = (String::from(ssid), ap.bssid, ap.signal_strength, secured),
-                None => strongest.push((String::from(ssid), ap.bssid, ap.signal_strength, secured)),
+                Some((_, _, signal_strength, _, _)) if *signal_strength >= ap.signal_strength => {}
+                Some(entry) => {
+                    *entry = (
+                        String::from(ssid),
+                        ap.bssid,
+                        ap.signal_strength,
+                        secured,
+                        ap.channel,
+                    )
+                }
+                None => strongest.push((
+                    String::from(ssid),
+                    ap.bssid,
+                    ap.signal_strength,
+                    secured,
+                    ap.channel,
+                )),
             }
         }
+        info!(
+            "Wi-Fi: scan saw {} access points on {} networks",
+            access_points.len(),
+            strongest.len()
+        );
 
         self.strongest_bssid = strongest
             .iter()
-            .map(|(ssid, bssid, ..)| (ssid.clone(), *bssid))
+            .map(|(ssid, bssid, _, _, channel)| (ssid.clone(), *bssid, *channel))
             .collect();
 
         strongest
             .into_iter()
-            .map(|(ssid, _, signal_strength, secured)| Network {
+            .map(|(ssid, _, signal_strength, secured, _)| Network {
                 ssid,
                 signal_strength,
                 secured,
@@ -260,9 +294,21 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             .collect()
     }
 
-    /// Connects and waits for DHCP. Pins to the strongest BSSID seen for this
-    /// SSID in the last scan, if available.
+    /// Connects and waits for DHCP. Pins the BSSID and channel of the strongest access point seen
+    /// for this SSID in the last scan, if any. If that access point does not work (it left, or
+    /// refuses us) the pin is dropped, so the next attempt lets the radio scan every channel and
+    /// pick the strongest itself instead of retrying a dead access point forever.
     pub async fn connect(&mut self, ssid: &str, password: String) -> bool {
+        let pinned = self.strongest_bssid.iter().any(|(known, ..)| known == ssid);
+        let connected = self.connect_once(ssid, password).await;
+        if !connected && pinned {
+            self.strongest_bssid.retain(|(known, ..)| known != ssid);
+            warn!("Wi-Fi: the pinned access point failed; the next attempt scans all channels");
+        }
+        connected
+    }
+
+    async fn connect_once(&mut self, ssid: &str, password: String) -> bool {
         // Test current controller state as well as DHCP: a retained lease alone
         // does not prove that an association survived a link loss.
         if let Some(radio) = self.radio.as_ref() {
@@ -280,14 +326,16 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
         // of a previous successful connection.
         self.connection.invalidate();
 
-        let bssid = self
+        let pin = self
             .strongest_bssid
             .iter()
-            .find(|(known_ssid, _)| known_ssid == ssid)
-            .map(|(_, bssid)| *bssid);
+            .find(|(known_ssid, ..)| known_ssid == ssid)
+            .map(|(_, bssid, channel)| (*bssid, *channel));
 
-        if bssid.is_none() {
-            warn!("Wi-Fi: no scan result for {ssid}, letting the radio pick an access point");
+        if pin.is_none() {
+            info!(
+                "Wi-Fi: no scan result for {ssid}, the radio scans all channels and picks the strongest"
+            );
         }
 
         // While the access point is active the station configuration is applied
@@ -331,11 +379,14 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
                 }
             }
         };
+        // `Fast` (the default) joins the FIRST access point found with this SSID and ignores the
+        // signal sort; scanning every channel lets the radio choose the strongest.
         let mut config = StationConfig::default()
             .with_ssid(ssid_cfg)
-            .with_authentication(authentication);
-        if let Some(bssid) = bssid {
-            config = config.with_bssid(bssid);
+            .with_authentication(authentication)
+            .with_scan_method(ScanMethod::AllChannels);
+        if let Some((bssid, channel)) = pin {
+            config = config.with_bssid(bssid).with_channel(channel);
         }
 
         let mode = match access_point {
@@ -367,6 +418,19 @@ impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCK
             return false;
         }
         info!("Wi-Fi connected, ip = {:?}", radio.stack.config_v4());
+        // Which access point we really joined (never its address): channel, signal and whether it
+        // is the one the scan ranked first.
+        if let Ok(joined) = radio.controller.ap_info() {
+            let how = match pin {
+                Some((bssid, _)) if bssid == joined.bssid => "the pinned strongest access point",
+                Some(_) => "NOT the pinned access point",
+                None => "chosen by the radio among all channels",
+            };
+            info!(
+                "Wi-Fi: associated on channel {} at {} dBm ({how})",
+                joined.channel, joined.signal_strength
+            );
+        }
         self.connection.established(ssid, password);
         true
     }
