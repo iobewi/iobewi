@@ -12,6 +12,8 @@ iobewi-esp-tcp = { path = "../../../drivers/net/tcp/esp32" }
 iobewi-wifi-core = { path = "../../../net/wifi/core" }
 iobewi-wifi-manager = { path = "../../../net/wifi/manager" }
 iobewi-config-space = { path = "../../../fs/config" }
+iobewi-esp-flash = { path = "../../../drivers/flash/esp32", features = ["esp32s3"] }
+iobewi-esp-config-space = { path = "../../../fs/nvs/config-esp32", features = ["esp32s3"] }
 iobewi-http-server = { path = "../../../net/http/server" }
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }

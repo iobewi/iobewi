@@ -7,13 +7,14 @@
 //! saved credentials. Everything under test is the production code of `iobewi-wifi-*` and
 //! `iobewi-esp-wifi`; only the page and this sequence are product-side.
 //!
-//! Credentials live in RAM (nothing is written to flash): a power cycle starts unconfigured again.
+//! The saved credentials live in the NVS partition through the repository's config-space backend
+//! (one write, when a provisioning succeeds). A boot with saved credentials joins the network
+//! directly and never opens the access point; one without them opens it. To start over, reflash
+//! (the merged image rewrites the NVS area).
 
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
-use alloc::rc::Rc;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::{Cell, RefCell};
 
@@ -25,12 +26,13 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use esp_println::println;
-use iobewi_config_space::{Budget, ConfigBackend, ConfigManager, Snapshot};
+use iobewi_config_space::{ConfigBackend, ConfigManager};
+use iobewi_esp_config_space::NvsConfigBackend;
 use iobewi_esp_tcp::EspTcpListener;
 use iobewi_esp_wifi::WifiManager as EspWifi;
 use iobewi_http_server::{HttpRouter, serve_forever_io};
 use iobewi_wifi_core::{AccessPointConfig, Network};
-use iobewi_wifi_manager::{CONFIG_BUDGET, LinkObserver, Sleep, WifiManager};
+use iobewi_wifi_manager::{CONFIG_BUDGET, LinkObserver, Sleep, WifiManager, is_provisioned};
 use picoserve::extract::Form;
 use picoserve::response::Response;
 use picoserve::routing::{get, post};
@@ -239,42 +241,6 @@ async fn setup_page(stack: Stack<'static>) {
     println!("SETUP: page stopped");
 }
 
-/// RAM-only config backend: the proof must not write flash.
-#[derive(Clone, Default)]
-struct RamBackend(Rc<RefCell<(BTreeMap<String, Snapshot>, u64)>>);
-
-impl ConfigBackend for RamBackend {
-    type Error = ();
-    fn capacity_units(&self) -> usize {
-        4096
-    }
-    fn reservation_units(&self, _: &str, budget: Budget) -> Option<usize> {
-        Some(budget.max_bytes())
-    }
-    async fn load(&self, space: &str) -> Result<Option<Snapshot>, ()> {
-        Ok(self.0.borrow().0.get(space).cloned())
-    }
-    async fn commit(&self, space: &str, data: &[u8]) -> Result<u64, ()> {
-        let mut state = self.0.borrow_mut();
-        state.1 += 1;
-        let generation = state.1;
-        state.0.insert(
-            space.to_string(),
-            Snapshot {
-                generation,
-                data: data.to_vec(),
-            },
-        );
-        Ok(generation)
-    }
-    async fn clear(&self, space: &str) -> Result<u64, ()> {
-        let mut state = self.0.borrow_mut();
-        state.1 += 1;
-        state.0.remove(space);
-        Ok(state.1)
-    }
-}
-
 struct EmbassySleep;
 impl Sleep for EmbassySleep {
     async fn sleep_ms(&self, ms: u32) {
@@ -295,28 +261,13 @@ impl LinkObserver<Stack<'static>> for Observer {
     }
 }
 
-#[esp_rtos::main]
-async fn main(spawner: Spawner) {
-    let peripherals = esp_hal::init(esp_hal::Config::default());
-    esp_alloc::heap_allocator!(size: 160 * 1024);
-    let timer = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timer.timer0, peripherals.FROM_CPU_INTR0);
-    esp_println::logger::init_logger(log::LevelFilter::Info);
+type Wifi = WifiManager<EspWifi<STA_SOCKETS, AP_SOCKETS>, NvsConfigBackend>;
 
-    // The code under test: the ESP transport with an access point, behind the portable manager.
-    let transport = EspWifi::new(peripherals.WIFI, spawner, STA.init(StackResources::new()))
-        .with_access_point(AP.init(StackResources::new()));
-    let space = ConfigManager::new(RamBackend::default())
-        .claim("wifi", CONFIG_BUDGET)
-        .unwrap();
-    let mut wifi = WifiManager::new(transport, space);
-
-    println!(
-        "SETUP: t={}ms start (unconfigured, credentials in RAM only)",
-        now_ms()
-    );
+/// The unconfigured path: scan, open the access point, serve the form, provision with the access
+/// point still up, then stop it. Returns once credentials are saved and the station is connected.
+async fn run_setup(wifi: &mut Wifi, spawner: Spawner) {
     // First scan before the access point exists: nobody is connected yet, so nothing is disturbed.
-    refresh_networks(&mut wifi).await;
+    refresh_networks(wifi).await;
     let access_point = AccessPointConfig::new(SETUP_SSID, SETUP_PASSWORD, 6).unwrap();
     if !wifi.start_access_point(&access_point).await {
         println!("SETUP: FAIL access point did not start");
@@ -338,7 +289,7 @@ async fn main(spawner: Spawner) {
         let (ssid, password) = match select(REQUEST.wait(), SCAN_REQUEST.wait()).await {
             Either::First(credentials) => credentials,
             Either::Second(()) => {
-                refresh_networks(&mut wifi).await;
+                refresh_networks(wifi).await;
                 continue;
             }
         };
@@ -374,7 +325,7 @@ async fn main(spawner: Spawner) {
                 "SETUP: t={}ms access point stopped, handing over to maintain",
                 now_ms()
             );
-            break;
+            return;
         }
         set_status(Status::Failed);
         println!(
@@ -382,14 +333,53 @@ async fn main(spawner: Spawner) {
             now_ms()
         );
     }
+}
 
-    // From here the saved credentials drive the station, exactly as at a normal boot.
-    let result = wifi.maintain(&EmbassySleep, &mut Observer).await;
+#[esp_rtos::main]
+async fn main(spawner: Spawner) {
+    let peripherals = esp_hal::init(esp_hal::Config::default());
+    esp_alloc::heap_allocator!(size: 160 * 1024);
+    let timer = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
+    esp_rtos::start(timer.timer0, peripherals.FROM_CPU_INTR0);
+    esp_println::logger::init_logger(log::LevelFilter::Info);
+
+    // The single physical flash owner, then the repository's NVS config-space backend on the
+    // discovered "nvs" partition (no address is hardcoded).
+    let flash = iobewi_esp_flash::init(peripherals.FLASH);
+    let backend = match NvsConfigBackend::from_label(flash, "nvs").await {
+        Ok(backend) => backend,
+        Err(_) => {
+            println!("SETUP: FAIL configuration storage (NVS partition)");
+            core::future::pending::<()>().await;
+            return;
+        }
+    };
+    let space = ConfigManager::new(backend)
+        .claim("wifi", CONFIG_BUDGET)
+        .unwrap();
+    let mut provisioned = is_provisioned(&space).await;
+
+    // The code under test: the ESP transport with an access point, behind the portable manager.
+    let transport = EspWifi::new(peripherals.WIFI, spawner, STA.init(StackResources::new()))
+        .with_access_point(AP.init(StackResources::new()));
+    let mut wifi: Wifi = WifiManager::new(transport, space);
+
     println!(
-        "SETUP: maintain ended ({:?})",
-        result == iobewi_wifi_manager::MaintainError::NotProvisioned
+        "SETUP: t={}ms start, saved credentials: {}",
+        now_ms(),
+        if provisioned { "yes" } else { "no" }
     );
-    core::future::pending::<()>().await;
+    loop {
+        if !provisioned {
+            run_setup(&mut wifi, spawner).await;
+        } else {
+            println!("SETUP: saved credentials found, joining without the access point");
+        }
+        // The saved credentials drive the station, at every boot and after a setup.
+        let ended = wifi.maintain(&EmbassySleep, &mut Observer).await;
+        println!("SETUP: maintain ended ({ended:?}): no usable credentials, back to setup");
+        provisioned = false;
+    }
 }
 
 fn now_ms() -> u64 {

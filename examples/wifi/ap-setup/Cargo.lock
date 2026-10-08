@@ -856,6 +856,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "911aadae41ec99104efa865bd0b6e486b4b735999f9b571963748a46d16495ab"
 
 [[package]]
+name = "esp-nvs"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b61bade3acc39e566697bd215068384afba840999fcd8e9366702f267034c7c0"
+dependencies = [
+ "embedded-storage",
+ "strum",
+ "thiserror",
+]
+
+[[package]]
 name = "esp-phy"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -994,6 +1005,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ef0e785f54e316f64a1e14a7a2f061a2ea0b038b284902ca71e1e1f5574cf47"
 dependencies = [
  "document-features",
+ "embedded-storage",
  "esp-hal",
  "esp-hal-procmacros",
  "esp-metadata-generated",
@@ -1374,6 +1386,52 @@ name = "iobewi-config-space"
 version = "0.1.0"
 
 [[package]]
+name = "iobewi-esp-config-space"
+version = "0.1.0"
+dependencies = [
+ "embedded-storage",
+ "esp-nvs",
+ "iobewi-config-space",
+ "iobewi-esp-flash",
+ "iobewi-esp-nvs",
+ "iobewi-esp-partitions",
+ "iobewi-nvs-core",
+ "log",
+]
+
+[[package]]
+name = "iobewi-esp-flash"
+version = "0.1.0"
+dependencies = [
+ "embassy-sync 0.8.0",
+ "embedded-storage",
+ "esp-hal",
+ "esp-rom-sys",
+ "esp-storage",
+ "static_cell",
+]
+
+[[package]]
+name = "iobewi-esp-nvs"
+version = "0.1.0"
+dependencies = [
+ "embedded-storage",
+ "esp-nvs",
+ "esp-rom-sys",
+ "iobewi-esp-flash",
+]
+
+[[package]]
+name = "iobewi-esp-partitions"
+version = "0.1.0"
+dependencies = [
+ "embedded-storage",
+ "esp-bootloader-esp-idf",
+ "esp-rom-sys",
+ "esp-storage",
+]
+
+[[package]]
 name = "iobewi-esp-tcp"
 version = "0.1.0"
 dependencies = [
@@ -1426,6 +1484,13 @@ name = "iobewi-net-tls-core"
 version = "0.1.0"
 dependencies = [
  "iobewi-net-io",
+]
+
+[[package]]
+name = "iobewi-nvs-core"
+version = "0.1.0"
+dependencies = [
+ "esp-nvs",
 ]
 
 [[package]]
@@ -2259,6 +2324,8 @@ dependencies = [
  "esp-println",
  "esp-rtos",
  "iobewi-config-space",
+ "iobewi-esp-config-space",
+ "iobewi-esp-flash",
  "iobewi-esp-tcp",
  "iobewi-esp-wifi",
  "iobewi-http-server",

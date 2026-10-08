@@ -16,11 +16,12 @@ ESP32-S3 example and hardware test method for provisioning a device through its 
 ## Responsibilities
 
 - Show the intended product sequence on the production code, nothing re-implemented: `WifiManager::start_access_point`, a page served on `access_point_handle()`, `provision` with the access point still up, `stop_access_point`, then `maintain` from the saved credentials.
-- Serve as the hardware test of the access point, its DHCP service and the station together: one run exercises association, lease, HTTP, provisioning and the reconnection after the radio restart.
+- Serve as the hardware test of the access point, its DHCP service and the station together: one run exercises association, lease, HTTP, provisioning, persistence and the reconnection after the radio restart.
+- Show the boot decision of a product: saved credentials mean joining the network directly with no access point; none (or `maintain` returning `NotProvisioned`) means the setup path.
 
 ## Non-responsibilities
 
-- Not a product: credentials are kept in RAM only (a power cycle starts unconfigured again) and nothing is written to flash.
+- Not a product: the only flash write is the config-space commit of the Wi-Fi credentials when a provisioning succeeds (a few dozen bytes, through the repository's NVS backend and the single shared flash owner). There is no factory-reset control: reflashing the merged image rewrites the NVS area and starts over.
 - The page is plain HTTP on the access point network, the exception described in ADR-0017; it has no authentication beyond the access point's WPA2 passphrase.
 - No captive portal, no HTTPS.
 
@@ -29,6 +30,8 @@ ESP32-S3 example and hardware test method for provisioning a device through its 
 Path: `examples/wifi/ap-setup`. Layer: **example**. Independent workspace; it depends by path on `iobewi-esp-wifi`, `iobewi-esp-tcp`, `iobewi-wifi-core`, `iobewi-wifi-manager`, `iobewi-config-space` and `iobewi-http-server`.
 
 Sequence (UART lines are prefixed `SETUP:`):
+
+Boot decision: `saved credentials: yes` joins the network directly (`saved credentials found, joining without the access point`, then `station READY`); `no` runs the setup sequence below, and so does a `maintain` that ends with `NotProvisioned`.
 
 0. A first scan runs before the access point exists (nobody is connected yet): `scan: N networks`.
 1. Start: `access point ACTIVE: join "IOBEWI-Setup", open http://172.23.241.1/`.
@@ -53,11 +56,12 @@ Build: `bash examples/wifi/ap-setup/run.sh` (also a CI link check). Hardware met
 2. Join `IOBEWI-Setup`. Expected: `JOINED`-level association, a lease in `172.23.241.2` to `.5`, and the page at `http://172.23.241.1/`. A phone may report no internet (there is no gateway or DNS) and may leave after about 20 s: turn mobile data off.
 3. Submit a wrong password. Expected: `connection failed`, the page says so, the access point stays up.
 4. Submit the right one. Expected the sequence in step 4 above and the station address on the UART; check the address on the router.
-5. Power cycle: the device is unconfigured again.
+5. Reset or power cycle: the device must read the saved credentials, skip the access point and reach `station READY` again by itself (this is what the first two runs could not show: they used a RAM-only backend).
+6. To start over, reflash.
 
-Record per run: the UART capture, whether the page loaded, the lease, the time from submit to `provisioned`, and the heap if logged. Acceptance for ADR-0017 on hardware: association and lease; the page reachable; wrong credentials leave the access point usable; right credentials connect the station while the access point is up; after the stop the station reconnects through `maintain` and the access point is no longer visible. **First hardware run (2026-10-07, one ESP32-S3, one router with several access points on the same SSID, one client):** first scan 20 access points / 7 networks in about 1.5 s; the access point was active about 1.8 s after its start; a client joined, loaded the page, rescanned with the access point up (19 access points / 7 networks), and submitted the real network; the station associated in about 4 s on channel 11 at -45 dBm and the UART reported it as the pinned strongest access point; credentials were committed to the RAM space; after the 8 s hold the access point stopped and `maintain` reconnected in about 4 s (`wifi: ready after 0 failed attempt(s)`, same address). The page showed a `NetworkError` after the submit although the connection succeeded: see Known limitations. Second run, same setup (build `d0953ecf`): a wrong passphrase first. The attempt ended after 7.6 s with `FourWayHandshakeTimeout`, logged as `refused the credentials (check the passphrase)`, the pin was kept, the access point stayed up and the client came back; the retry with the right passphrase connected in 4.6 s (channel 11, -47 dBm, the pinned strongest access point), the access point stopped (130 ms) and `maintain` reconnected in about 4 s (`ready after 0 failed attempt(s)`, same address). `esp_wifi_internal_tx returned error: 12309` (`ESP_ERR_WIFI_NOT_ASSOC`) appears repeatedly during and after join attempts; it was harmless in both runs and its source is not diagnosed.
+Record per run: the UART capture, whether the page loaded, the lease, the time from submit to `provisioned`, and the heap if logged. Acceptance for ADR-0017 on hardware: association and lease; the page reachable; wrong credentials leave the access point usable; right credentials connect the station while the access point is up; after the stop the station reconnects through `maintain` and the access point is no longer visible. **First hardware run (2026-10-07, one ESP32-S3, one router with several access points on the same SSID, one client):** first scan 20 access points / 7 networks in about 1.5 s; the access point was active about 1.8 s after its start; a client joined, loaded the page, rescanned with the access point up (19 access points / 7 networks), and submitted the real network; the station associated in about 4 s on channel 11 at -45 dBm and the UART reported it as the pinned strongest access point; credentials were committed (to a RAM space in these first runs); after the 8 s hold the access point stopped and `maintain` reconnected in about 4 s (`wifi: ready after 0 failed attempt(s)`, same address). The page showed a `NetworkError` after the submit although the connection succeeded: see Known limitations. Second run, same setup (build `d0953ecf`): a wrong passphrase first. The attempt ended after 7.6 s with `FourWayHandshakeTimeout`, logged as `refused the credentials (check the passphrase)`, the pin was kept, the access point stayed up and the client came back; the retry with the right passphrase connected in 4.6 s (channel 11, -47 dBm, the pinned strongest access point), the access point stopped (130 ms) and `maintain` reconnected in about 4 s (`ready after 0 failed attempt(s)`, same address). `esp_wifi_internal_tx returned error: 12309` (`ESP_ERR_WIFI_NOT_ASSOC`) appears repeatedly during and after join attempts; it was harmless in both runs and its source is not diagnosed.
 
-Not yet exercised on hardware: that the access point is really gone from the air after the stop (only the firmware's own log was read), repeated start/stop cycles with a heap measurement, ESP32-C3, and a boot with no access point configured.
+Not yet exercised on hardware: the boot with saved credentials in NVS (added after these runs), that the access point is really gone from the air after the stop (only the firmware's own log was read), repeated start/stop cycles with a heap measurement, ESP32-C3, and a boot with no access point configured.
 
 ## Known limitations
 
