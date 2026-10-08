@@ -1,0 +1,32 @@
+[package]
+name = "wifi-ap-setup-esp32s3"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+# Portable product logic (no hardware): everything else here is the ESP32-S3 composition.
+wifi-ap-setup-example = { path = ".." }
+iobewi-wifi-core = { path = "../../../../net/wifi/core" }
+iobewi-wifi-manager = { path = "../../../../net/wifi/manager" }
+iobewi-config-space = { path = "../../../../fs/config" }
+iobewi-esp-wifi = { path = "../../../../drivers/net/wifi/esp32", features = ["esp32s3"] }
+iobewi-esp-tcp = { path = "../../../../drivers/net/tcp/esp32" }
+iobewi-esp-flash = { path = "../../../../drivers/flash/esp32", features = ["esp32s3"] }
+iobewi-esp-config-space = { path = "../../../../fs/nvs/config-esp32", features = ["esp32s3"] }
+esp-hal = { version = "~1.2", features = ["esp32s3", "unstable"] }
+esp-rtos = { version = "=0.4.0", features = ["esp32s3", "embassy", "esp-radio", "esp-alloc"] }
+esp-alloc = { version = "~0.11", features = ["esp32s3"] }
+esp-println = { version = "~0.18", default-features = false, features = ["esp32s3", "uart", "log-04"] }
+esp-bootloader-esp-idf = { version = "~0.6", features = ["esp32s3"] }
+embassy-executor = "0.10"
+embassy-net = { version = "0.9.1", features = ["dhcpv4", "medium-ethernet", "tcp", "udp"] }
+static_cell = "2"
+log = "0.4"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1

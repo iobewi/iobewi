@@ -48,6 +48,7 @@ jobs:
           /tmp/iobewi-wifi-keep-link-tests
       - run: cargo test -p iobewi-wifi-core
       - run: cargo test -p iobewi-wifi-manager
+      - run: cargo test -p wifi-ap-setup-example
       - run: cargo test -p iobewi-tls-service
       - run: cargo test -p iobewi-tls-http
       - run: cargo test -p iobewi-ota
@@ -120,7 +121,7 @@ jobs:
         run: bash tools/experiments/board15/run.sh ${{ matrix.mode }}
       - name: Wi-Fi access point provisioning example link
         working-directory: .
-        run: bash examples/wifi/ap-setup/run.sh ${{ matrix.mode }}
+        run: bash examples/wifi/ap-setup/esp32s3/run.sh ${{ matrix.mode }}
       - name: ESP32-C3 smoke
         run: |
           set -eux

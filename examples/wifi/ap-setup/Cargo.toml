@@ -1,36 +1,26 @@
 [package]
 name = "wifi-ap-setup-example"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Hardware-agnostic example: provision Wi-Fi through the soft access point (portable product logic)"
 publish = false
 
-[workspace]
-
 [dependencies]
-iobewi-esp-wifi = { path = "../../../drivers/net/wifi/esp32", features = ["esp32s3"] }
-iobewi-esp-tcp = { path = "../../../drivers/net/tcp/esp32" }
 iobewi-wifi-core = { path = "../../../net/wifi/core" }
 iobewi-wifi-manager = { path = "../../../net/wifi/manager" }
 iobewi-config-space = { path = "../../../fs/config" }
-iobewi-esp-flash = { path = "../../../drivers/flash/esp32", features = ["esp32s3"] }
-iobewi-esp-config-space = { path = "../../../fs/nvs/config-esp32", features = ["esp32s3"] }
 iobewi-http-server = { path = "../../../net/http/server" }
+iobewi-net-io = { path = "../../../net/io" }
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
-esp-hal = { version = "~1.2", features = ["esp32s3", "unstable"] }
-esp-rtos = { version = "=0.4.0", features = ["esp32s3", "embassy", "esp-radio", "esp-alloc"] }
-esp-alloc = { version = "~0.11", features = ["esp32s3"] }
-esp-println = { version = "~0.18", default-features = false, features = ["esp32s3", "uart", "log-04"] }
-esp-bootloader-esp-idf = { version = "~0.6", features = ["esp32s3"] }
-embassy-executor = "0.10"
-embassy-time = "0.5"
-embassy-net = { version = "0.9.1", features = ["dhcpv4", "medium-ethernet", "tcp", "udp"] }
 embassy-sync = "0.8"
+embassy-time = "0.5"
 embassy-futures = "0.1"
-static_cell = "2"
-log = "0.4"
+log = { version = "0.4", default-features = false }
 
-[profile.release]
-opt-level = "s"
-lto = "fat"
-codegen-units = 1
+[dev-dependencies]
+critical-section = { version = "1.2", features = ["std"] }
+embassy-time = { version = "0.5", features = ["std", "generic-queue-8"] }

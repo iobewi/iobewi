@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the provisioning proof for the ESP32-S3. `locked` (default) uses the committed
-# lockfile; `latest` first re-resolves this independent workspace.
+# Build the ESP32-S3 composition. `locked` (default) uses the committed lockfile; `latest` first
+# re-resolves this independent workspace.
 set -eu
 dir="$(cd "$(dirname "$0")" && pwd)"
 case "${1:-locked}" in

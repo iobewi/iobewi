@@ -2310,14 +2310,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
-name = "wifi-ap-setup-example"
+name = "wifi-ap-setup-esp32s3"
 version = "0.1.0"
 dependencies = [
  "embassy-executor",
- "embassy-futures",
  "embassy-net",
- "embassy-sync 0.8.0",
- "embassy-time",
  "esp-alloc",
  "esp-bootloader-esp-idf",
  "esp-hal",
@@ -2328,13 +2325,28 @@ dependencies = [
  "iobewi-esp-flash",
  "iobewi-esp-tcp",
  "iobewi-esp-wifi",
+ "iobewi-wifi-core",
+ "iobewi-wifi-manager",
+ "log",
+ "static_cell",
+ "wifi-ap-setup-example",
+]
+
+[[package]]
+name = "wifi-ap-setup-example"
+version = "0.1.0"
+dependencies = [
+ "embassy-futures",
+ "embassy-sync 0.8.0",
+ "embassy-time",
+ "iobewi-config-space",
  "iobewi-http-server",
+ "iobewi-net-io",
  "iobewi-wifi-core",
  "iobewi-wifi-manager",
  "log",
  "picoserve",
  "serde",
- "static_cell",
 ]
 
 [[package]]
