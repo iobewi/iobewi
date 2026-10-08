@@ -76,8 +76,9 @@ and configured by DHCP.
 - **Hardware acceptance is partial.** One run on an ESP32-S3 (see `examples/wifi/ap-setup`)
   observed association and lease, the product's page, provisioning with the access point up,
   the stop (as logged by the firmware) and the station's reconnection through `maintain`; the
-  access point followed the router's channel during the join. Still to verify, as listed in
-  the driver README: that the access point is really gone from the air and DHCP silent after
-  the stop (the run only shows the firmware's own log), the wrong-credentials path, unchanged
-  behavior with no access point configured, heap before, during and after repeated cycles,
-  and ESP32-C3. `BG-ESP-S3` applies; the complete gate needs a board.
+  access point followed the router's channel during the join. A wrong passphrase was refused
+  (`FourWayHandshakeTimeout`), left the access point up for a retry, and the right one then
+  connected. Still to verify, as listed in the driver README: that the access point is really
+  gone from the air and DHCP silent after the stop (the runs only show the firmware's own
+  log), unchanged behavior with no access point configured, heap before, during and after
+  repeated cycles, and ESP32-C3. `BG-ESP-S3` applies; the complete gate needs a board.
