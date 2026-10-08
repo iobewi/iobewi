@@ -71,7 +71,7 @@ Cargo.toml remains authoritative for features and exact dependencies.
 | `WifiProvisioning` | Portable `iobewi-wifi-manager` over that transport | Product supplies persistence and provisioning workflow |
 | `WifiAccessPoint` (`net/wifi/core`) | The same `WifiManager`, enabled by `ResourceRequest::ap_sockets` > 0 (the Board builds it with `with_access_point`); built-in DHCP via `edge-dhcp` ([ADR-0017](decisions/ADR-0017-wifi-access-point-port.md)) | Declare `ap_sockets`; choose SSID, WPA2 passphrase and lifetime; serve and stop the product's page on `access_point_handle()`; accept that start/stop restarts the radio and interrupts the station |
 | `ConfigBackend` (`fs/config`) | `NvsConfigBackend`, `iobewi-esp-config-space` (`fs/nvs/config-esp32`) | Supply SharedFlash, discovered NVS partition and space budgets |
-| `ConnectionListener` / `Close` (`net/io`) | `EspTcpListener` / `EspTcpStream`, `iobewi-esp-tcp` | Supply stack, port and buffers; management routes use TLS |
+| `ConnectionListener` / `Close` (`net/io`) | `TcpListener` / `TcpStream`, `iobewi-net-tcp` (`net/tcp`) | Supply stack, port and buffers; management routes use TLS |
 | `TlsDialer` (`net/tls/core`) | `EspTlsDialer`, `iobewi-esp-tls` | Initialize TLS and inject it into portable TLS service with configuration/time |
 | `SecureClientTransport` (`net/tls/core`) | `SecureConnector` in portable TLS service composed with EspTlsDialer | Certificate/time policy is separate from low-level dialing |
 | Secure server listener | `EspTlsListener`, `iobewi-esp-tls` | Compose TCP listener and server certificate/config provider |
@@ -102,7 +102,7 @@ GPIO descriptions and wiring profiles.
 ### Responsibilities of the legacy target-local path
 
 - **Plain outbound TCP connector:** `net/io::Connector` exists, but the current
-  tree only provides `SecureConnector` through the TLS service. `EspTcpListener`
+  tree only provides `SecureConnector` through the TLS service. `TcpListener`
   is inbound and is not an outbound connector. There is no plain ESP TCP
   Connector adapter yet. A product needing plain HTTP must currently supply
   target-local connection wiring; exposing `NetworkHandle = embassy_net::Stack`

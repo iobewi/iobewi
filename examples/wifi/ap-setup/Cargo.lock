@@ -1516,16 +1516,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-tcp"
-version = "0.1.0"
-dependencies = [
- "embassy-net",
- "embedded-io-async 0.7.0",
- "iobewi-net-io",
- "log",
-]
-
-[[package]]
 name = "iobewi-esp-usb"
 version = "0.1.0"
 dependencies = [
@@ -1578,6 +1568,16 @@ name = "iobewi-net-io"
 version = "0.1.0"
 dependencies = [
  "embedded-io-async 0.7.0",
+]
+
+[[package]]
+name = "iobewi-net-tcp"
+version = "0.1.0"
+dependencies = [
+ "embassy-net",
+ "embedded-io-async 0.7.0",
+ "iobewi-net-io",
+ "log",
 ]
 
 [[package]]
@@ -2428,10 +2428,10 @@ dependencies = [
  "iobewi-config-space",
  "iobewi-entry",
  "iobewi-entry-build",
- "iobewi-esp-tcp",
  "iobewi-http-server",
  "iobewi-log",
  "iobewi-net-io",
+ "iobewi-net-tcp",
  "iobewi-wifi-core",
  "iobewi-wifi-manager",
  "log",

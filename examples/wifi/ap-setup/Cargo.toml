@@ -29,8 +29,7 @@ iobewi-config-space = { path = "../../../fs/config" }
 iobewi-http-server = { path = "../../../net/http/server" }
 iobewi-net-io = { path = "../../../net/io" }
 iobewi-log = { path = "../../../log/core" }
-# An embassy-net listener (no HAL; the name is historical).
-iobewi-esp-tcp = { path = "../../../drivers/net/tcp/esp32" }
+iobewi-net-tcp = { path = "../../../net/tcp" }
 embassy-net = { version = "0.9.1", default-features = false, features = ["tcp", "medium-ethernet", "proto-ipv4"] }
 embedded-io-async = "0.7"
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }

@@ -98,7 +98,6 @@ jobs:
         run: |
           set -eux
           T=xtensa-esp32s3-none-elf
-          cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-tcp
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-workload --features esp32s3
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-ota --features esp32s3,shared-flash
           cargo +esp check $FLAGS -Z build-std=core,alloc --target $T -p iobewi-esp-config-space --features esp32s3

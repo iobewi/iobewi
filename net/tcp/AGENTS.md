@@ -1,15 +1,15 @@
-# Agent Context — iobewi-esp-tcp
+# Agent Context — iobewi-net-tcp
 
 <!-- GENERATED FILE — DO NOT EDIT. Source: README.md -->
 
-- Package: `iobewi-esp-tcp`
-- Path: `drivers/net/tcp/esp32`
-- Layer: `platform-adapter`
+- Package: `iobewi-net-tcp`
+- Path: `net/tcp`
+- Layer: `portable-service`
 - Status: `implemented`
 
 ## Role
 
-Embassy-net TCP listener and accepted async stream implementing portable net/io contracts.
+TCP listener and accepted async stream over an `embassy-net` stack, implementing the portable net/io contracts. No hardware dependency: it runs on any platform that provides an `embassy-net` stack. Formerly `iobewi-esp-tcp` under `drivers/net/tcp/esp32`; moved and renamed because nothing in it is ESP-specific.
 
 ## Owns
 
@@ -21,15 +21,15 @@ HTTP routes, TLS certificates/handshake, Wi-Fi initialization and selecting whic
 
 ## Architecture position
 
-Platform net/io implementation underneath the ESP TLS listener; HTTP service is layered above by the product.
+Portable net/io implementation over `embassy-net`, underneath the TLS listener (`drivers/net/tls/esp32`); the HTTP service is layered above by the product. Path: `net/tcp`.
 
 ## Public contracts
 
-`EspTcpListener::new(stack, port, rx, tx)`, `accept_connection`, ConnectionListener implementation and `EspTcpStream` implementing embedded async I/O and Close.
+`TcpListener::new(stack, port, rx, tx)`, `accept_connection`, ConnectionListener implementation and `TcpStream` implementing embedded async I/O and Close.
 
 ## Invariants
 
-- No additional crate-specific invariant is declared; repository-wide invariants still apply.
+- `INV-001`: no platform dependency; it needs only an `embassy-net` stack.
 
 ## Modification context
 
@@ -37,7 +37,7 @@ See the canonical README and implementation.
 
 ## Required validation
 
-Build targets/esp32 for the selected chip; BG-ESP-S3 validates TCP/TLS listener composition on hardware.
+Checked by `cargo check --workspace` on the host and, on the target, through the TLS driver (`cargo +esp check -p iobewi-esp-tls --features esp32s3,embassy-net`). There are no host tests: a listener needs a running stack. BG-ESP-S3 validates TCP/TLS listener composition on hardware.
 
 ## Known limitations
 

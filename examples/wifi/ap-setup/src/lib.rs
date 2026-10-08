@@ -32,7 +32,7 @@ use embedded_io_async::Write;
 use iobewi_board::{Board, BootIoFactory, ResourceRequest, Serial, SerialBank, UsbBootMode};
 use iobewi_config_space::ConfigManager;
 use iobewi_config_space::{ConfigBackend, ConfigSpace};
-use iobewi_esp_tcp::EspTcpListener;
+use iobewi_net_tcp::TcpListener;
 use iobewi_http_server::{HttpRouter, serve_forever_io};
 use iobewi_net_io::ConnectionListener;
 use iobewi_wifi_core::{AccessPointConfig, Network, WifiAccessPoint, WifiTransport};
@@ -401,10 +401,10 @@ struct StackPage {
 }
 
 impl PageListener<Stack<'static>> for StackPage {
-    type Listener<'a> = EspTcpListener<'a>;
+    type Listener<'a> = TcpListener<'a>;
 
-    fn listener(&mut self, access_point_network: Stack<'static>) -> EspTcpListener<'_> {
-        EspTcpListener::new(access_point_network, 80, &mut self.rx, &mut self.tx)
+    fn listener(&mut self, access_point_network: Stack<'static>) -> TcpListener<'_> {
+        TcpListener::new(access_point_network, 80, &mut self.rx, &mut self.tx)
     }
 }
 

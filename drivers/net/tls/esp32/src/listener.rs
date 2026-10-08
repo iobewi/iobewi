@@ -7,7 +7,7 @@ use embassy_net::Stack;
 use embassy_time::{Duration, Timer, with_timeout};
 use crate::mbedtls_rs::{Session, SessionConfig, SessionError};
 use crate::{TlsReferenceStatic, embassy::TlsStream};
-use iobewi_esp_tcp::EspTcpListener;
+use iobewi_net_tcp::TcpListener;
 use iobewi_net_io::ConnectionListener;
 use iobewi_net_tls_core::TlsListener;
 use log::{debug, warn};
@@ -25,7 +25,7 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 /// backing buffers) at the composition boundary that also never returns,
 /// e.g. an embassy task, and hand it to a generic `serve` loop from there.
 pub struct EspTlsListener<'a, LoadIdentity> {
-    tcp: EspTcpListener<'a>,
+    tcp: TcpListener<'a>,
     tls: TlsReferenceStatic,
     identity: LoadIdentity,
     config: Option<SessionConfig<'static>>,
@@ -43,7 +43,7 @@ where
         tx: &'a mut [u8],
     ) -> Self {
         Self {
-            tcp: EspTcpListener::new(stack, ADMIN_PORT_HTTPS, rx, tx),
+            tcp: TcpListener::new(stack, ADMIN_PORT_HTTPS, rx, tx),
             tls,
             identity,
             config: None,

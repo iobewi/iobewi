@@ -27,12 +27,12 @@ esp32c3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp3
 # `xtensa-esp32s3-elf-gcc` cross-compiler directly and never calls
 # `Config::target()` with the problematic triple at all.
 esp32s3 = ["dep:static_cell", "dep:iobewi-esp-entropy", "iobewi-esp-entropy/esp32s3", "iobewi-esp-entropy/rand-core", "iobewi-crypto-mbedtls/use-gcc"]
-embassy-net = ["dep:embassy-net", "dep:embassy-time", "dep:embedded-io-async", "dep:iobewi-net-io", "dep:iobewi-net-tls-core", "dep:iobewi-esp-tcp", "dep:log"]
+embassy-net = ["dep:embassy-net", "dep:embassy-time", "dep:embedded-io-async", "dep:iobewi-net-io", "dep:iobewi-net-tls-core", "dep:iobewi-net-tcp", "dep:log"]
 
 [dependencies]
 iobewi-crypto-mbedtls = { path = "../../../../crypto/mbedtls" }
 iobewi-esp-entropy = { path = "../../../hw_random/esp32", default-features = false, optional = true }
-iobewi-esp-tcp = { path = "../../tcp/esp32", optional = true }
+iobewi-net-tcp = { path = "../../../../net/tcp", optional = true }
 iobewi-net-io = { path = "../../../../net/io", optional = true }
 iobewi-net-tls-core = { path = "../../../../net/tls/core", optional = true }
 embedded-io-async = { version = "0.7.0", optional = true }

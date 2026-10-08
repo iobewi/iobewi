@@ -20,7 +20,7 @@ Hardware-agnostic example and hardware test method: provision Wi-Fi through the 
 
 ## Does not own
 
-- Names no chip, HAL, flash driver or board pin. The library depends on portable crates (`iobewi-board`, `iobewi-wifi-*`, `iobewi-config-space`, `iobewi-http-server`, `iobewi-net-io`, `iobewi-log`), on the hardware-independent `embassy-net`, `embassy-time`, `embassy-sync`, `embassy-futures`, `picoserve`, `serde` and `log`, and on `iobewi-esp-tcp`, an `embassy-net` listener with no HAL dependency whose name is historical.
+- Names no chip, HAL, flash driver or board pin. The library depends on portable crates (`iobewi-board`, `iobewi-wifi-*`, `iobewi-config-space`, `iobewi-http-server`, `iobewi-net-io`, `iobewi-log`), on the hardware-independent `embassy-net`, `embassy-time`, `embassy-sync`, `embassy-futures`, `picoserve`, `serde` and `log`, and on `iobewi-net-tcp` (an `embassy-net` TCP listener).
 - Not a product: the page is plain HTTP on the access point network (the exception described in ADR-0017) with no authentication beyond the access point's WPA2 passphrase; no captive portal, no HTTPS. The access point's passphrase is a test value (`123456789`, overridable with `SETUP_AP_PASSWORD` at build time); a product needs a unique secret.
 - There is no factory-reset control: reflashing the merged image rewrites the NVS area and starts over.
 

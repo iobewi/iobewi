@@ -701,6 +701,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "iobewi-net-tcp"
+version = "0.1.0"
+dependencies = [
+ "embassy-net",
+ "embedded-io-async 0.7.0",
+ "iobewi-net-io",
+ "log",
+]
+
+[[package]]
 name = "iobewi-net-tls-core"
 version = "0.1.0"
 dependencies = [

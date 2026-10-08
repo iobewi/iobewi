@@ -2129,16 +2129,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iobewi-esp-tcp"
-version = "0.1.0"
-dependencies = [
- "embassy-net",
- "embedded-io-async 0.7.0",
- "iobewi-net-io",
- "log",
-]
-
-[[package]]
 name = "iobewi-esp-tls"
 version = "0.1.0"
 dependencies = [
@@ -2147,8 +2137,8 @@ dependencies = [
  "embedded-io-async 0.7.0",
  "iobewi-crypto-mbedtls",
  "iobewi-esp-entropy",
- "iobewi-esp-tcp",
  "iobewi-net-io",
+ "iobewi-net-tcp",
  "iobewi-net-tls-core",
  "log",
  "static_cell",
@@ -2242,6 +2232,16 @@ name = "iobewi-net-io"
 version = "0.1.0"
 dependencies = [
  "embedded-io-async 0.7.0",
+]
+
+[[package]]
+name = "iobewi-net-tcp"
+version = "0.1.0"
+dependencies = [
+ "embassy-net",
+ "embedded-io-async 0.7.0",
+ "iobewi-net-io",
+ "log",
 ]
 
 [[package]]

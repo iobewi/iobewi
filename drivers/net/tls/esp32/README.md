@@ -48,5 +48,5 @@ ESP32-S3 MbedTLS uses the GCC path because the CMake/clang path mishandles the X
 - `crypto/mbedtls`
 - `net/tls/core`
 - `net/tls/service`
-- `drivers/net/tcp/esp32`
+- `net/tcp`
 

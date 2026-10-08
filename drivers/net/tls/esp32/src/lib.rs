@@ -8,7 +8,7 @@
 //! - an Embassy DNS/TCP/TLS client dialer ([`embassy::EspTlsDialer`], the
 //!   `iobewi_net_tls_core::TlsDialer` implementation);
 //! - the TLS server listener ([`listener::EspTlsListener`], the
-//!   `iobewi_net_tls_core::TlsListener` implementation) over `iobewi-esp-tcp`;
+//!   `iobewi_net_tls_core::TlsListener` implementation) over `iobewi-net-tcp`;
 //! - a connected TLS session as a `net/io` connection
 //!   ([`embassy::TlsStream`]).
 //!
