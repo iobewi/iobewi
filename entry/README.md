@@ -26,7 +26,7 @@ The facade reexports dependencies used by its macro. A reserved module contains 
 
 ## Public API
 
-entry!(product::run) uses product::BOARD_RESOURCES: ResourceRequest. The explicit form is entry!(path::run, resources = path::REQUEST). Select esp32s3 and call iobewi_entry_build::emit() in build.rs. The async product is run<B: Board>(board: B).
+entry!(product::run) uses product::BOARD_RESOURCES: ResourceRequest (`sockets` for the station stack, `ap_sockets` for the soft access point's own stack, 0 for none). The explicit form is entry!(path::run, resources = path::REQUEST). Select esp32s3 and call iobewi_entry_build::emit() in build.rs. The async product is run<B: Board>(board: B).
 
 ## Invariants
 

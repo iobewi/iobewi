@@ -1,26 +1,54 @@
 [package]
 name = "wifi-ap-setup-example"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-description = "Hardware-agnostic example: provision Wi-Fi through the soft access point (portable product logic)"
+version = "0.1.0"
+edition = "2024"
 publish = false
+description = "Hardware-agnostic example: provision Wi-Fi through the soft access point; the chip is chosen by a Cargo feature"
+
+[workspace]
+
+[lib]
+name = "wifi_ap_setup_example"
+
+[[bin]]
+name = "wifi-ap-setup"
+path = "src/main.rs"
+required-features = ["esp32s3"]
+
+[features]
+default = []
+# Selects the hardware at compile time (ADR-0015 entry). Build for the matching target:
+# `cargo +esp build --release --features esp32s3 --target xtensa-esp32s3-none-elf -Z build-std=core,alloc`.
+esp32s3 = ["dep:entry_api", "dep:iobewi-entry-build"]
 
 [dependencies]
+iobewi-board = { path = "../../../board" }
 iobewi-wifi-core = { path = "../../../net/wifi/core" }
 iobewi-wifi-manager = { path = "../../../net/wifi/manager" }
 iobewi-config-space = { path = "../../../fs/config" }
 iobewi-http-server = { path = "../../../net/http/server" }
 iobewi-net-io = { path = "../../../net/io" }
+iobewi-log = { path = "../../../log/core" }
+# An embassy-net listener (no HAL; the name is historical).
+iobewi-esp-tcp = { path = "../../../drivers/net/tcp/esp32" }
+embassy-net = { version = "0.9.1", default-features = false, features = ["tcp", "medium-ethernet", "proto-ipv4"] }
+embedded-io-async = "0.7"
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "alloc"] }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 embassy-sync = "0.8"
 embassy-time = "0.5"
 embassy-futures = "0.1"
 log = { version = "0.4", default-features = false }
+entry_api = { package = "iobewi-entry", path = "../../../entry", features = ["esp32s3"], optional = true }
+
+[build-dependencies]
+iobewi-entry-build = { path = "../../../entry-build", optional = true }
 
 [dev-dependencies]
 critical-section = { version = "1.2", features = ["std"] }
 embassy-time = { version = "0.5", features = ["std", "generic-queue-8"] }
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1

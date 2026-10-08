@@ -138,7 +138,13 @@ pub trait Board: Sized {
 /// linked RAM/stack check; no universal socket count is encoded by Board.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResourceRequest {
+    /// Sockets of the station's network stack.
     pub sockets: usize,
+    /// Sockets of the soft access point's own network stack; `0` asks for no access point.
+    /// A product that provisions through an access point needs at least 2: the platform's
+    /// address (DHCP) service takes one, the product's own service (for example a listener)
+    /// the rest.
+    pub ap_sockets: usize,
     pub heap_bytes: usize,
     pub minimum_stack_bytes: usize,
 }

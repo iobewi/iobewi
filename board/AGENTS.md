@@ -68,7 +68,7 @@ consumers must not infer UART/JTAG identity from an index.
 
 ### Product resource declaration
 
-ResourceRequest declares sockets, heap_bytes and minimum_stack_bytes before platform construction. The product chooses socket count; the platform admits the byte requirement or fails, without reducing it. The minimum stack is a linker reservation requirement, not a measured free-stack guarantee.
+ResourceRequest declares sockets, ap_sockets, heap_bytes and minimum_stack_bytes before platform construction. `sockets` sizes the station's network stack; `ap_sockets` sizes the soft access point's own stack and is 0 for a product that has no access point (at least 2 otherwise: the platform's address service takes one). A product that uses the access point adds the bound `B::Wifi: WifiAccessPoint` to its `run<B: Board>`. The product chooses socket counts; the platform admits the byte requirement or fails, without reducing it. The minimum stack is a linker reservation requirement, not a measured free-stack guarantee.
 
 ## Invariants
 

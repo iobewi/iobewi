@@ -1397,24 +1397,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
-name = "wifi-ap-setup-example"
-version = "0.1.0"
-dependencies = [
- "critical-section",
- "embassy-futures",
- "embassy-sync",
- "embassy-time",
- "iobewi-config-space",
- "iobewi-http-server",
- "iobewi-net-io",
- "iobewi-wifi-core",
- "iobewi-wifi-manager",
- "log",
- "picoserve",
- "serde",
-]
-
-[[package]]
 name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

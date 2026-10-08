@@ -51,8 +51,9 @@ and configured by DHCP.
 - The product, not the driver, serves HTTP on `access_point_handle()` and stops it when it
   stops the access point. Plain HTTP on that network is an exception to the TLS-only management
   policy and must be limited to it.
-- Wiring a second `StackResources` through `Board`, `entry` and their resource budget is a
-  separate change; this decision adds no product dependency to those crates.
+- The access point's own socket set is requested through `ResourceRequest::ap_sockets` (0 = no
+  access point) and built by the ESP Board and the `entry!` macro, so a product reaches the access
+  point through `Board` with the bound `B::Wifi: WifiAccessPoint`, without naming a chip.
 - No captive DNS or portal.
 
 ## Alternatives considered

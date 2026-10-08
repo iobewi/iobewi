@@ -5,6 +5,7 @@ use iobewi_config_space::{Budget, ConfigManager};
 use iobewi_device::DeviceMetadata;
 pub const BOARD_RESOURCES: ResourceRequest = ResourceRequest {
     sockets: 3,
+    ap_sockets: 0,
     heap_bytes: 96 * 1024,
     minimum_stack_bytes: 16 * 1024,
 };

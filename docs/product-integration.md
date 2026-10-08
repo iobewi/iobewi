@@ -69,7 +69,7 @@ Cargo.toml remains authoritative for features and exact dependencies.
 | --- | --- | --- |
 | `WifiTransport` (`net/wifi/core`) | `WifiManager<SOCKETS>` in `iobewi-esp-wifi` (`drivers/net/wifi/esp32`) | Create radio/runtime/network resources; pass transport to portable Wi-Fi manager |
 | `WifiProvisioning` | Portable `iobewi-wifi-manager` over that transport | Product supplies persistence and provisioning workflow |
-| `WifiAccessPoint` (`net/wifi/core`) | The same `WifiManager`, opt-in through `with_access_point(resources)`; built-in DHCP via `edge-dhcp` ([ADR-0017](decisions/ADR-0017-wifi-access-point-port.md)) | Supply the access point's `StackResources`; choose SSID, WPA2 passphrase and lifetime; serve and stop the product's page on `access_point_handle()`; accept that start/stop restarts the radio and interrupts the station |
+| `WifiAccessPoint` (`net/wifi/core`) | The same `WifiManager`, enabled by `ResourceRequest::ap_sockets` > 0 (the Board builds it with `with_access_point`); built-in DHCP via `edge-dhcp` ([ADR-0017](decisions/ADR-0017-wifi-access-point-port.md)) | Declare `ap_sockets`; choose SSID, WPA2 passphrase and lifetime; serve and stop the product's page on `access_point_handle()`; accept that start/stop restarts the radio and interrupts the station |
 | `ConfigBackend` (`fs/config`) | `NvsConfigBackend`, `iobewi-esp-config-space` (`fs/nvs/config-esp32`) | Supply SharedFlash, discovered NVS partition and space budgets |
 | `ConnectionListener` / `Close` (`net/io`) | `EspTcpListener` / `EspTcpStream`, `iobewi-esp-tcp` | Supply stack, port and buffers; management routes use TLS |
 | `TlsDialer` (`net/tls/core`) | `EspTlsDialer`, `iobewi-esp-tls` | Initialize TLS and inject it into portable TLS service with configuration/time |
@@ -210,7 +210,10 @@ Networking/virtual-media composition does not extend the Workload ABI implicitly
 The first profile uses BOOT GPIO0, UART0 TX43/RX44 and USB D+20/D-19. It is
 selected by the entry `esp32s3` feature; arbitrary board profiles are not implemented.
 The portable product exports `BOARD_RESOURCES: iobewi_board::ResourceRequest`
-and `async fn run<B: Board>(board: B)` with any additional service bounds.
+and `async fn run<B: Board>(board: B)` with any additional service bounds (for the
+soft access point: `B::Wifi: WifiAccessPoint<NetworkHandle = embassy_net::Stack<'static>>`
+and `ap_sockets` in the request). The chip is a Cargo feature of the product, chosen at
+build time; the worked example is `examples/wifi/ap-setup`.
 The facade calls it through `iobewi_entry::entry!(product::run)`. The firmware
 uses `iobewi_entry_build::emit()` in build.rs. See the canonical
 [entry README](../entry/README.md) and [downstream fixture](../tools/experiments/board15/product/README.md).

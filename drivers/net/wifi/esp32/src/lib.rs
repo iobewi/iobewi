@@ -142,7 +142,9 @@ const SCAN_MAX_RECORDS: usize = 40;
 const ASSOCIATE_TIMEOUT: Duration = Duration::from_secs(20);
 const DHCP_TIMEOUT: Duration = Duration::from_secs(20);
 
-impl<const SOCKETS: usize> WifiManager<SOCKETS, 0> {
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCKETS> {
+    /// `AP_SOCKETS` defaults to 0 in the type, so `WifiManager<SOCKETS>` is a plain station until
+    /// [`WifiManager::with_access_point`] is called.
     pub fn new(
         peripheral: WIFI<'static>,
         spawner: Spawner,
@@ -167,26 +169,18 @@ impl<const SOCKETS: usize> WifiManager<SOCKETS, 0> {
     /// network: one socket for the built-in DHCP server plus whatever the
     /// product serves there (for example one TCP listener). The access point
     /// stack and the DHCP service are created lazily at the first
-    /// [`WifiAccessPoint::start_access_point`].
-    pub fn with_access_point<const AP_SOCKETS: usize>(
-        self,
-        resources: &'static mut StackResources<AP_SOCKETS>,
-    ) -> WifiManager<SOCKETS, AP_SOCKETS> {
-        WifiManager {
-            peripheral: self.peripheral,
-            spawner: self.spawner,
-            resources: self.resources,
-            radio: self.radio,
-            strongest_bssid: self.strongest_bssid,
-            connection: self.connection,
-            ap_resources: Some(resources),
-            ap_stack: None,
-            ap_config: None,
+    /// [`WifiAccessPoint::start_access_point`]. Without this call (or with
+    /// `AP_SOCKETS` 0) `start_access_point` reports failure.
+    pub fn with_access_point(mut self, resources: &'static mut StackResources<AP_SOCKETS>) -> Self {
+        if AP_SOCKETS < 2 {
+            // The DHCP server takes one socket; a smaller set could only panic later.
+            warn!("Wi-Fi: access point resources need at least 2 sockets; access point disabled");
+            return self;
         }
+        self.ap_resources = Some(resources);
+        self
     }
-}
 
-impl<const SOCKETS: usize, const AP_SOCKETS: usize> WifiManager<SOCKETS, AP_SOCKETS> {
     /// The device's current IPv4 address, if online.
     pub fn ip(&self) -> Option<embassy_net::Ipv4Address> {
         Some(self.radio.as_ref()?.stack.config_v4()?.address.address())

@@ -109,9 +109,9 @@ impl DeviceMetadata for EspBoardIdentity {
 }
 extern crate alloc;
 
-pub struct EspBoard<const SOCKETS: usize> {
+pub struct EspBoard<const SOCKETS: usize, const AP_SOCKETS: usize> {
     parts: BoardParts<
-        iobewi_esp_wifi::WifiManager<SOCKETS>,
+        iobewi_esp_wifi::WifiManager<SOCKETS, AP_SOCKETS>,
         NvsConfigBackend,
         esp_hal::gpio::Input<'static>,
         EspBootIo,
@@ -119,8 +119,8 @@ pub struct EspBoard<const SOCKETS: usize> {
         EspBoardIdentity,
     >,
 }
-impl<const SOCKETS: usize> Board for EspBoard<SOCKETS> {
-    type Wifi = iobewi_esp_wifi::WifiManager<SOCKETS>;
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> Board for EspBoard<SOCKETS, AP_SOCKETS> {
+    type Wifi = iobewi_esp_wifi::WifiManager<SOCKETS, AP_SOCKETS>;
     type Config = NvsConfigBackend;
     type Button = esp_hal::gpio::Input<'static>;
     type Io = EspBootIo;
@@ -134,9 +134,10 @@ impl<const SOCKETS: usize> Board for EspBoard<SOCKETS> {
     }
 }
 
-pub struct Startup<const SOCKETS: usize> {
+pub struct Startup<const SOCKETS: usize, const AP_SOCKETS: usize> {
     wifi: WIFI<'static>,
     resources: &'static mut StackResources<SOCKETS>,
+    ap_resources: &'static mut StackResources<AP_SOCKETS>,
     flash: &'static iobewi_esp_flash::SharedFlash,
     button: esp_hal::gpio::Input<'static>,
     io: EspBootIo,
@@ -152,13 +153,14 @@ impl StartupFailure {
     }
 }
 
-impl<const SOCKETS: usize> Startup<SOCKETS> {
+impl<const SOCKETS: usize, const AP_SOCKETS: usize> Startup<SOCKETS, AP_SOCKETS> {
     /// Called once on the entry main stack; heap initializer is supplied by the
     /// expansion so its reservation uses the product's const request.
     pub fn prepare(
         p: Peripherals,
         request: ResourceRequest,
         resources: &'static mut StackResources<SOCKETS>,
+        ap_resources: &'static mut StackResources<AP_SOCKETS>,
         out: &'static mut [u8],
         initialize_heap: impl FnOnce(),
     ) -> Self {
@@ -168,11 +170,16 @@ impl<const SOCKETS: usize> Startup<SOCKETS> {
                 core::hint::spin_loop();
             }, // UART itself unavailable.
         };
+        // The access point is optional (`ap_sockets` 0); asking for one socket cannot work: the
+        // address service takes it and nothing would be left for the product.
         if request.sockets != SOCKETS
+            || request.ap_sockets != AP_SOCKETS
             || SOCKETS == 0
+            || AP_SOCKETS == 1
             || validate_resources(
                 request.heap_bytes,
-                core::mem::size_of::<StackResources<SOCKETS>>(),
+                core::mem::size_of::<StackResources<SOCKETS>>()
+                    + core::mem::size_of::<StackResources<AP_SOCKETS>>(),
                 out.len(),
                 request.minimum_stack_bytes,
                 S3_NATIVE_USB.resource_budget_bytes,
@@ -197,6 +204,7 @@ impl<const SOCKETS: usize> Startup<SOCKETS> {
         Self {
             wifi: p.WIFI,
             resources,
+            ap_resources,
             flash,
             button: iobewi_esp_input::boot_button(p.GPIO0),
             io: EspBootIo {
@@ -212,14 +220,28 @@ impl<const SOCKETS: usize> Startup<SOCKETS> {
     }
     /// Complete async NVS initialization before exposing an infallible Board split.
     /// No native USB controller has been initialized, even on the error path.
-    pub async fn finish(self, spawner: Spawner) -> Result<EspBoard<SOCKETS>, StartupFailure> {
+    pub async fn finish(
+        self,
+        spawner: Spawner,
+    ) -> Result<EspBoard<SOCKETS, AP_SOCKETS>, StartupFailure> {
         let config = match NvsConfigBackend::from_label(self.flash, S3_NATIVE_USB.nvs_label).await {
             Ok(config) => config,
             Err(error) => return Err(StartupFailure { error, io: self.io }),
         };
+        let wifi = iobewi_esp_wifi::WifiManager::<SOCKETS, AP_SOCKETS>::new(
+            self.wifi,
+            spawner,
+            self.resources,
+        );
+        // The access point exists only when the product asked for it (`ap_sockets` > 0).
+        let wifi = if AP_SOCKETS > 0 {
+            wifi.with_access_point(self.ap_resources)
+        } else {
+            wifi
+        };
         Ok(EspBoard {
             parts: BoardParts {
-                wifi: iobewi_esp_wifi::WifiManager::new(self.wifi, spawner, self.resources),
+                wifi,
                 config,
                 button: self.button,
                 io: self.io,

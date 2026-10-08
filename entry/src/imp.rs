@@ -27,10 +27,10 @@ macro_rules! entry {
             use super::*;
             use $crate::esp_hal;
             const REQUEST: $crate::ResourceRequest = $resources;
-            type Board = $crate::EspBoard<{ REQUEST.sockets }>;
+            type Board = $crate::EspBoard<{ REQUEST.sockets }, { REQUEST.ap_sockets }>;
             $crate::esp_bootloader_esp_idf::esp_app_desc!();
             #[$crate::embassy_executor::task(embassy_executor = $crate::embassy_executor)]
-            async fn __iobewi_task(spawner: $crate::embassy_executor::Spawner, startup: $crate::Startup<{ REQUEST.sockets }>) {
+            async fn __iobewi_task(spawner: $crate::embassy_executor::Spawner, startup: $crate::Startup<{ REQUEST.sockets }, { REQUEST.ap_sockets }>) {
                 core::hint::black_box(&MAIN_LAYOUT);
                 core::hint::black_box(&PRODUCT_LAYOUT);
                 core::hint::black_box(&CHIP);
@@ -39,7 +39,7 @@ macro_rules! entry {
             }
             #[used]
             #[unsafe(export_name = "__iobewi_entry_main_layout")]
-            static MAIN_LAYOUT: [u32;2] = $crate::future_layout::<_, ($crate::embassy_executor::Spawner, $crate::Startup<{ REQUEST.sockets }>)>(____iobewi_task_task);
+            static MAIN_LAYOUT: [u32;2] = $crate::future_layout::<_, ($crate::embassy_executor::Spawner, $crate::Startup<{ REQUEST.sockets }, { REQUEST.ap_sockets }>)>(____iobewi_task_task);
             #[used]
             #[unsafe(export_name = "__iobewi_entry_product_layout")]
             static PRODUCT_LAYOUT: [u32;2] = $crate::future_layout::<_, (Board,)>($run);
@@ -51,8 +51,9 @@ macro_rules! entry {
                 let _diagnostics = $crate::EspRuntimeDiagnostics::initialize();
                 let p = $crate::esp_hal::init($crate::esp_hal::Config::default().with_cpu_clock($crate::esp_hal::clock::CpuClock::max()));
                 static RESOURCES: $crate::static_cell::StaticCell<$crate::embassy_net::StackResources<{ REQUEST.sockets }>> = $crate::static_cell::StaticCell::new();
+                static AP_RESOURCES: $crate::static_cell::StaticCell<$crate::embassy_net::StackResources<{ REQUEST.ap_sockets }>> = $crate::static_cell::StaticCell::new();
                 static USB_OUT: $crate::static_cell::StaticCell<[u8;1024]> = $crate::static_cell::StaticCell::new();
-                let startup = $crate::Startup::prepare(p, REQUEST, RESOURCES.init($crate::embassy_net::StackResources::new()), USB_OUT.init([0;1024]), || {
+                let startup = $crate::Startup::prepare(p, REQUEST, RESOURCES.init($crate::embassy_net::StackResources::new()), AP_RESOURCES.init($crate::embassy_net::StackResources::new()), USB_OUT.init([0;1024]), || {
                     $crate::esp_alloc::heap_allocator!(size: REQUEST.heap_bytes);
                 });
                 let mut executor = $crate::esp_rtos::embassy::Executor::new();

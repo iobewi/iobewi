@@ -1,10 +1,11 @@
 #![no_std]
 
-//! Hardware-agnostic product logic for provisioning a device through its own soft access point
-//! (ADR-0017). It consumes ports only: a transport that is both a [`WifiTransport`] and a
-//! [`WifiAccessPoint`], a [`ConfigBackend`] and a [`ConnectionListener`] bound to the access
-//! point's network. Nothing here names a chip, a HAL or a network stack; a target composition
-//! package (see `esp32s3/`) owns the hardware and calls [`run`].
+//! Hardware-agnostic product for provisioning a device through its own soft access point
+//! (ADR-0017). [`run`] is generic over the framework's [`Board`]: the hardware is chosen at
+//! compile time by the entry crate's Cargo feature (`esp32s3`), and nothing in this library
+//! names a chip, a HAL or a flash driver. The sequence itself ([`run_product`]) consumes ports
+//! only: a transport that is both a [`WifiTransport`] and a [`WifiAccessPoint`], a
+//! [`ConfigBackend`] and a [`PageListener`].
 //!
 //! Sequence: a boot with saved credentials joins the network directly and never opens the
 //! access point. Without credentials: scan, open the access point, serve a form listing the
@@ -22,14 +23,20 @@ use core::cell::RefCell;
 use core::fmt::{Debug, Display};
 
 use embassy_futures::select::{Either, select};
+use embassy_net::Stack;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
+use embedded_io_async::Write;
+use iobewi_board::{Board, BootIoFactory, ResourceRequest, Serial, SerialBank, UsbBootMode};
+use iobewi_config_space::ConfigManager;
 use iobewi_config_space::{ConfigBackend, ConfigSpace};
+use iobewi_esp_tcp::EspTcpListener;
 use iobewi_http_server::{HttpRouter, serve_forever_io};
 use iobewi_net_io::ConnectionListener;
 use iobewi_wifi_core::{AccessPointConfig, Network, WifiAccessPoint, WifiTransport};
+use iobewi_wifi_manager::CONFIG_BUDGET;
 use iobewi_wifi_manager::{LinkObserver, Sleep, WifiManager, is_provisioned};
 use log::{info, warn};
 use picoserve::extract::Form;
@@ -334,9 +341,9 @@ async fn setup<T, B, P>(
     );
 }
 
-/// The product: boots into the network when credentials are saved, otherwise provisions through
-/// the access point; then keeps the station connected forever.
-pub async fn run<T, B, P>(
+/// The product sequence: boots into the network when credentials are saved, otherwise provisions
+/// through the access point; then keeps the station connected forever.
+pub async fn run_product<T, B, P>(
     transport: T,
     space: ConfigSpace<B>,
     access_point: &AccessPointConfig,
@@ -367,6 +374,102 @@ where
         warn!("SETUP: maintain ended ({ended:?}): no usable credentials, back to setup");
         provisioned = false;
     }
+}
+
+/// What the product asks of the platform: a station stack, an access point stack for the page and
+/// the address service, heap and stack.
+pub const BOARD_RESOURCES: ResourceRequest = ResourceRequest {
+    sockets: 4,
+    ap_sockets: 4,
+    heap_bytes: 160 * 1024,
+    minimum_stack_bytes: 16 * 1024,
+};
+
+const SETUP_SSID: &str = "IOBEWI-Setup";
+/// Test-only passphrase, overridable at build time (`SETUP_AP_PASSWORD`). A product must use a
+/// unique secret (ADR-0017).
+const SETUP_PASSPHRASE: &str = match option_env!("SETUP_AP_PASSWORD") {
+    Some(value) => value,
+    None => "123456789",
+};
+const SETUP_CHANNEL: u8 = 6;
+
+/// The page's listener over the access point's `embassy-net` stack, port 80.
+struct StackPage {
+    rx: [u8; 1024],
+    tx: [u8; 1024],
+}
+
+impl PageListener<Stack<'static>> for StackPage {
+    type Listener<'a> = EspTcpListener<'a>;
+
+    fn listener(&mut self, access_point_network: Stack<'static>) -> EspTcpListener<'_> {
+        EspTcpListener::new(access_point_network, 80, &mut self.rx, &mut self.tx)
+    }
+}
+
+/// Writes the captured log records to the board's first serial port, forever.
+async fn drain_logs<W: Write>(tx: &mut W) -> ! {
+    loop {
+        while let Some(record) = iobewi_log::pop_record() {
+            let line = alloc::format!(
+                "{} {}: {}\r\n",
+                record.level,
+                record.target.as_str(),
+                record.message.as_str()
+            );
+            let _ = tx.write_all(line.as_bytes()).await;
+        }
+        Timer::after_millis(50).await;
+    }
+}
+
+/// The entry point for the framework's `entry!`: generic over the board, so the same source
+/// builds for any chip whose entry feature is selected.
+pub async fn run<B: Board>(board: B)
+where
+    B::Wifi: WifiAccessPoint<NetworkHandle = Stack<'static>>,
+    <B::Wifi as WifiTransport>::Address: Display,
+    <B::Config as ConfigBackend>::Error: Debug,
+    <B::Io as BootIoFactory>::Error: Debug,
+{
+    let parts = board.into_parts();
+
+    // Logs: capture everything at Info and above, and send it to the first serial port.
+    iobewi_log::install(|_| {}, "wifi_ap_setup_example");
+    iobewi_log::apply_policy(iobewi_log::LogPolicy::new(log::LevelFilter::Info));
+    let Ok(mut io) = parts.io.select(UsbBootMode::Provisioning) else {
+        core::future::pending::<()>().await;
+        return;
+    };
+    let Some(Serial {
+        tx: mut console, ..
+    }) = io.serial.take_next()
+    else {
+        core::future::pending::<()>().await;
+        return;
+    };
+
+    let mut config = ConfigManager::new(parts.config);
+    let Ok(space) = config.claim("wifi", CONFIG_BUDGET) else {
+        warn!("SETUP: FAIL configuration space");
+        core::future::pending::<()>().await;
+        return;
+    };
+    let Ok(access_point) = AccessPointConfig::new(SETUP_SSID, SETUP_PASSPHRASE, SETUP_CHANNEL)
+    else {
+        core::future::pending::<()>().await;
+        return;
+    };
+    let page = StackPage {
+        rx: [0; 1024],
+        tx: [0; 1024],
+    };
+    select(
+        drain_logs(&mut console),
+        run_product(parts.wifi, space, &access_point, page),
+    )
+    .await;
 }
 
 #[cfg(test)]
